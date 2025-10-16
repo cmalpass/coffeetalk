@@ -15,6 +15,15 @@ A .NET Semantic Kernel CLI application that orchestrates multi-persona LLM conve
 - .NET 8.0 SDK or later
 - OpenAI API key (for OpenAI provider) or Ollama running locally
 
+## Package Restoration
+
+This project is configured to use only the standard public NuGet package source (nuget.org) via the included `nuget.config` file. This ensures that the project can be restored consistently across different environments without requiring access to any private NuGet feeds.
+
+The project will automatically restore packages from:
+- https://api.nuget.org/v3/index.json
+
+No additional NuGet source configuration is required.
+
 ## Quick Start
 
 1. **Clone the repository**:

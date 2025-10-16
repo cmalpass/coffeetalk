@@ -127,8 +127,8 @@ public class PersonaAgent
     {
         var chatService = _kernel.GetRequiredService<IChatCompletionService>();
 
-        // Build context from recent conversation history (last 5 messages)
-        var recentHistory = conversationHistory.TakeLast(5).ToList();
+        // Build context from recent conversation history (all messages for simplicity)
+        var recentHistory = conversationHistory.ToList();
         var contextMessage = recentHistory.Count > 0
             ? $"Recent conversation:\n{string.Join("\n", recentHistory)}\n\nCurrent message: {currentMessage}"
             : currentMessage;
