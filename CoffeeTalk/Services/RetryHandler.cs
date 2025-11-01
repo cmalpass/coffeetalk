@@ -1,4 +1,3 @@
-using Microsoft.SemanticKernel;
 using System.Net;
 using CoffeeTalk.Models;
 
@@ -26,7 +25,7 @@ public static class RetryHandler
             {
                 return await operation();
             }
-            catch (HttpOperationException ex) when (ex.StatusCode == HttpStatusCode.TooManyRequests)
+            catch (HttpRequestException ex) when (IsRateLimitHttpException(ex))
             {
                 retryCount++;
                 
@@ -69,6 +68,11 @@ public static class RetryHandler
                 delaySeconds = (int)(delaySeconds * _config.BackoffMultiplier);
             }
         }
+    }
+
+    private static bool IsRateLimitHttpException(HttpRequestException ex)
+    {
+        return ex.StatusCode == HttpStatusCode.TooManyRequests;
     }
 
     private static bool IsRateLimitException(Exception ex)

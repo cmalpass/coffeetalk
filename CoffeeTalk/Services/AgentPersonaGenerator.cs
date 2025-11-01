@@ -1,27 +1,24 @@
-using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.Agents.AI;
 using CoffeeTalk.Models;
 using System.Text.Json;
-using System.Linq;
 
 namespace CoffeeTalk.Services;
 
-public class PersonaGenerator
+/// <summary>
+/// Generates personas dynamically for a given topic using Microsoft Agent Framework
+/// </summary>
+public class AgentPersonaGenerator
 {
-    private readonly Kernel _kernel;
+    private readonly AIAgent _agent;
 
-    public PersonaGenerator(Kernel kernel)
+    public AgentPersonaGenerator(AIAgent agent)
     {
-        _kernel = kernel;
+        _agent = agent;
     }
 
-    public async Task<List<PersonaConfig>> GenerateAsync(string topic, int requestedCount, IEnumerable<string>? reservedNames = null)
+    public static string BuildSystemPrompt()
     {
-        int count = Math.Clamp(requestedCount, 2, 10);
-        var chat = _kernel.GetRequiredService<IChatCompletionService>();
-
-        var history = new ChatHistory();
-        history.AddSystemMessage(@"You generate a set of distinct, complementary expert personas for a collaborative discussion.
+        return @"You generate a set of distinct, complementary expert personas for a collaborative discussion.
 REQUIREMENTS:
 - Produce JSON ONLY. No explanations.
 - Return an array of objects with fields: name (string), systemPrompt (string)
@@ -31,22 +28,25 @@ REQUIREMENTS:
 - Keep names short and unique.
 - 2 to 10 personas max.
 - The orchestrator and editor already exist; DO NOT include them in the output.
-- Emphasize constructive collaboration, concision, and evidence-based reasoning.
-");
+- Emphasize constructive collaboration, concision, and evidence-based reasoning.";
+    }
 
-        history.AddUserMessage($"Topic: {topic}\nGenerate {count} personas for this conversation. JSON array only, in this shape:\n[\n  {{\"name\":\"<ShortUniqueName>\",\"systemPrompt\":\"You are <ShortUniqueName>, <1-2 sentence role and perspective>. Collaborate concisely, avoid redundancy, and use tools effectively when available.\"}},\n  ...\n]");
+    public async Task<List<PersonaConfig>> GenerateAsync(string topic, int requestedCount, IEnumerable<string>? reservedNames = null)
+    {
+        int count = Math.Clamp(requestedCount, 2, 10);
+
+        var prompt = $"Topic: {topic}\nGenerate {count} personas for this conversation. JSON array only, in this shape:\n[\n  {{\"name\":\"<ShortUniqueName>\",\"systemPrompt\":\"You are <ShortUniqueName>, <1-2 sentence role and perspective>. Collaborate concisely, avoid redundancy, and use tools effectively when available.\"}},\n  ...\n]";
 
         var response = await RetryHandler.ExecuteWithRetryAsync(
-            async () => await chat.GetChatMessageContentAsync(history),
+            async () => await _agent.RunAsync(prompt),
             "Generate personas");
-
-        var text = response.Content ?? "[]";
+        var responseText = response.ToString();
 
         // Try to parse JSON array
         List<GeneratedPersona>? generated;
         try
         {
-            generated = JsonSerializer.Deserialize<List<GeneratedPersona>>(text, new JsonSerializerOptions
+            generated = JsonSerializer.Deserialize<List<GeneratedPersona>>(responseText, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true
             });
@@ -54,11 +54,11 @@ REQUIREMENTS:
         catch
         {
             // Attempt to extract JSON block if extra text leaked
-            var start = text.IndexOf('[');
-            var end = text.LastIndexOf(']');
+            var start = responseText.IndexOf('[');
+            var end = responseText.LastIndexOf(']');
             if (start >= 0 && end >= start)
             {
-                var slice = text.Substring(start, end - start + 1);
+                var slice = responseText.Substring(start, end - start + 1);
                 generated = JsonSerializer.Deserialize<List<GeneratedPersona>>(slice, new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true
