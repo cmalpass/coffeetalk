@@ -1,25 +1,45 @@
-using Microsoft.SemanticKernel;
+using Microsoft.Extensions.AI;
 using System.ComponentModel;
 
 namespace CoffeeTalk.Services;
 
-public class MarkdownTools
+/// <summary>
+/// Provides markdown document collaboration functions for use with Microsoft Agent Framework
+/// </summary>
+public class MarkdownToolFunctions
 {
     private readonly CollaborativeMarkdownDocument _doc;
 
-    public MarkdownTools(CollaborativeMarkdownDocument doc)
+    public MarkdownToolFunctions(CollaborativeMarkdownDocument doc)
     {
         _doc = doc;
     }
 
-    [KernelFunction, Description("Set the title (H1) of the shared markdown document")]
+    /// <summary>
+    /// Creates an array of AIFunction tools for markdown document collaboration
+    /// </summary>
+    public AIFunction[] CreateTools()
+    {
+        return new[]
+        {
+            AIFunctionFactory.Create(SetTitle),
+            AIFunctionFactory.Create(AddHeading),
+            AIFunctionFactory.Create(AppendParagraph),
+            AIFunctionFactory.Create(InsertAfterHeading),
+            AIFunctionFactory.Create(ReplaceSection),
+            AIFunctionFactory.Create(ListHeadings),
+            AIFunctionFactory.Create(SaveToFile)
+        };
+    }
+
+    [Description("Set the title (H1) of the shared markdown document")]
     public string SetTitle([Description("The title text to set as H1")] string title)
     {
         _doc.SetTitle(title);
         return _doc.GetContent();
     }
 
-    [KernelFunction, Description("Add a heading to the shared markdown document")]
+    [Description("Add a heading to the shared markdown document")]
     public string AddHeading(
         [Description("Heading text")] string text,
         [Description("Heading level 1-6; default 2")] int level = 2)
@@ -28,14 +48,14 @@ public class MarkdownTools
         return _doc.GetContent();
     }
 
-    [KernelFunction, Description("Append a paragraph to the shared markdown document")]
+    [Description("Append a paragraph to the shared markdown document")]
     public string AppendParagraph([Description("Paragraph text")] string text)
     {
         _doc.AppendParagraph(text);
         return _doc.GetContent();
     }
 
-    [KernelFunction, Description("Insert content after a specific heading; creates the heading if missing")]
+    [Description("Insert content after a specific heading; creates the heading if missing")]
     public string InsertAfterHeading(
         [Description("Heading text to insert after")] string headingText,
         [Description("Markdown content to insert")] string content)
@@ -44,7 +64,7 @@ public class MarkdownTools
         return _doc.GetContent();
     }
 
-    [KernelFunction, Description("Replace the content of a section under a heading with new, concise content. Creates the section if not present.")]
+    [Description("Replace the content of a section under a heading with new, concise content. Creates the section if not present.")]
     public string ReplaceSection(
         [Description("The exact heading text whose section content should be replaced")] string headingText,
         [Description("The new concise markdown content for the section")] string content)
@@ -53,13 +73,13 @@ public class MarkdownTools
         return _doc.GetContent();
     }
 
-    [KernelFunction, Description("List all headings currently in the document")]
+    [Description("List all headings currently in the document")]
     public string ListHeadings()
     {
         return _doc.ListHeadings();
     }
 
-    [KernelFunction, Description("Save the shared markdown document to disk and return the full file path")]
+    [Description("Save the shared markdown document to disk and return the full file path")]
     public string SaveToFile([Description("Output path; default is conversation.md in the working directory")] string? path = null)
     {
         return _doc.SaveToFile(path ?? "conversation.md");

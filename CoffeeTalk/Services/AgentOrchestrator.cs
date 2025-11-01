@@ -1,30 +1,26 @@
-using Microsoft.SemanticKernel;
-using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.Agents.AI;
 using CoffeeTalk.Models;
 using System.Text.RegularExpressions;
 
 namespace CoffeeTalk.Services;
 
-public class OrchestratorAgent
+/// <summary>
+/// Orchestrator agent that decides which persona should speak next using Microsoft Agent Framework
+/// </summary>
+public class AgentOrchestrator
 {
-    private readonly Kernel _kernel;
+    private readonly AIAgent _agent;
     private readonly OrchestratorConfig _config;
-    private readonly ChatHistory _chatHistory;
-    private readonly CollaborativeMarkdownDocument? _doc;
+    private readonly CollaborativeMarkdownDocument _doc;
     private readonly Dictionary<string, int> _speakerCount = new();
-    private readonly List<PersonaAgent> _availablePersonas;
+    private readonly List<AgentPersona> _availablePersonas;
 
-    public OrchestratorAgent(Kernel kernel, OrchestratorConfig config, List<PersonaAgent> personas)
+    public AgentOrchestrator(AIAgent agent, OrchestratorConfig config, CollaborativeMarkdownDocument doc, List<AgentPersona> personas)
     {
-        _kernel = kernel;
+        _agent = agent;
         _config = config;
+        _doc = doc;
         _availablePersonas = personas;
-        _doc = _kernel.Services.GetService(typeof(CollaborativeMarkdownDocument)) as CollaborativeMarkdownDocument;
-        _chatHistory = new ChatHistory();
-        
-        // Build dynamic system prompt with persona descriptions
-        var fullSystemPrompt = BuildSystemPrompt(config, personas);
-        _chatHistory.AddSystemMessage(fullSystemPrompt);
 
         // Initialize speaker count
         foreach (var persona in personas)
@@ -33,7 +29,7 @@ public class OrchestratorAgent
         }
     }
 
-    private static string BuildSystemPrompt(OrchestratorConfig config, List<PersonaAgent> personas)
+    public static string BuildSystemPrompt(OrchestratorConfig config, List<AgentPersona> personas)
     {
         var basePrompt = config.BaseSystemPrompt ?? OrchestratorConfig.DefaultBaseSystemPrompt;
         var prompt = basePrompt + "\n\n";
@@ -101,24 +97,19 @@ Reason: Document complete, all personas contributed, clear consensus reached";
         return fallback;
     }
 
-    public async Task<PersonaAgent?> SelectNextSpeakerAsync(
+    public async Task<AgentPersona?> SelectNextSpeakerAsync(
         string currentMessage,
         List<string> conversationHistory,
         int turnsRemaining)
     {
-        var chatService = _kernel.GetRequiredService<IChatCompletionService>();
-
         // Build context for orchestrator
         var context = BuildOrchestratorContext(currentMessage, conversationHistory, turnsRemaining);
-        _chatHistory.AddUserMessage(context);
 
         // Execute with retry logic for rate limiting (HTTP 429)
         var response = await RetryHandler.ExecuteWithRetryAsync(
-            async () => await chatService.GetChatMessageContentAsync(_chatHistory),
+            async () => await _agent.RunAsync(context),
             "Orchestrator selection");
-        var responseText = response.Content ?? "";
-        
-        _chatHistory.AddAssistantMessage(responseText);
+        var responseText = response.ToString();
 
         // Check if orchestrator signals conclusion
         if (ShouldConclude(responseText))
@@ -170,13 +161,10 @@ Reason: Document complete, all personas contributed, clear consensus reached";
         }
 
         // Add document state
-        if (_doc != null)
-        {
-            var headings = _doc.ListHeadings();
-            context += "Current document state:\n";
-            context += string.IsNullOrWhiteSpace(headings) ? "[Document is empty]\n" : headings + "\n";
-            context += "\n";
-        }
+        var headings = _doc.ListHeadings();
+        context += "Current document state:\n";
+        context += string.IsNullOrWhiteSpace(headings) ? "[Document is empty]\n" : headings + "\n";
+        context += "\n";
 
         // Add participation stats
         context += "Speaker participation count:\n";
@@ -205,7 +193,7 @@ Reason: Document complete, all personas contributed, clear consensus reached";
         return context;
     }
 
-    private PersonaAgent? ParsePersonaSelection(string response)
+    private AgentPersona? ParsePersonaSelection(string response)
     {
         // Try to find persona name in the first line
         var lines = response.Split('\n', StringSplitOptions.RemoveEmptyEntries);
@@ -240,7 +228,7 @@ Reason: Document complete, all personas contributed, clear consensus reached";
         return null;
     }
 
-    public bool ShouldConclude(string orchestratorResponse)
+    private bool ShouldConclude(string orchestratorResponse)
     {
         // Orchestrator explicitly signals conclusion with 'CONCLUDE'
         var lines = orchestratorResponse.Split('\n', StringSplitOptions.RemoveEmptyEntries);

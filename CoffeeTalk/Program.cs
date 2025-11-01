@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Configuration;
 using CoffeeTalk.Models;
 using CoffeeTalk.Services;
 
@@ -10,6 +10,7 @@ class Program
     {
         Console.WriteLine("☕ Welcome to CoffeeTalk!");
         Console.WriteLine("A multi-persona LLM conversation orchestrator\n");
+        Console.WriteLine("Powered by Microsoft Agent Framework\n");
 
         try
         {
@@ -34,10 +35,10 @@ class Program
                 return;
             }
 
-            if (settings.Personas.Count == 0)
+            if (settings.Personas.Count == 0 && !(settings.DynamicPersonas?.Enabled ?? false))
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("❌ Error: No personas configured in appsettings.json");
+                Console.WriteLine("❌ Error: No personas configured and dynamic personas are disabled");
                 Console.ResetColor();
                 return;
             }
@@ -140,15 +141,25 @@ class Program
                 return;
             }
 
-            // Build the kernel with the configured LLM provider
-            var kernel = KernelBuilderService.BuildKernel(settings.LlmProvider);
+            // Create shared collaborative document
+            var sharedDoc = new CollaborativeMarkdownDocument();
+
+            // Create markdown tool functions
+            var markdownTools = new MarkdownToolFunctions(sharedDoc);
+            var tools = markdownTools.CreateTools();
 
             // Optionally generate personas dynamically
             if (settings.DynamicPersonas?.Enabled == true)
             {
                 try
                 {
-                    var generator = new PersonaGenerator(kernel);
+                    var generatorPrompt = AgentPersonaGenerator.BuildSystemPrompt();
+                    var generatorAgent = AgentBuilder.CreateAgent(
+                        settings.LlmProvider,
+                        "PersonaGenerator",
+                        generatorPrompt);
+                    var generator = new AgentPersonaGenerator(generatorAgent);
+                    
                     var requested = Math.Clamp(settings.DynamicPersonas.Count, 2, 10);
                     var reserved = (settings.DynamicPersonas.Mode?.Equals("replace", StringComparison.OrdinalIgnoreCase) ?? false)
                         ? Array.Empty<string>()
@@ -198,35 +209,74 @@ class Program
                 Console.WriteLine($"Personas: {string.Join(", ", settings.Personas.Select(p => p.Name))}\n");
             }
 
-            // Verify tools and function-calling are available before starting
-            var verifier = kernel.Services.GetService(typeof(CoffeeTalk.Services.ToolingVerifier)) as CoffeeTalk.Services.ToolingVerifier;
-            if (verifier != null)
+            // Create persona agents
+            var rateLimiter = new RateLimiter(settings.RateLimit);
+            var agentPersonas = new List<AgentPersona>();
+            
+            foreach (var personaConfig in settings.Personas)
             {
-                // Print available plugins and functions for visibility
-                try
-                {
-                    var pluginNames = kernel.Plugins.Select(p => p.Name).ToList();
-                    Console.WriteLine($"Available plugins: {string.Join(", ", pluginNames)}");
-                }
-                catch { }
-                Console.WriteLine("\nRunning tool availability verification...");
-                var ok = await verifier.VerifyAsync(kernel);
-                if (!ok)
-                {
-                    var require = settings.Tools?.RequireToolsVerification ?? true;
-                    Console.ForegroundColor = require ? ConsoleColor.Red : ConsoleColor.Yellow;
-                    Console.WriteLine("❌ Tools verification failed: LLM could not invoke markdown tools. Please check provider, function calling support, and plugin registration.");
-                    Console.ResetColor();
-                    if (require) return;
-                }
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine("✓ Tools verification passed");
-                Console.ResetColor();
+                var agent = AgentBuilder.CreateAgent(
+                    settings.LlmProvider,
+                    personaConfig.Name,
+                    personaConfig.SystemPrompt,
+                    tools);
+                
+                var agentPersona = new AgentPersona(
+                    agent,
+                    personaConfig,
+                    sharedDoc,
+                    rateLimiter,
+                    settings.MaxConversationTurns,
+                    settings.Personas.Count);
+                
+                agentPersonas.Add(agentPersona);
             }
 
-            // Create orchestrator and start conversation
-            var orchestrator = new ConversationOrchestrator(kernel, settings);
-            await orchestrator.StartConversationAsync(topic);
+            // Create orchestrator if enabled
+            AgentOrchestrator? orchestrator = null;
+            if (settings.Orchestrator?.Enabled ?? false)
+            {
+                var orchestratorConfig = settings.Orchestrator ?? new OrchestratorConfig();
+                var orchestratorPrompt = AgentOrchestrator.BuildSystemPrompt(orchestratorConfig, agentPersonas);
+                var orchestratorAgent = AgentBuilder.CreateAgent(
+                    settings.LlmProvider,
+                    "Orchestrator",
+                    orchestratorPrompt);
+                
+                orchestrator = new AgentOrchestrator(
+                    orchestratorAgent,
+                    orchestratorConfig,
+                    sharedDoc,
+                    agentPersonas);
+            }
+
+            // Create editor if enabled
+            AgentEditor? editor = null;
+            if (settings.Editor?.Enabled ?? false)
+            {
+                var editorPrompt = AgentEditor.BuildSystemPrompt(settings.Editor);
+                var editorAgent = AgentBuilder.CreateAgent(
+                    settings.LlmProvider,
+                    "Editor",
+                    editorPrompt,
+                    tools);
+                
+                editor = new AgentEditor(
+                    editorAgent,
+                    settings.Editor,
+                    sharedDoc,
+                    rateLimiter);
+            }
+
+            // Create conversation orchestrator and start conversation
+            var conversationOrchestrator = new AgentConversationOrchestrator(
+                agentPersonas,
+                sharedDoc,
+                settings,
+                orchestrator,
+                editor);
+            
+            await conversationOrchestrator.StartConversationAsync(topic);
 
             Console.WriteLine("\nThank you for using CoffeeTalk! ☕");
         }
