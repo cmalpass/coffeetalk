@@ -1,6 +1,6 @@
 # ☕ CoffeeTalk
 
-A .NET Semantic Kernel CLI application that orchestrates multi-persona LLM conversations. Configure multiple AI personas with unique system prompts and watch them engage in dynamic conversations to explore topics and reach conclusions through collaborative document creation.
+A .NET CLI application that orchestrates multi-persona LLM conversations using Microsoft Agent Framework. Configure multiple AI personas with unique system prompts and watch them engage in dynamic conversations to explore topics and reach conclusions through collaborative document creation.
 
 ## Features
 
@@ -14,8 +14,7 @@ A .NET Semantic Kernel CLI application that orchestrates multi-persona LLM conve
 - **Rate Limiting**: Configure request and token limits to manage API usage
 - **Retry Handling**: Automatic retry with exponential backoff for API rate limits (HTTP 429)
 - **Flexible Conversation Modes**: Choose between orchestrated (AI-directed) or round-robin (sequential) conversation flow
-- **Tool Verification**: Validates that the LLM can use markdown collaboration tools before starting
-- **Built on Semantic Kernel**: Leverages Microsoft's Semantic Kernel for robust LLM integration
+- **Built on Microsoft Agent Framework**: Leverages Microsoft's Agent Framework for robust agentic AI integration
 
 ## Prerequisites
 
@@ -371,42 +370,6 @@ Personas can collaborate on a shared markdown document using these tools:
 
 The document is maintained in memory during the conversation and auto-saved to `conversation.md` when complete.
 
-### Tools Configuration
-
-Control how tool calling and function invocation behave:
-
-```json
-{
-  "Tools": {
-    "EnableFallbackJsonTools": true,
-    "RequireToolsVerification": true
-  }
-}
-```
-
-**Configuration Options:**
-
-- **EnableFallbackJsonTools**: When `true`, allows personas to use JSON-based tool calls if native function calling is unavailable (default: `true`)
-- **RequireToolsVerification**: When `true`, the application verifies that the LLM can use markdown tools before starting the conversation. If verification fails, the application exits. When `false`, conversation proceeds even if verification fails (default: `true`)
-
-**Tool Verification Process:**
-
-Before starting the conversation, CoffeeTalk:
-1. Tests if the LLM can properly invoke the markdown collaboration tools
-2. Ensures function calling is working correctly
-3. Validates that the provider supports the required capabilities
-
-If verification fails and `RequireToolsVerification` is `true`, you'll see:
-```
-❌ Tools verification failed: LLM could not invoke markdown tools.
-Please check provider, function calling support, and plugin registration.
-```
-
-If verification succeeds:
-```
-✓ Tools verification passed
-```
-
 ### Additional Settings
 
 - **MaxConversationTurns**: Maximum number of conversation rounds (default: 10). This is multiplied by the number of personas in round-robin mode, or used as a total turn limit in orchestrated mode.
@@ -677,16 +640,16 @@ CoffeeTalk/
 │   ├── RetryConfig.cs               # Retry behavior settings
 │   └── ToolsConfig.cs               # Tool verification settings
 ├── Services/
-│   ├── ConversationOrchestrator.cs  # Manages conversation flow
-│   ├── OrchestratorAgent.cs         # AI-directed speaker selection
-│   ├── EditorAgent.cs               # Document editing and refinement
-│   ├── PersonaGenerator.cs          # Dynamic persona generation
+│   ├── AgentConversationOrchestrator.cs  # Manages conversation flow using Agent Framework
+│   ├── AgentOrchestrator.cs         # AI-directed speaker selection agent
+│   ├── AgentEditor.cs               # Document editing and refinement agent
+│   ├── AgentPersona.cs              # Individual persona agent wrapper
+│   ├── AgentPersonaGenerator.cs     # Dynamic persona generation agent
+│   ├── AgentBuilder.cs              # Builds AIAgent instances for different providers
 │   ├── CollaborativeMarkdownDocument.cs  # Shared document state
-│   ├── MarkdownTools.cs             # Document editing tools plugin
+│   ├── MarkdownToolFunctions.cs     # Document editing tools as AIFunctions
 │   ├── RateLimiter.cs               # Request/token throttling
-│   ├── RetryHandler.cs              # HTTP 429 retry logic
-│   ├── ToolingVerifier.cs           # Tool availability verification
-│   └── KernelBuilder.cs             # Builds Semantic Kernel instances
+│   └── RetryHandler.cs              # HTTP 429 retry logic
 ├── appsettings.json                 # Default configuration
 ├── appsettings.orchestrated.json    # Orchestrated mode example
 ├── appsettings.azureopenai.json     # Azure OpenAI example
@@ -728,17 +691,16 @@ examples/
 - For Azure: Verify your endpoint URL is correct
 - For Ollama: Ensure Ollama is running (`ollama serve`)
 
-### Tool Verification Failures
+### Tool Calling Issues
 
-**Error:** "Tools verification failed: LLM could not invoke markdown tools"
+**Issue:** Tools or function calling not working properly
 
 **Solution:**
 - Verify your model supports function calling
   - OpenAI: Use `gpt-4o`, `gpt-4o-mini`, `gpt-3.5-turbo`, or newer
   - Azure: Ensure deployment uses a function-calling capable model
   - Ollama: Some models may not support function calling
-- Set `"RequireToolsVerification": false` in `Tools` config to bypass (not recommended)
-- Try a different model
+- Try a different model with better function calling support
 
 ### Empty or Poor Quality Responses
 
@@ -868,7 +830,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ## Acknowledgments
 
 Built with:
-- [Microsoft Semantic Kernel](https://github.com/microsoft/semantic-kernel) - AI orchestration framework
+- [Microsoft Agent Framework](https://github.com/microsoft/agent-framework) - AI agent orchestration framework
 - [.NET 8](https://dotnet.microsoft.com/) - Runtime platform
 
 ## Support
