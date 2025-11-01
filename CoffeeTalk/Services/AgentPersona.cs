@@ -76,9 +76,22 @@ public class AgentPersona
                 $"{Name} response");
             responseText = response.ToString();
         }
+        catch (OperationCanceledException ex)
+        {
+            responseText = $"Error: Operation was canceled: {ex.Message}";
+        }
+        catch (TimeoutException ex)
+        {
+            responseText = $"Error: Operation timed out: {ex.Message}";
+        }
+        catch (AgentFrameworkException ex) // Replace with actual custom exception if available
+        {
+            responseText = $"Error: Agent framework error: {ex.Message}";
+        }
         catch (Exception ex)
         {
-            responseText = $"Error: {ex.Message}";
+            // Optionally log the exception here
+            responseText = $"Unexpected error: {ex.Message}";
         }
 
         // Account response tokens approximately
