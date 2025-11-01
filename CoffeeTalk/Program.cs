@@ -177,7 +177,7 @@ class Program
                         // augment: merge without duplicate names (case-insensitive), preferring existing personas
                         var map = new Dictionary<string, PersonaConfig>(StringComparer.OrdinalIgnoreCase);
                         foreach (var p in settings.Personas) map[p.Name] = p;
-                        foreach (var p in generated) if (!map.ContainsKey(p.Name)) map[p.Name] = p;
+                        foreach (var p in generated.Where(g => !map.ContainsKey(g.Name))) map[p.Name] = p;
                         finalList = map.Values.ToList();
                     }
 
@@ -197,7 +197,19 @@ class Program
 
                     Console.WriteLine($"Dynamic personas enabled ({settings.DynamicPersonas.Mode}). Using {settings.Personas.Count} persona(s): {string.Join(", ", settings.Personas.Select(p => p.Name))}\n");
                 }
-                catch (Exception ex)
+                catch (TimeoutException ex)
+                {
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine($"⚠️  Dynamic persona generation timed out: {ex.Message}. Proceeding with configured personas.");
+                    Console.ResetColor();
+                }
+                catch (HttpRequestException ex)
+                {
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine($"⚠️  Dynamic persona generation network error: {ex.Message}. Proceeding with configured personas.");
+                    Console.ResetColor();
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException && ex is not StackOverflowException)
                 {
                     Console.ForegroundColor = ConsoleColor.Yellow;
                     Console.WriteLine($"⚠️  Dynamic persona generation failed: {ex.Message}. Proceeding with configured personas.");
@@ -280,7 +292,14 @@ class Program
 
             Console.WriteLine("\nThank you for using CoffeeTalk! ☕");
         }
-        catch (Exception ex)
+        catch (OperationCanceledException ex)
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"\n⚠️  Operation canceled: {ex.Message}");
+            Console.ResetColor();
+            Environment.Exit(1);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException && ex is not StackOverflowException)
         {
             Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine($"\n❌ Fatal Error: {ex.Message}");

@@ -127,10 +127,26 @@ public class AgentConversationOrchestrator
 
                 // Orchestrator decides completion (already handled in SelectNextSpeakerAsync returning null)
             }
-            catch (Exception ex)
+            catch (OperationCanceledException ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"  ❌ Error: {ex.Message}");
+                Console.WriteLine($"  ❌ Operation canceled: {ex.Message}");
+                Console.ResetColor();
+            }
+            catch (TimeoutException ex)
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"  ❌ Timeout: {ex.Message}");
+                Console.ResetColor();
+            }
+            catch (Exception ex) when (
+                ex is not StackOverflowException &&
+                ex is not OutOfMemoryException &&
+                ex is not ThreadAbortException
+            )
+            {
+                Console.ForegroundColor = ConsoleColor.Red;
+                Console.WriteLine($"  ❌ Unexpected error: {ex}");
                 Console.ResetColor();
             }
 
@@ -301,7 +317,7 @@ public class AgentConversationOrchestrator
         return completionIndicators.Any(indicator => lowerResponse.Contains(indicator));
     }
 
-    private async Task TryAutoSaveAsync()
+    private Task TryAutoSaveAsync()
     {
         try
         {
@@ -324,5 +340,6 @@ public class AgentConversationOrchestrator
             Console.ResetColor();
         }
         
+        return Task.CompletedTask;
     }
 }

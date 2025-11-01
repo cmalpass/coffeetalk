@@ -2,7 +2,6 @@ using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using OpenAI;
 using Azure.AI.OpenAI;
-using Azure.Identity;
 using CoffeeTalk.Models;
 
 namespace CoffeeTalk.Services;

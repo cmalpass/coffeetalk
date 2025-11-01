@@ -72,8 +72,7 @@ public static class RetryHandler
 
     private static bool IsRateLimitHttpException(HttpRequestException ex)
     {
-        return ex.StatusCode == HttpStatusCode.TooManyRequests ||
-               ex.Message.Contains("429", StringComparison.OrdinalIgnoreCase);
+        return ex.StatusCode == HttpStatusCode.TooManyRequests;
     }
 
     private static bool IsRateLimitException(Exception ex)

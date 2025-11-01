@@ -84,13 +84,12 @@ public class AgentPersona
         {
             responseText = $"Error: Operation timed out: {ex.Message}";
         }
-        catch (AgentFrameworkException ex) // Replace with actual custom exception if available
+        catch (HttpRequestException ex)
         {
-            responseText = $"Error: Agent framework error: {ex.Message}";
+            responseText = $"Error: Network error: {ex.Message}";
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OutOfMemoryException && ex is not StackOverflowException)
         {
-            // Optionally log the exception here
             responseText = $"Unexpected error: {ex.Message}";
         }
 
@@ -143,7 +142,7 @@ Completion Strategy:
             var headings = _doc.ListHeadings();
             return string.IsNullOrWhiteSpace(headings) ? "Document is empty" : headings;
         }
-        catch
+        catch (Exception ex) when (ex is not OutOfMemoryException && ex is not StackOverflowException)
         {
             return string.Empty;
         }
@@ -157,7 +156,7 @@ Completion Strategy:
             if (string.IsNullOrWhiteSpace(headings)) return "  [Document is empty]";
             return string.Join("\n", headings.Split('\n').Select(h => $"  {h}"));
         }
-        catch
+        catch (Exception ex) when (ex is not OutOfMemoryException && ex is not StackOverflowException)
         {
             return string.Empty;
         }
