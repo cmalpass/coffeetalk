@@ -308,6 +308,5 @@ public class AgentConversationOrchestrator
             Console.ResetColor();
         }
         
-        await Task.CompletedTask;
     }
 }
