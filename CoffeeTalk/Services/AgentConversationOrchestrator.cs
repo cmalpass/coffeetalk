@@ -248,10 +248,16 @@ public class AgentConversationOrchestrator
                 }
             }
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"  ⚠️  Editor review skipped: {ex.Message}");
+            Console.WriteLine($"  ⚠️  Editor review skipped (invalid operation): {ex.Message}");
+            Console.ResetColor();
+        }
+        catch (TimeoutException ex)
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"  ⚠️  Editor review skipped (timeout): {ex.Message}");
             Console.ResetColor();
         }
 
