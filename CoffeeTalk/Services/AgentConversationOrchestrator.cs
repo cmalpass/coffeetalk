@@ -192,10 +192,26 @@ public class AgentConversationOrchestrator
                         return;
                     }
                 }
-                catch (Exception ex)
+                catch (OperationCanceledException ex)
                 {
                     Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"  ❌ Error: {ex.Message}");
+                    Console.WriteLine($"  ❌ Operation canceled: {ex.Message}");
+                    Console.ResetColor();
+                }
+                catch (TimeoutException ex)
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine($"  ❌ Timeout: {ex.Message}");
+                    Console.ResetColor();
+                }
+                catch (Exception ex) when (
+                    ex is not StackOverflowException &&
+                    ex is not OutOfMemoryException &&
+                    ex is not ThreadAbortException
+                )
+                {
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.WriteLine($"  ❌ Unexpected error: {ex}");
                     Console.ResetColor();
                 }
             }
