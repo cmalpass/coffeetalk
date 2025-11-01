@@ -1,7 +1,5 @@
 using Microsoft.Agents.AI;
-using Microsoft.Extensions.AI;
 using CoffeeTalk.Models;
-using System.Text;
 
 namespace CoffeeTalk.Services;
 
@@ -16,7 +14,6 @@ public class AgentPersona
     private readonly RateLimiter? _rateLimiter;
     private readonly int _maxTurns;
     private readonly int _agentCount;
-    private readonly List<ChatMessage> _chatHistory = new();
 
     public string Name => _config.Name;
     public string SystemPrompt => _config.SystemPrompt;
