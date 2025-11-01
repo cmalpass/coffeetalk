@@ -289,10 +289,16 @@ public class AgentConversationOrchestrator
             Console.WriteLine($"✓ Auto-saved collaborative document ({path})");
             Console.ResetColor();
         }
-        catch (Exception ex)
+        catch (System.IO.IOException ex)
         {
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"⚠️  Auto-save failed: {ex.Message}");
+            Console.WriteLine($"⚠️  Auto-save failed (IO error): {ex.Message}");
+            Console.ResetColor();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Console.ForegroundColor = ConsoleColor.Yellow;
+            Console.WriteLine($"⚠️  Auto-save failed (access denied): {ex.Message}");
             Console.ResetColor();
         }
         
