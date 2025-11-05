@@ -561,6 +561,9 @@ cp examples/creative-writing.json CoffeeTalk/appsettings.json
 
 # Brainstorming session
 cp examples/brainstorm.json CoffeeTalk/appsettings.json
+
+# Rude experts debate (8 confrontational but knowledgeable personas)
+cp examples/rude-experts.json CoffeeTalk/appsettings.json
 ```
 
 Don't forget to add your API key to the copied file!
@@ -662,6 +665,7 @@ examples/
 ├── philosophy.json                  # Philosophical discussion personas
 ├── creative-writing.json            # Creative writing workshop personas
 ├── brainstorm.json                  # Brainstorming session personas
+├── rude-experts.json                # Confrontational experts (8 rude personas + 1 nice one)
 └── README.md                        # Examples documentation
 ```
 
