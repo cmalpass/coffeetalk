@@ -1,5 +1,6 @@
 using Microsoft.Agents.AI;
 using CoffeeTalk.Models;
+using Spectre.Console;
 
 namespace CoffeeTalk.Services;
 
@@ -41,24 +42,24 @@ public class AgentConversationOrchestrator
     {
         if (_personas.Count == 0)
         {
-            Console.WriteLine("No personas configured. Please add personas to appsettings.json");
+            AnsiConsole.MarkupLine("[red]No personas configured. Please add personas to appsettings.json[/]");
             return;
         }
 
-        Console.WriteLine($"\n🎯 Topic: {topic}\n");
-        Console.WriteLine($"Participants: {string.Join(", ", _personas.Select(a => a.Name))}\n");
+        AnsiConsole.MarkupLine($"\n[bold]🎯 Topic:[/] [cyan]{Markup.Escape(topic)}[/]\n");
+        AnsiConsole.MarkupLine($"[bold]Participants:[/] {string.Join(", ", _personas.Select(a => Markup.Escape(a.Name)))}\n");
         
         if (_useOrchestrator)
         {
-            Console.WriteLine("Mode: 🎭 Orchestrated (AI-directed conversation flow)\n");
+            AnsiConsole.MarkupLine("[bold]Mode:[/] [magenta]🎭 Orchestrated (AI-directed conversation flow)[/]\n");
         }
         else
         {
-            Console.WriteLine("Mode: 🔄 Round-robin (sequential turns)\n");
+            AnsiConsole.MarkupLine("[bold]Mode:[/] [blue]🔄 Round-robin (sequential turns)[/]\n");
         }
         
-        Console.WriteLine("Starting conversation...\n");
-        Console.WriteLine(new string('=', 80));
+        AnsiConsole.MarkupLine("[bold]Starting conversation...[/]\n");
+        AnsiConsole.Write(new Rule());
 
         var conversationHistory = new List<string>();
         var currentMessage = $"Let's discuss: {topic}";
@@ -82,29 +83,33 @@ public class AgentConversationOrchestrator
         {
             try
             {
-                // Ask orchestrator who should speak next
-                var turnsRemaining = maxTotalTurns - totalTurns;
-                var selectedPersona = await _orchestrator!.SelectNextSpeakerAsync(currentMessage, conversationHistory, turnsRemaining);
+                AgentPersona? selectedPersona = null;
+                string response = string.Empty;
+
+                await AnsiConsole.Status()
+                    .Spinner(Spinner.Known.Dots)
+                    .StartAsync("Orchestrating...", async ctx =>
+                    {
+                        // Ask orchestrator who should speak next
+                        var turnsRemaining = maxTotalTurns - totalTurns;
+                        ctx.Status($"Orchestrator selecting next speaker (Turns remaining: {turnsRemaining})...");
+
+                        selectedPersona = await _orchestrator!.SelectNextSpeakerAsync(currentMessage, conversationHistory, turnsRemaining);
+
+                        if (selectedPersona != null)
+                        {
+                            ctx.Status($"{Markup.Escape(selectedPersona.Name)} is thinking...");
+                            response = await selectedPersona.RespondAsync(currentMessage, conversationHistory);
+                        }
+                    });
 
                 if (selectedPersona == null)
                 {
-                    Console.ForegroundColor = ConsoleColor.Yellow;
-                    Console.WriteLine("\n⚠️  Orchestrator couldn't select a speaker. Ending conversation.");
-                    Console.ResetColor();
+                    AnsiConsole.MarkupLine("\n[yellow]⚠️  Orchestrator couldn't select a speaker. Ending conversation.[/]");
                     break;
                 }
 
-                Console.WriteLine($"\n💬 {selectedPersona.Name}:");
-                
-                if (_showThinking)
-                {
-                    Console.ForegroundColor = ConsoleColor.DarkGray;
-                    Console.WriteLine("  [Thinking...]");
-                    Console.ResetColor();
-                }
-
-                var response = await selectedPersona.RespondAsync(currentMessage, conversationHistory);
-                Console.WriteLine($"  {response}");
+                DisplayResponse(selectedPersona.Name, response);
                 
                 conversationHistory.Add($"{selectedPersona.Name}: {response}");
                 currentMessage = response;
@@ -114,9 +119,7 @@ public class AgentConversationOrchestrator
                 var docPreview = selectedPersona.GetDocumentPreview();
                 if (!string.IsNullOrWhiteSpace(docPreview))
                 {
-                    Console.ForegroundColor = ConsoleColor.Cyan;
-                    Console.WriteLine($"\n  📄 Document state:\n{docPreview}");
-                    Console.ResetColor();
+                    DisplayDocumentPreview(docPreview);
                 }
 
                 // Editor intervention - review and refine document periodically
@@ -129,15 +132,11 @@ public class AgentConversationOrchestrator
             }
             catch (OperationCanceledException ex)
             {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"  ❌ Operation canceled: {ex.Message}");
-                Console.ResetColor();
+                AnsiConsole.MarkupLine($"[red]❌ Operation canceled: {Markup.Escape(ex.Message)}[/]");
             }
             catch (TimeoutException ex)
             {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"  ❌ Timeout: {ex.Message}");
-                Console.ResetColor();
+                AnsiConsole.MarkupLine($"[red]❌ Timeout: {Markup.Escape(ex.Message)}[/]");
             }
             catch (Exception ex) when (
                 ex is not StackOverflowException &&
@@ -145,16 +144,14 @@ public class AgentConversationOrchestrator
                 ex is not ThreadAbortException
             )
             {
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine($"  ❌ Unexpected error: {ex}");
-                Console.ResetColor();
+                AnsiConsole.WriteException(ex);
             }
 
-            Console.WriteLine($"\n{new string('-', 80)}");
+            AnsiConsole.Write(new Rule());
         }
 
-        Console.WriteLine($"\n{new string('=', 80)}");
-        Console.WriteLine($"\n⏱️  Maximum turns ({maxTotalTurns}) reached. Conversation ended.");
+        AnsiConsole.Write(new Rule("Conversation Ended"));
+        AnsiConsole.MarkupLine($"\n[yellow]⏱️  Maximum turns ({maxTotalTurns}) reached. Conversation ended.[/]");
         await TryAutoSaveAsync();
     }
 
@@ -167,17 +164,23 @@ public class AgentConversationOrchestrator
             {
                 try
                 {
-                    Console.WriteLine($"\n💬 {persona.Name}:");
-                    
+                    string response = string.Empty;
+
                     if (_showThinking)
                     {
-                        Console.ForegroundColor = ConsoleColor.DarkGray;
-                        Console.WriteLine("  [Thinking...]");
-                        Console.ResetColor();
+                         await AnsiConsole.Status()
+                            .Spinner(Spinner.Known.Dots)
+                            .StartAsync($"{Markup.Escape(persona.Name)} is thinking...", async ctx =>
+                            {
+                                response = await persona.RespondAsync(currentMessage, conversationHistory);
+                            });
+                    }
+                    else
+                    {
+                         response = await persona.RespondAsync(currentMessage, conversationHistory);
                     }
 
-                    var response = await persona.RespondAsync(currentMessage, conversationHistory);
-                    Console.WriteLine($"  {response}");
+                    DisplayResponse(persona.Name, response);
                     
                     conversationHistory.Add($"{persona.Name}: {response}");
                     currentMessage = response;
@@ -187,9 +190,7 @@ public class AgentConversationOrchestrator
                     var docPreview = persona.GetDocumentPreview();
                     if (!string.IsNullOrWhiteSpace(docPreview))
                     {
-                        Console.ForegroundColor = ConsoleColor.Cyan;
-                        Console.WriteLine($"\n  📄 Document state:\n{docPreview}");
-                        Console.ResetColor();
+                        DisplayDocumentPreview(docPreview);
                     }
 
                     // Editor intervention - review and refine document periodically
@@ -201,24 +202,20 @@ public class AgentConversationOrchestrator
                     // Check if the conversation goal seems to be reached
                     if (IsConversationComplete(response, turn))
                     {
-                        Console.WriteLine($"\n{new string('=', 80)}");
-                        Console.WriteLine("\n✅ Conversation goal appears to be reached!");
-                        Console.WriteLine($"Total turns: {turn + 1} (across {_personas.Count} personas)");
+                        AnsiConsole.Write(new Rule("Conversation Complete"));
+                        AnsiConsole.MarkupLine("\n[bold green]✅ Conversation goal appears to be reached![/]");
+                        AnsiConsole.MarkupLine($"Total turns: {turn + 1} (across {_personas.Count} personas)");
                         await TryAutoSaveAsync();
                         return;
                     }
                 }
                 catch (OperationCanceledException ex)
                 {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"  ❌ Operation canceled: {ex.Message}");
-                    Console.ResetColor();
+                    AnsiConsole.MarkupLine($"[red]❌ Operation canceled: {Markup.Escape(ex.Message)}[/]");
                 }
                 catch (TimeoutException ex)
                 {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"  ❌ Timeout: {ex.Message}");
-                    Console.ResetColor();
+                    AnsiConsole.MarkupLine($"[red]❌ Timeout: {Markup.Escape(ex.Message)}[/]");
                 }
                 catch (Exception ex) when (
                     ex is not StackOverflowException &&
@@ -226,33 +223,41 @@ public class AgentConversationOrchestrator
                     ex is not ThreadAbortException
                 )
                 {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"  ❌ Unexpected error: {ex}");
-                    Console.ResetColor();
+                     AnsiConsole.WriteException(ex);
                 }
             }
 
-            Console.WriteLine($"\n{new string('-', 80)}");
+            AnsiConsole.Write(new Rule());
         }
 
-        Console.WriteLine($"\n{new string('=', 80)}");
-        Console.WriteLine($"\n⏱️  Maximum turns ({_maxTurns}) reached. Conversation ended.");
+        AnsiConsole.Write(new Rule("Max Turns Reached"));
+        AnsiConsole.MarkupLine($"\n[yellow]⏱️  Maximum turns ({_maxTurns}) reached. Conversation ended.[/]");
         await TryAutoSaveAsync();
+    }
+
+    private void DisplayResponse(string name, string response)
+    {
+        var panel = new Panel(new Text(response))
+            .Header($"[bold]{Markup.Escape(name)}[/]")
+            .Border(BoxBorder.Rounded);
+
+        AnsiConsole.Write(panel);
+    }
+
+    private void DisplayDocumentPreview(string content)
+    {
+        var panel = new Panel(new Text(content))
+            .Header("[bold cyan]Document State[/]")
+            .Border(BoxBorder.Rounded)
+            .BorderColor(Color.Cyan1);
+
+        AnsiConsole.Write(panel);
     }
 
     private async Task RunEditorIntervention(List<string> conversationHistory)
     {
-        Console.WriteLine($"\n{new string('=', 80)}");
-        Console.ForegroundColor = ConsoleColor.Magenta;
-        Console.WriteLine("\n✂️  EDITOR REVIEW - Refining document for clarity and conciseness...");
-        Console.ResetColor();
-
-        if (_showThinking)
-        {
-            Console.ForegroundColor = ConsoleColor.DarkGray;
-            Console.WriteLine("  [Reviewing...]");
-            Console.ResetColor();
-        }
+        AnsiConsole.Write(new Rule("Editor Review") { Style = Style.Parse("magenta") });
+        AnsiConsole.MarkupLine("\n[magenta]✂️  Refining document for clarity and conciseness...[/]");
 
         try
         {
@@ -262,11 +267,19 @@ public class AgentConversationOrchestrator
                 ? string.Join("\n", recentContext)
                 : "No recent conversation";
 
-            var editorResponse = await _editor!.ReviewAndEditAsync(contextSummary);
+            string editorResponse = string.Empty;
+             await AnsiConsole.Status()
+                .Spinner(Spinner.Known.Dots)
+                .StartAsync("Editor is reviewing...", async ctx =>
+                {
+                    editorResponse = await _editor!.ReviewAndEditAsync(contextSummary);
+                });
             
-            Console.ForegroundColor = ConsoleColor.Magenta;
-            Console.WriteLine($"  {editorResponse}");
-            Console.ResetColor();
+            var panel = new Panel(new Text(editorResponse))
+                .Header("[bold magenta]Editor[/]")
+                .Border(BoxBorder.Rounded)
+                .BorderColor(Color.Magenta1);
+            AnsiConsole.Write(panel);
 
             // Show updated document state
             if (_personas.Count > 0)
@@ -274,26 +287,20 @@ public class AgentConversationOrchestrator
                 var docPreview = _personas[0].GetDocumentPreview();
                 if (!string.IsNullOrWhiteSpace(docPreview))
                 {
-                    Console.ForegroundColor = ConsoleColor.Cyan;
-                    Console.WriteLine($"\n  📄 Revised document state:\n{docPreview}");
-                    Console.ResetColor();
+                    DisplayDocumentPreview(docPreview);
                 }
             }
         }
         catch (InvalidOperationException ex)
         {
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"  ⚠️  Editor review skipped (invalid operation): {ex.Message}");
-            Console.ResetColor();
+            AnsiConsole.MarkupLine($"[yellow]⚠️  Editor review skipped (invalid operation): {Markup.Escape(ex.Message)}[/]");
         }
         catch (TimeoutException ex)
         {
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"  ⚠️  Editor review skipped (timeout): {ex.Message}");
-            Console.ResetColor();
+            AnsiConsole.MarkupLine($"[yellow]⚠️  Editor review skipped (timeout): {Markup.Escape(ex.Message)}[/]");
         }
 
-        Console.WriteLine($"{new string('=', 80)}\n");
+        AnsiConsole.WriteLine();
     }
 
     private bool IsConversationComplete(string response, int turn)
@@ -323,21 +330,15 @@ public class AgentConversationOrchestrator
         {
             var path = _doc.SaveToFile("conversation.md");
 
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"✓ Auto-saved collaborative document ({path})");
-            Console.ResetColor();
+            AnsiConsole.MarkupLine($"[green]✓ Auto-saved collaborative document ({Markup.Escape(path)})[/]");
         }
         catch (System.IO.IOException ex)
         {
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"⚠️  Auto-save failed (IO error): {ex.Message}");
-            Console.ResetColor();
+            AnsiConsole.MarkupLine($"[yellow]⚠️  Auto-save failed (IO error): {Markup.Escape(ex.Message)}[/]");
         }
         catch (UnauthorizedAccessException ex)
         {
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"⚠️  Auto-save failed (access denied): {ex.Message}");
-            Console.ResetColor();
+             AnsiConsole.MarkupLine($"[yellow]⚠️  Auto-save failed (access denied): {Markup.Escape(ex.Message)}[/]");
         }
         
         return Task.CompletedTask;
