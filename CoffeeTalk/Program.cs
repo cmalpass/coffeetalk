@@ -26,7 +26,14 @@ class Program
             AnsiConsole.WriteLine();
 
             // Get topic from user (needed for dynamic persona generation)
-            var topic = AnsiConsole.Ask<string>("[bold yellow]What would you like the personas to discuss?[/]");
+            var topic = AnsiConsole.Prompt(
+                new TextPrompt<string>("[bold yellow]What would you like the personas to discuss?[/]")
+                    .Validate(input =>
+                    {
+                        if (string.IsNullOrWhiteSpace(input))
+                            return ValidationResult.Error("[red]Please enter a non-empty topic.[/]");
+                        return ValidationResult.Success();
+                    }));
 
             // Create shared collaborative document
             var sharedDoc = new CollaborativeMarkdownDocument();
