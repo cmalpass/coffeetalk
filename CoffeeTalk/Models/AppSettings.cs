@@ -13,3 +13,26 @@ public class AppSettings
     public RetryConfig? Retry { get; set; }
     public EditorConfig? Editor { get; set; }
 }
+
+// PersistedAppSettings mirrors AppSettings but omits sensitive fields like ApiKey
+public class PersistedAppSettings
+{
+    public PersistedLlmProviderConfig LlmProvider { get; set; } = new PersistedLlmProviderConfig();
+    public List<PersonaConfig> Personas { get; set; } = new List<PersonaConfig>();
+    public int MaxConversationTurns { get; set; }
+    public bool ShowThinking { get; set; }
+    public RateLimitConfig? RateLimit { get; set; }
+    public RetryConfig? Retry { get; set; }
+    public OrchestratorConfig? Orchestrator { get; set; }
+    public EditorConfig? Editor { get; set; }
+    public DynamicPersonasConfig? DynamicPersonas { get; set; }
+}
+
+public class PersistedLlmProviderConfig
+{
+    public string Type { get; set; } = string.Empty;
+    public string Endpoint { get; set; } = string.Empty;
+    public string ModelId { get; set; } = string.Empty;
+    public string DeploymentName { get; set; } = string.Empty;
+    // ApiKey is intentionally omitted
+}

@@ -168,7 +168,7 @@ public class AgentConversationOrchestrator
 
                     if (_showThinking)
                     {
-                         await AnsiConsole.Status()
+                        await AnsiConsole.Status()
                             .Spinner(Spinner.Known.Dots)
                             .StartAsync($"{Markup.Escape(persona.Name)} is thinking...", async ctx =>
                             {
@@ -177,7 +177,7 @@ public class AgentConversationOrchestrator
                     }
                     else
                     {
-                         response = await persona.RespondAsync(currentMessage, conversationHistory);
+                        response = await persona.RespondAsync(currentMessage, conversationHistory);
                     }
 
                     DisplayResponse(persona.Name, response);
@@ -223,7 +223,7 @@ public class AgentConversationOrchestrator
                     ex is not ThreadAbortException
                 )
                 {
-                     AnsiConsole.WriteException(ex);
+                    AnsiConsole.WriteException(ex);
                 }
             }
 
@@ -268,7 +268,7 @@ public class AgentConversationOrchestrator
                 : "No recent conversation";
 
             string editorResponse = string.Empty;
-             await AnsiConsole.Status()
+            await AnsiConsole.Status()
                 .Spinner(Spinner.Known.Dots)
                 .StartAsync("Editor is reviewing...", async ctx =>
                 {
@@ -338,7 +338,7 @@ public class AgentConversationOrchestrator
         }
         catch (UnauthorizedAccessException ex)
         {
-             AnsiConsole.MarkupLine($"[yellow]⚠️  Auto-save failed (access denied): {Markup.Escape(ex.Message)}[/]");
+            AnsiConsole.MarkupLine($"[yellow]⚠️  Auto-save failed (access denied): {Markup.Escape(ex.Message)}[/]");
         }
         
         return Task.CompletedTask;
