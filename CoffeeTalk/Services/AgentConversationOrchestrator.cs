@@ -95,20 +95,7 @@ public class AgentConversationOrchestrator
 
         while (totalTurns < maxTotalTurns)
         {
-            if (_interactiveMode)
-            {
-                var input = AnsiConsole.Prompt(
-                    new TextPrompt<string>("[bold yellow]Interactive Mode - Enter message or press Enter to continue:[/]")
-                        .AllowEmpty());
-
-                if (!string.IsNullOrWhiteSpace(input))
-                {
-                    var userMsg = $"User: {input}";
-                    conversationHistory.Add(userMsg);
-                    currentMessage = userMsg; // Direct the next response to this input
-                    DisplayResponse("User", input);
-                }
-            }
+            currentMessage = PromptForInteractiveInput(conversationHistory, currentMessage);
 
             try
             {
@@ -191,20 +178,7 @@ public class AgentConversationOrchestrator
         {
             foreach (var persona in _personas)
             {
-                if (_interactiveMode)
-                {
-                    var input = AnsiConsole.Prompt(
-                        new TextPrompt<string>("[bold yellow]Interactive Mode - Enter message or press Enter to continue:[/]")
-                            .AllowEmpty());
-
-                    if (!string.IsNullOrWhiteSpace(input))
-                    {
-                        var userMsg = $"User: {input}";
-                        conversationHistory.Add(userMsg);
-                        currentMessage = userMsg; // Direct the next response to this input
-                        DisplayResponse("User", input);
-                    }
-                }
+                currentMessage = PromptForInteractiveInput(conversationHistory, currentMessage);
 
                 try
                 {
@@ -388,17 +362,49 @@ public class AgentConversationOrchestrator
         return Task.CompletedTask;
     }
 
+    private string PromptForInteractiveInput(List<string> conversationHistory, string currentMessage)
+    {
+        if (!_interactiveMode)
+        {
+            return currentMessage;
+        }
+
+        var input = AnsiConsole.Prompt(
+            new TextPrompt<string>("[bold yellow]Interactive Mode - Enter message or press Enter to continue:[/]")
+                .AllowEmpty());
+
+        if (!string.IsNullOrWhiteSpace(input))
+        {
+            var userMsg = $"User: {input}";
+            conversationHistory.Add(userMsg);
+            DisplayResponse("User", input);
+            return userMsg; // Direct the next response to this input
+        }
+
+        return currentMessage;
+    }
+
     private async Task SaveTranscriptAsync(List<string> conversationHistory)
     {
         try
         {
+            var timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+            var filename = $"transcript-{timestamp}.md";
             var transcript = string.Join("\n\n" + new string('-', 40) + "\n\n", conversationHistory);
-            await File.WriteAllTextAsync("transcript.md", transcript);
-            AnsiConsole.MarkupLine("[green]✓ Saved conversation transcript to transcript.md[/]");
+            await File.WriteAllTextAsync(filename, transcript);
+            AnsiConsole.MarkupLine($"[green]✓ Saved conversation transcript to {Markup.Escape(filename)}[/]");
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            AnsiConsole.MarkupLine($"[yellow]⚠️  Access denied when saving transcript: {Markup.Escape(ex.Message)}[/]");
+        }
+        catch (System.IO.IOException ex)
+        {
+            AnsiConsole.MarkupLine($"[yellow]⚠️  IO error when saving transcript: {Markup.Escape(ex.Message)}[/]");
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]⚠️  Failed to save transcript: {Markup.Escape(ex.Message)}[/]");
+            AnsiConsole.MarkupLine($"[yellow]⚠️  Unexpected error when saving transcript: {Markup.Escape(ex.Message)}[/]");
         }
     }
 }
