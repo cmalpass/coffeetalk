@@ -388,7 +388,7 @@ public class AgentConversationOrchestrator
     {
         try
         {
-            var timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmss");
+            var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff");
             var filename = $"transcript-{timestamp}.md";
             var transcript = string.Join("\n\n" + new string('-', 40) + "\n\n", conversationHistory);
             await File.WriteAllTextAsync(filename, transcript);
