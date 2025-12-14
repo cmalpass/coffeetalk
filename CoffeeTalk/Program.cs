@@ -25,6 +25,49 @@ class Program
             AnsiConsole.MarkupLine($"[bold]Model:[/] [cyan]{Markup.Escape(settings.LlmProvider.ModelId)}[/]");
             AnsiConsole.WriteLine();
 
+            // Read template file if configured
+            string? initialContent = null;
+            if (!string.IsNullOrWhiteSpace(settings.TemplateFile))
+            {
+                if (File.Exists(settings.TemplateFile))
+                {
+                    initialContent = await File.ReadAllTextAsync(settings.TemplateFile);
+                    AnsiConsole.MarkupLine($"[green]✓ Loaded template from {Markup.Escape(settings.TemplateFile)}[/]");
+                }
+                else
+                {
+                    AnsiConsole.MarkupLine($"[yellow]⚠️  Template file not found: {Markup.Escape(settings.TemplateFile)}[/]");
+                }
+            }
+
+            // Read context files if configured
+            var contextContent = new System.Text.StringBuilder();
+            if (settings.ContextFiles != null && settings.ContextFiles.Count > 0)
+            {
+                foreach (var file in settings.ContextFiles)
+                {
+                    if (File.Exists(file))
+                    {
+                        try
+                        {
+                            var content = await File.ReadAllTextAsync(file);
+                            contextContent.AppendLine($"\n--- Context from file: {Path.GetFileName(file)} ---");
+                            contextContent.AppendLine(content);
+                            contextContent.AppendLine("--- End of context ---");
+                            AnsiConsole.MarkupLine($"[green]✓ Loaded context from {Markup.Escape(file)}[/]");
+                        }
+                        catch (Exception ex)
+                        {
+                            AnsiConsole.MarkupLine($"[yellow]⚠️  Failed to read context file {Markup.Escape(file)}: {Markup.Escape(ex.Message)}[/]");
+                        }
+                    }
+                    else
+                    {
+                        AnsiConsole.MarkupLine($"[yellow]⚠️  Context file not found: {Markup.Escape(file)}[/]");
+                    }
+                }
+            }
+
             // Get topic from user (needed for dynamic persona generation)
             var topic = AnsiConsole.Prompt(
                 new TextPrompt<string>("[bold yellow]What would you like the personas to discuss?[/]")
@@ -35,8 +78,14 @@ class Program
                         return ValidationResult.Success();
                     }));
 
+            // Append context to topic for initial awareness
+            if (contextContent.Length > 0)
+            {
+                topic += "\n\nContext information:\n" + contextContent.ToString();
+            }
+
             // Create shared collaborative document
-            var sharedDoc = new CollaborativeMarkdownDocument();
+            var sharedDoc = new CollaborativeMarkdownDocument(initialContent);
 
             // Create markdown tool functions
             var markdownTools = new MarkdownToolFunctions(sharedDoc);
@@ -110,6 +159,21 @@ class Program
             var rateLimiter = new RateLimiter(settings.RateLimit);
             var agentPersonas = new List<AgentPersona>();
             
+            // Add language instruction to system prompts if configured
+            if (!string.IsNullOrWhiteSpace(settings.OutputLanguage))
+            {
+                var langInstruction = $" You must converse and write the document in {settings.OutputLanguage}.";
+                foreach (var p in settings.Personas)
+                {
+                    p.SystemPrompt += langInstruction;
+                }
+
+                if (settings.Orchestrator != null)
+                {
+                    settings.Orchestrator.BaseSystemPrompt += langInstruction;
+                }
+            }
+
             foreach (var personaConfig in settings.Personas)
             {
                 var agent = AgentBuilder.CreateAgent(

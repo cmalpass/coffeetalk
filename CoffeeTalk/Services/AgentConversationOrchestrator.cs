@@ -18,6 +18,8 @@ public class AgentConversationOrchestrator
     private readonly bool _useOrchestrator;
     private readonly AgentEditor? _editor;
     private readonly int _editorInterventionFrequency;
+    private readonly bool _interactiveMode;
+    private readonly bool _saveTranscript;
 
     public AgentConversationOrchestrator(
         List<AgentPersona> personas,
@@ -36,6 +38,8 @@ public class AgentConversationOrchestrator
         _orchestrator = orchestrator;
         _editor = editor;
         _editorInterventionFrequency = settings.Editor?.InterventionFrequency ?? 3;
+        _interactiveMode = settings.InteractiveMode;
+        _saveTranscript = settings.SaveTranscript;
     }
 
     public async Task StartConversationAsync(string topic)
@@ -64,13 +68,23 @@ public class AgentConversationOrchestrator
         var conversationHistory = new List<string>();
         var currentMessage = $"Let's discuss: {topic}";
         
-        if (_useOrchestrator)
+        try
         {
-            await RunOrchestratedConversationAsync(topic, conversationHistory, currentMessage);
+            if (_useOrchestrator)
+            {
+                await RunOrchestratedConversationAsync(topic, conversationHistory, currentMessage);
+            }
+            else
+            {
+                await RunRoundRobinConversationAsync(conversationHistory, currentMessage);
+            }
         }
-        else
+        finally
         {
-            await RunRoundRobinConversationAsync(conversationHistory, currentMessage);
+            if (_saveTranscript)
+            {
+                await SaveTranscriptAsync(conversationHistory);
+            }
         }
     }
 
@@ -81,6 +95,21 @@ public class AgentConversationOrchestrator
 
         while (totalTurns < maxTotalTurns)
         {
+            if (_interactiveMode)
+            {
+                var input = AnsiConsole.Prompt(
+                    new TextPrompt<string>("[bold yellow]Interactive Mode - Enter message or press Enter to continue:[/]")
+                        .AllowEmpty());
+
+                if (!string.IsNullOrWhiteSpace(input))
+                {
+                    var userMsg = $"User: {input}";
+                    conversationHistory.Add(userMsg);
+                    currentMessage = userMsg; // Direct the next response to this input
+                    DisplayResponse("User", input);
+                }
+            }
+
             try
             {
                 AgentPersona? selectedPersona = null;
@@ -162,6 +191,21 @@ public class AgentConversationOrchestrator
         {
             foreach (var persona in _personas)
             {
+                if (_interactiveMode)
+                {
+                    var input = AnsiConsole.Prompt(
+                        new TextPrompt<string>("[bold yellow]Interactive Mode - Enter message or press Enter to continue:[/]")
+                            .AllowEmpty());
+
+                    if (!string.IsNullOrWhiteSpace(input))
+                    {
+                        var userMsg = $"User: {input}";
+                        conversationHistory.Add(userMsg);
+                        currentMessage = userMsg; // Direct the next response to this input
+                        DisplayResponse("User", input);
+                    }
+                }
+
                 try
                 {
                     string response = string.Empty;
@@ -342,5 +386,19 @@ public class AgentConversationOrchestrator
         }
         
         return Task.CompletedTask;
+    }
+
+    private async Task SaveTranscriptAsync(List<string> conversationHistory)
+    {
+        try
+        {
+            var transcript = string.Join("\n\n" + new string('-', 40) + "\n\n", conversationHistory);
+            await File.WriteAllTextAsync("transcript.md", transcript);
+            AnsiConsole.MarkupLine("[green]✓ Saved conversation transcript to transcript.md[/]");
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[yellow]⚠️  Failed to save transcript: {Markup.Escape(ex.Message)}[/]");
+        }
     }
 }
