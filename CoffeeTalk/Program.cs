@@ -42,7 +42,7 @@ class Program
 
             // Read context files if configured
             var contextContent = new System.Text.StringBuilder();
-            if (settings.ContextFiles != null && settings.ContextFiles.Count > 0)
+            if (settings.ContextFiles.Count > 0)
             {
                 foreach (var file in settings.ContextFiles)
                 {
@@ -56,9 +56,17 @@ class Program
                             contextContent.AppendLine("--- End of context ---");
                             AnsiConsole.MarkupLine($"[green]✓ Loaded context from {Markup.Escape(file)}[/]");
                         }
+                        catch (UnauthorizedAccessException ex)
+                        {
+                            AnsiConsole.MarkupLine($"[yellow]⚠️  Access denied when reading context file {Markup.Escape(file)}: {Markup.Escape(ex.Message)}[/]");
+                        }
+                        catch (IOException ex)
+                        {
+                            AnsiConsole.MarkupLine($"[yellow]⚠️  IO error when reading context file {Markup.Escape(file)}: {Markup.Escape(ex.Message)}[/]");
+                        }
                         catch (Exception ex)
                         {
-                            AnsiConsole.MarkupLine($"[yellow]⚠️  Failed to read context file {Markup.Escape(file)}: {Markup.Escape(ex.Message)}[/]");
+                            AnsiConsole.MarkupLine($"[yellow]⚠️  Unexpected error when reading context file {Markup.Escape(file)}: {Markup.Escape(ex.Message)}[/]");
                         }
                     }
                     else
@@ -81,6 +89,13 @@ class Program
             // Append context to topic for initial awareness
             if (contextContent.Length > 0)
             {
+                // Validate context size (warn if exceeds 50KB)
+                const int maxContextSize = 50 * 1024; // 50KB
+                if (contextContent.Length > maxContextSize)
+                {
+                    AnsiConsole.MarkupLine($"[yellow]⚠️  Warning: Context files total {contextContent.Length} characters (>{maxContextSize}). This may exceed token limits.[/]");
+                }
+                
                 topic += "\n\nContext information:\n" + contextContent.ToString();
             }
 
@@ -159,27 +174,20 @@ class Program
             var rateLimiter = new RateLimiter(settings.RateLimit);
             var agentPersonas = new List<AgentPersona>();
             
-            // Add language instruction to system prompts if configured
-            if (!string.IsNullOrWhiteSpace(settings.OutputLanguage))
-            {
-                var langInstruction = $" You must converse and write the document in {settings.OutputLanguage}.";
-                foreach (var p in settings.Personas)
-                {
-                    p.SystemPrompt += langInstruction;
-                }
-
-                if (settings.Orchestrator != null)
-                {
-                    settings.Orchestrator.BaseSystemPrompt += langInstruction;
-                }
-            }
+            // Prepare language instruction if configured
+            var langInstruction = !string.IsNullOrWhiteSpace(settings.OutputLanguage)
+                ? $" You must converse and write the document in {settings.OutputLanguage}."
+                : string.Empty;
 
             foreach (var personaConfig in settings.Personas)
             {
+                // Apply language instruction without mutating the original config
+                var systemPrompt = personaConfig.SystemPrompt + langInstruction;
+                
                 var agent = AgentBuilder.CreateAgent(
                     settings.LlmProvider,
                     personaConfig.Name,
-                    personaConfig.SystemPrompt,
+                    systemPrompt,
                     tools);
                 
                 var agentPersona = new AgentPersona(
@@ -199,6 +207,10 @@ class Program
             {
                 var orchestratorConfig = settings.Orchestrator ?? new OrchestratorConfig();
                 var orchestratorPrompt = AgentOrchestrator.BuildSystemPrompt(orchestratorConfig, agentPersonas);
+                
+                // Apply language instruction without mutating the original config
+                orchestratorPrompt += langInstruction;
+                
                 var orchestratorAgent = AgentBuilder.CreateAgent(
                     settings.LlmProvider,
                     "Orchestrator",
