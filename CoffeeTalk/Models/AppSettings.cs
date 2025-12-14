@@ -12,6 +12,13 @@ public class AppSettings
     public OrchestratorConfig? Orchestrator { get; set; }
     public RetryConfig? Retry { get; set; }
     public EditorConfig? Editor { get; set; }
+
+    // New Features
+    public bool InteractiveMode { get; set; } = false;
+    public List<string> ContextFiles { get; set; } = new();
+    public bool SaveTranscript { get; set; } = false;
+    public string? TemplateFile { get; set; }
+    public string? OutputLanguage { get; set; }
 }
 
 // PersistedAppSettings mirrors AppSettings but omits sensitive fields like ApiKey
@@ -26,6 +33,13 @@ public class PersistedAppSettings
     public OrchestratorConfig? Orchestrator { get; set; }
     public EditorConfig? Editor { get; set; }
     public DynamicPersonasConfig? DynamicPersonas { get; set; }
+
+    // New Features
+    public bool InteractiveMode { get; set; }
+    public List<string> ContextFiles { get; set; } = new();
+    public bool SaveTranscript { get; set; }
+    public string? TemplateFile { get; set; }
+    public string? OutputLanguage { get; set; }
 }
 
 public class PersistedLlmProviderConfig

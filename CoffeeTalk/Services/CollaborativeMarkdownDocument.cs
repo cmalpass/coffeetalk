@@ -8,9 +8,12 @@ public class CollaborativeMarkdownDocument
     private readonly StringBuilder _content = new();
     private readonly object _lock = new();
 
-    public CollaborativeMarkdownDocument()
+    public CollaborativeMarkdownDocument(string? initialContent = null)
     {
-        // Start empty
+        if (!string.IsNullOrWhiteSpace(initialContent))
+        {
+            _content.Append(initialContent);
+        }
     }
 
     public string GetContent()

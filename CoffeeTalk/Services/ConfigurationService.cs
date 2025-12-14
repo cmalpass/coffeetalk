@@ -218,7 +218,12 @@ public class ConfigurationService
             Retry = settings.Retry,
             Orchestrator = settings.Orchestrator,
             Editor = settings.Editor,
-            DynamicPersonas = settings.DynamicPersonas
+            DynamicPersonas = settings.DynamicPersonas,
+            InteractiveMode = settings.InteractiveMode,
+            ContextFiles = settings.ContextFiles,
+            SaveTranscript = settings.SaveTranscript,
+            TemplateFile = settings.TemplateFile,
+            OutputLanguage = settings.OutputLanguage
         };
     }
 }
