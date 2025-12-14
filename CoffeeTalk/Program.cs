@@ -96,8 +96,7 @@ class Program
                     AnsiConsole.MarkupLine($"[yellow]⚠️  Warning: Context files total {contextContent.Length} characters (>{maxContextSize}). This may exceed token limits.[/]");
                 }
                 
-                // StringBuilder will be implicitly converted to string in concatenation
-                topic += "\n\nContext information:\n" + contextContent;
+                topic += "\n\nContext information:\n" + contextContent.ToString();
             }
 
             // Create shared collaborative document
