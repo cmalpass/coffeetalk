@@ -1,6 +1,5 @@
 using Microsoft.Agents.AI;
 using CoffeeTalk.Models;
-using Spectre.Console;
 
 namespace CoffeeTalk.Services;
 
@@ -8,6 +7,9 @@ public class AgentFactChecker
 {
     private readonly AIAgent _agent;
     private readonly RateLimiter? _rateLimiter;
+
+    // Delegate for reporting alerts so we don't depend on UI directly
+    public event Action<string>? OnFactCheckAlert;
 
     public AgentFactChecker(AIAgent agent, RateLimiter? rateLimiter)
     {
@@ -51,8 +53,7 @@ Output Format:
 
             if (!result.StartsWith("PASS", StringComparison.OrdinalIgnoreCase))
             {
-                AnsiConsole.MarkupLine($"\n[bold red]🕵️ Fact Checker Alert:[/]");
-                AnsiConsole.MarkupLine($"[red]{Markup.Escape(result)}[/]");
+                OnFactCheckAlert?.Invoke(result);
             }
         }
         catch (Exception)

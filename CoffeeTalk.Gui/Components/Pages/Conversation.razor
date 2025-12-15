@@ -1,0 +1,79 @@
+@using CoffeeTalk.Gui.Services
+@using CoffeeTalk.Gui.Components.Pages
+@namespace CoffeeTalk.Gui.Components
+@inject BlazorUserInterface UI
+
+<div class="sidebar">
+    <h3>Document State</h3>
+    <div style="white-space: pre-wrap; font-size: 0.8em;">
+        @UI.DocumentContent
+    </div>
+</div>
+
+<div class="chat-area">
+    @if (!string.IsNullOrEmpty(UI.StatusMessage))
+    {
+        <div class="status-bar">
+            <strong>Status:</strong> @UI.StatusMessage
+        </div>
+    }
+
+    <div class="messages-list">
+        @foreach (var msg in UI.Messages)
+        {
+            if (msg.IsDivider)
+            {
+                <hr />
+                @if (!string.IsNullOrEmpty(msg.Content))
+                {
+                    <div style="text-align:center; color: #888; font-size: 0.8em;">@msg.Content</div>
+                }
+            }
+            else
+            {
+                <div class="message @(msg.IsSystem ? "system" : (msg.IsError ? "error" : "agent"))">
+                    @if (!msg.IsSystem && !msg.IsError)
+                    {
+                        <div class="message-header">@msg.Sender</div>
+                    }
+                    <div class="message-content">@msg.Content</div>
+                </div>
+            }
+        }
+    </div>
+
+    @if (UI.IsInterventionRequired)
+    {
+        <div class="input-area">
+            <h5>Director's Chair</h5>
+            <div class="mb-2">
+                <button class="btn btn-primary" @onclick='() => Submit("continue", "")'>Continue</button>
+                <button class="btn btn-danger" @onclick='() => Submit("quit", "")'>End Conversation</button>
+            </div>
+            <div class="input-group">
+                <input type="text" class="form-control" placeholder="Inject direction/feedback..." @bind="FeedbackMessage" />
+                <button class="btn btn-secondary" @onclick='() => Submit("inject", FeedbackMessage)'>Inject</button>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private string FeedbackMessage = "";
+
+    protected override void OnInitialized()
+    {
+        UI.OnChange += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        UI.OnChange -= StateHasChanged;
+    }
+
+    private void Submit(string action, string message)
+    {
+        UI.SubmitIntervention(action, message);
+        FeedbackMessage = "";
+    }
+}

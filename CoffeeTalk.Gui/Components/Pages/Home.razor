@@ -1,0 +1,113 @@
+@page "/"
+@using CoffeeTalk.Models
+@using CoffeeTalk.Services
+@using CoffeeTalk.Core.Interfaces
+@using CoffeeTalk.Gui.Services
+@using CoffeeTalk.Gui.Components.Pages
+@namespace CoffeeTalk.Gui.Components.Pages
+
+@inject ConfigurationService ConfigService
+@inject BlazorUserInterface UI
+@inject NavigationManager Navigation
+
+
+<div class="container mt-5" style="max-width: 600px; margin: auto;">
+    <h1>CoffeeTalk Setup</h1>
+
+    @if (!ConfigLoaded)
+    {
+        <p>Loading configuration...</p>
+    }
+    else
+    {
+        <div class="card p-3 mb-3">
+            <div class="mb-3">
+                <label class="form-label">Topic</label>
+                <input type="text" class="form-control" @bind="Topic" placeholder="What would you like to discuss?" />
+            </div>
+
+            <button class="btn btn-primary" @onclick="StartConversation">Start Conversation</button>
+        </div>
+
+        <div class="alert alert-info">
+            Using Provider: <strong>@Settings.LlmProvider.Type</strong><br/>
+            Model: <strong>@Settings.LlmProvider.ModelId</strong>
+        </div>
+    }
+</div>
+
+@code {
+    private AppSettings Settings = new();
+    private bool ConfigLoaded = false;
+    private string Topic = "";
+
+    protected override void OnInitialized()
+    {
+        Settings = ConfigService.LoadConfiguration();
+        ConfigLoaded = true;
+    }
+
+    private async Task StartConversation()
+    {
+        if (string.IsNullOrWhiteSpace(Topic)) return;
+
+        // In a real app we might want to validate/configure settings via UI if missing.
+        // For this demo, we assume appsettings.json is populated or we accept defaults.
+
+        // We need to run the conversation in a background task so it doesn't block the UI thread
+        _ = Task.Run(async () => {
+             try
+             {
+                // We need to replicate Program.cs setup logic here but using the UI service
+                var sharedDoc = new CollaborativeMarkdownDocument();
+                var markdownTools = new MarkdownToolFunctions(sharedDoc);
+                var tools = markdownTools.CreateTools();
+                var rateLimiter = new RateLimiter(Settings.RateLimit);
+
+                var agentPersonas = new List<AgentPersona>();
+                foreach (var personaConfig in Settings.Personas)
+                {
+                    var agent = AgentBuilder.CreateAgent(
+                        Settings.LlmProvider,
+                        personaConfig.Name,
+                        personaConfig.SystemPrompt,
+                        tools);
+
+                    var agentPersona = new AgentPersona(
+                        agent,
+                        personaConfig,
+                        sharedDoc,
+                        rateLimiter,
+                        Settings.MaxConversationTurns,
+                        Settings.Personas.Count);
+
+                    agentPersonas.Add(agentPersona);
+                }
+
+                // (Simplified setup - skipping orchestrator/editor optional checks for brevity in this initial pass,
+                // but can be added similarly to CLI Program.cs)
+
+                var conversationOrchestrator = new AgentConversationOrchestrator(
+                    UI, // Inject our Blazor UI
+                    agentPersonas,
+                    sharedDoc,
+                    Settings
+                    // nulls for optional components for now
+                );
+
+                await conversationOrchestrator.StartConversationAsync(Topic);
+             }
+             catch(Exception ex)
+             {
+                 await UI.ShowErrorAsync(ex.ToString());
+             }
+        });
+
+        // Navigate to conversation view (actually we can just swap components or use router)
+        // Since we are using a simple layout, let's just use the router to go to a conversation page.
+        // However, we need to pass state.
+        // Better: Make Conversation.razor the main view and switch mode.
+        // Or just redirect and let the service hold the state (Singleton).
+        Navigation.NavigateTo("/conversation");
+    }
+}

@@ -23,4 +23,8 @@
     </None>
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\CoffeeTalk.Core\CoffeeTalk.Core.csproj" />
+  </ItemGroup>
+
 </Project>

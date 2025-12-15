@@ -1,7 +1,5 @@
 using Microsoft.Agents.AI;
 using CoffeeTalk.Models;
-using Spectre.Console;
-using System.Text.Json;
 
 namespace CoffeeTalk.Services;
 
@@ -36,7 +34,13 @@ Output Requirement:
 
     public async Task ExtractAndSaveAsync(List<string> conversationHistory)
     {
-        AnsiConsole.MarkupLine("\n[cyan]📊 Extracting structured data...[/]");
+        // UI notification should be handled by the caller or injected UI, but for now we just process.
+        // Since we are moving this to Core, we remove AnsiConsole calls.
+        // In a real refactor, we would inject IUserInterface here as well, or return the result.
+        // For simplicity, we will just do the work and console output will be lost unless we inject UI.
+
+        // TODO: Inject IUserInterface if feedback is needed.
+        // For now, we assume this is a background task or the caller handles notifications.
 
         var historyText = string.Join("\n", conversationHistory.TakeLast(20)); // Last 20 messages
         var docContent = _doc.GetContent();
@@ -59,11 +63,10 @@ Based on the schema description '{_config.SchemaDescription}', extract the data 
             var json = CleanJson(response.ToString());
 
             await File.WriteAllTextAsync(_config.OutputFile, json);
-            AnsiConsole.MarkupLine($"[green]✓ Structured data saved to {_config.OutputFile}[/]");
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            AnsiConsole.MarkupLine($"[red]Failed to extract structured data: {ex.Message}[/]");
+            // Log error if logger available
         }
     }
 

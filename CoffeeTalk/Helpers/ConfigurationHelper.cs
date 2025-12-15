@@ -1,28 +1,12 @@
-using Microsoft.Extensions.Configuration;
 using CoffeeTalk.Models;
+using CoffeeTalk.Services;
 using Spectre.Console;
-using System.Text.Json;
 
-namespace CoffeeTalk.Services;
+namespace CoffeeTalk.Helpers;
 
-public class ConfigurationService
+public static class ConfigurationHelper
 {
-    private const string SettingsFile = "appsettings.json";
-
-    public AppSettings LoadConfiguration()
-    {
-        var configuration = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
-            .AddJsonFile(SettingsFile, optional: true, reloadOnChange: false)
-            .Build();
-
-        var settings = new AppSettings();
-        configuration.Bind(settings);
-
-        return settings;
-    }
-
-    public async Task<AppSettings> ValidateAndConfigureAsync(AppSettings settings)
+    public static async Task<AppSettings> ValidateAndConfigureAsync(ConfigurationService configService, AppSettings settings)
     {
         bool needsSave = false;
 
@@ -65,7 +49,6 @@ public class ConfigurationService
                         else
                         {
                             AnsiConsole.MarkupLine("[yellow]⚠️  API key not found.[/]");
-                            // Security policy: Never save API keys to disk. API keys entered here are kept in memory for this session only.
                             AnsiConsole.MarkupLine("[yellow]Your API key will NOT be saved to disk and must be provided again in future sessions.[/]");
                             settings.LlmProvider.ApiKey = AnsiConsole.Prompt(
                                 new TextPrompt<string>("Please enter your OpenAI API Key:")
@@ -86,7 +69,6 @@ public class ConfigurationService
                         else
                         {
                             AnsiConsole.MarkupLine("[yellow]⚠️  Azure OpenAI API key not found.[/]");
-                            // Security policy: Never save API keys to disk. API keys entered here are kept in memory for this session only.
                             AnsiConsole.MarkupLine("[yellow]Your API key will NOT be saved to disk and must be provided again in future sessions.[/]");
                             settings.LlmProvider.ApiKey = AnsiConsole.Prompt(
                                 new TextPrompt<string>("Please enter your Azure OpenAI API Key:")
@@ -128,14 +110,14 @@ public class ConfigurationService
 
         if (needsSave && AnsiConsole.Confirm("Would you like to save these settings to appsettings.json?", true))
         {
-            await SaveSettingsAsync(settings);
+            await configService.SaveSettingsAsync(settings);
             AnsiConsole.MarkupLine("[green]✓ Settings saved to appsettings.json[/]");
         }
 
         return settings;
     }
 
-    private Task RunSetupWizardAsync(AppSettings settings)
+    private static Task RunSetupWizardAsync(AppSettings settings)
     {
         var provider = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
@@ -204,50 +186,5 @@ public class ConfigurationService
         }
 
         return Task.CompletedTask;
-    }
-
-    private async Task SaveSettingsAsync(AppSettings settings)
-    {
-        var persistedSettings = MapToPersistedAppSettings(settings);
-        var json = JsonSerializer.Serialize(persistedSettings, new JsonSerializerOptions { WriteIndented = true });
-        
-        try
-        {
-            await File.WriteAllTextAsync(SettingsFile, json);
-        }
-        catch (Exception ex)
-        {
-            AnsiConsole.MarkupLine($"[red]Failed to save configuration to '{SettingsFile}': {ex.Message}[/]");
-            AnsiConsole.MarkupLine("[yellow]Please check file permissions, available disk space, and ensure the file is not locked by another process.[/]");
-        }
-    }
-
-    // Helper method to map AppSettings to PersistedAppSettings, omitting sensitive fields
-    private PersistedAppSettings MapToPersistedAppSettings(AppSettings settings)
-    {
-        return new PersistedAppSettings
-        {
-            LlmProvider = new PersistedLlmProviderConfig
-            {
-                Type = settings.LlmProvider.Type,
-                Endpoint = settings.LlmProvider.Endpoint,
-                ModelId = settings.LlmProvider.ModelId,
-                DeploymentName = settings.LlmProvider.DeploymentName
-                // ApiKey is intentionally omitted
-            },
-            Personas = settings.Personas,
-            MaxConversationTurns = settings.MaxConversationTurns,
-            ShowThinking = settings.ShowThinking,
-            InteractiveMode = settings.InteractiveMode,
-            DevilsAdvocate = settings.DevilsAdvocate,
-            ContextSummarization = settings.ContextSummarization,
-            StructuredData = settings.StructuredData,
-            FactChecking = settings.FactChecking,
-            RateLimit = settings.RateLimit,
-            Retry = settings.Retry,
-            Orchestrator = settings.Orchestrator,
-            Editor = settings.Editor,
-            DynamicPersonas = settings.DynamicPersonas
-        };
     }
 }

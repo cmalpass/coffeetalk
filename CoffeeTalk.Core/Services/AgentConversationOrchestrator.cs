@@ -1,6 +1,7 @@
 using Microsoft.Agents.AI;
 using CoffeeTalk.Models;
-using Spectre.Console;
+using CoffeeTalk.Core.Interfaces;
+using System.Text;
 
 namespace CoffeeTalk.Services;
 
@@ -23,8 +24,10 @@ public class AgentConversationOrchestrator
     private readonly AppSettings _settings;
     private readonly AgentDataExtractor? _dataExtractor;
     private readonly AgentFactChecker? _factChecker;
+    private readonly IUserInterface _ui;
 
     public AgentConversationOrchestrator(
+        IUserInterface ui,
         List<AgentPersona> personas,
         CollaborativeMarkdownDocument doc,
         AppSettings settings,
@@ -33,6 +36,7 @@ public class AgentConversationOrchestrator
         AgentDataExtractor? dataExtractor = null,
         AgentFactChecker? factChecker = null)
     {
+        _ui = ui;
         _personas = personas;
         _doc = doc;
         _settings = settings;
@@ -54,30 +58,18 @@ public class AgentConversationOrchestrator
     {
         if (_personas.Count == 0)
         {
-            AnsiConsole.MarkupLine("[red]No personas configured. Please add personas to appsettings.json[/]");
+            await _ui.ShowErrorAsync("[red]No personas configured. Please add personas to appsettings.json[/]");
             return;
         }
 
-        AnsiConsole.MarkupLine($"\n[bold]🎯 Topic:[/] [cyan]{Markup.Escape(topic)}[/]\n");
-        AnsiConsole.MarkupLine($"[bold]Participants:[/] {string.Join(", ", _personas.Select(a => Markup.Escape(a.Name)))}\n");
+        var mode = _useOrchestrator
+            ? "Orchestrated (AI-directed conversation flow)"
+            : "Round-robin (sequential turns)";
         
-        if (_useOrchestrator)
-        {
-            AnsiConsole.MarkupLine("[bold]Mode:[/] [magenta]🎭 Orchestrated (AI-directed conversation flow)[/]\n");
-        }
-        else
-        {
-            AnsiConsole.MarkupLine("[bold]Mode:[/] [blue]🔄 Round-robin (sequential turns)[/]\n");
-        }
-        
-        if (_interactiveMode)
-        {
-            AnsiConsole.MarkupLine("[bold]Interactive Mode:[/] [green]Enabled (Director's Chair)[/]");
-            AnsiConsole.MarkupLine("[dim]You will be prompted to intervene after each turn.[/]\n");
-        }
+        await _ui.ShowConversationHeaderAsync(topic, _personas.Select(a => a.Name), mode, _interactiveMode);
 
-        AnsiConsole.MarkupLine("[bold]Starting conversation...[/]\n");
-        AnsiConsole.Write(new Rule());
+        await _ui.ShowMessageAsync("[bold]Starting conversation...[/]\n");
+        await _ui.ShowRuleAsync();
 
         var conversationHistory = new List<string>();
         var currentMessage = $"Let's discuss: {topic}";
@@ -104,30 +96,28 @@ public class AgentConversationOrchestrator
                 AgentPersona? selectedPersona = null;
                 string response = string.Empty;
 
-                await AnsiConsole.Status()
-                    .Spinner(Spinner.Known.Dots)
-                    .StartAsync("Orchestrating...", async ctx =>
+                await _ui.RunWithStatusAsync("Orchestrating...", async () =>
+                {
+                    // Ask orchestrator who should speak next
+                    var turnsRemaining = maxTotalTurns - totalTurns;
+                    await _ui.SetStatusAsync($"Orchestrator selecting next speaker (Turns remaining: {turnsRemaining})...");
+
+                    selectedPersona = await _orchestrator!.SelectNextSpeakerAsync(currentMessage, conversationHistory, turnsRemaining);
+
+                    if (selectedPersona != null)
                     {
-                        // Ask orchestrator who should speak next
-                        var turnsRemaining = maxTotalTurns - totalTurns;
-                        ctx.Status($"Orchestrator selecting next speaker (Turns remaining: {turnsRemaining})...");
-
-                        selectedPersona = await _orchestrator!.SelectNextSpeakerAsync(currentMessage, conversationHistory, turnsRemaining);
-
-                        if (selectedPersona != null)
-                        {
-                            ctx.Status($"{Markup.Escape(selectedPersona.Name)} is thinking...");
-                            response = await selectedPersona.RespondAsync(currentMessage, conversationHistory);
-                        }
-                    });
+                        await _ui.SetStatusAsync($"{Escape(selectedPersona.Name)} is thinking...");
+                        response = await selectedPersona.RespondAsync(currentMessage, conversationHistory);
+                    }
+                });
 
                 if (selectedPersona == null)
                 {
-                    AnsiConsole.MarkupLine("\n[yellow]⚠️  Orchestrator couldn't select a speaker. Ending conversation.[/]");
+                    await _ui.ShowMessageAsync("\n[yellow]⚠️  Orchestrator couldn't select a speaker. Ending conversation.[/]");
                     break;
                 }
 
-                DisplayResponse(selectedPersona.Name, response);
+                await _ui.ShowAgentResponseAsync(selectedPersona.Name, response);
                 
                 conversationHistory.Add($"{selectedPersona.Name}: {response}");
                 currentMessage = response;
@@ -137,7 +127,7 @@ public class AgentConversationOrchestrator
                 var docPreview = selectedPersona.GetDocumentPreview();
                 if (!string.IsNullOrWhiteSpace(docPreview))
                 {
-                    DisplayDocumentPreview(docPreview);
+                    await _ui.ShowDocumentPreviewAsync(docPreview);
                 }
 
                 // Editor intervention - review and refine document periodically
@@ -162,11 +152,11 @@ public class AgentConversationOrchestrator
                 // Interactive Mode Check
                 if (_interactiveMode)
                 {
-                    var (action, message) = await GetUserInterventionAsync();
+                    var (action, message) = await _ui.GetUserInterventionAsync();
                     if (action == "quit") break;
                     if (action == "inject" && !string.IsNullOrWhiteSpace(message))
                     {
-                        AnsiConsole.MarkupLine($"\n[bold green]👤 Director:[/]: {Markup.Escape(message)}");
+                        await _ui.ShowMessageAsync($"\n[bold green]👤 Director:[/]: {Escape(message)}");
                         conversationHistory.Add($"Director (User): {message}");
                         currentMessage = $"Director (User): {message}";
                     }
@@ -176,11 +166,11 @@ public class AgentConversationOrchestrator
             }
             catch (OperationCanceledException ex)
             {
-                AnsiConsole.MarkupLine($"[red]❌ Operation canceled: {Markup.Escape(ex.Message)}[/]");
+                await _ui.ShowErrorAsync($"[red]❌ Operation canceled: {Escape(ex.Message)}[/]");
             }
             catch (TimeoutException ex)
             {
-                AnsiConsole.MarkupLine($"[red]❌ Timeout: {Markup.Escape(ex.Message)}[/]");
+                await _ui.ShowErrorAsync($"[red]❌ Timeout: {Escape(ex.Message)}[/]");
             }
             catch (Exception ex) when (
                 ex is not StackOverflowException &&
@@ -188,14 +178,14 @@ public class AgentConversationOrchestrator
                 ex is not ThreadAbortException
             )
             {
-                AnsiConsole.WriteException(ex);
+                await _ui.ShowErrorAsync(ex.ToString());
             }
 
-            AnsiConsole.Write(new Rule());
+            await _ui.ShowRuleAsync();
         }
 
-        AnsiConsole.Write(new Rule("Conversation Ended"));
-        AnsiConsole.MarkupLine($"\n[yellow]⏱️  Maximum turns ({maxTotalTurns}) reached. Conversation ended.[/]");
+        await _ui.ShowRuleAsync("Conversation Ended");
+        await _ui.ShowMessageAsync($"\n[yellow]⏱️  Maximum turns ({maxTotalTurns}) reached. Conversation ended.[/]");
 
         if (_dataExtractor != null)
         {
@@ -218,19 +208,17 @@ public class AgentConversationOrchestrator
 
                     if (_showThinking)
                     {
-                        await AnsiConsole.Status()
-                            .Spinner(Spinner.Known.Dots)
-                            .StartAsync($"{Markup.Escape(persona.Name)} is thinking...", async ctx =>
-                            {
-                                response = await persona.RespondAsync(currentMessage, conversationHistory);
-                            });
+                        await _ui.RunWithStatusAsync($"{Escape(persona.Name)} is thinking...", async () =>
+                        {
+                            response = await persona.RespondAsync(currentMessage, conversationHistory);
+                        });
                     }
                     else
                     {
                         response = await persona.RespondAsync(currentMessage, conversationHistory);
                     }
 
-                    DisplayResponse(persona.Name, response);
+                    await _ui.ShowAgentResponseAsync(persona.Name, response);
                     
                     conversationHistory.Add($"{persona.Name}: {response}");
                     currentMessage = response;
@@ -240,7 +228,7 @@ public class AgentConversationOrchestrator
                     var docPreview = persona.GetDocumentPreview();
                     if (!string.IsNullOrWhiteSpace(docPreview))
                     {
-                        DisplayDocumentPreview(docPreview);
+                        await _ui.ShowDocumentPreviewAsync(docPreview);
                     }
 
                     // Editor intervention - review and refine document periodically
@@ -264,16 +252,16 @@ public class AgentConversationOrchestrator
                     // Interactive Mode Check
                     if (_interactiveMode)
                     {
-                        var (action, message) = await GetUserInterventionAsync();
+                        var (action, message) = await _ui.GetUserInterventionAsync();
                         if (action == "quit")
                         {
-                            AnsiConsole.MarkupLine($"\n[yellow]Conversation manually ended by user.[/]");
+                            await _ui.ShowMessageAsync($"\n[yellow]Conversation manually ended by user.[/]");
                             await TryAutoSaveAsync();
                             return;
                         }
                         if (action == "inject" && !string.IsNullOrWhiteSpace(message))
                         {
-                            AnsiConsole.MarkupLine($"\n[bold green]👤 Director:[/]: {Markup.Escape(message)}");
+                            await _ui.ShowMessageAsync($"\n[bold green]👤 Director:[/]: {Escape(message)}");
                             conversationHistory.Add($"Director (User): {message}");
                             currentMessage = $"Director (User): {message}";
 
@@ -286,9 +274,9 @@ public class AgentConversationOrchestrator
                     // Check if the conversation goal seems to be reached
                     if (IsConversationComplete(response, turn))
                     {
-                        AnsiConsole.Write(new Rule("Conversation Complete"));
-                        AnsiConsole.MarkupLine("\n[bold green]✅ Conversation goal appears to be reached![/]");
-                        AnsiConsole.MarkupLine($"Total turns: {turn + 1} (across {_personas.Count} personas)");
+                        await _ui.ShowRuleAsync("Conversation Complete");
+                        await _ui.ShowMessageAsync("\n[bold green]✅ Conversation goal appears to be reached![/]");
+                        await _ui.ShowMessageAsync($"Total turns: {turn + 1} (across {_personas.Count} personas)");
 
                         if (_dataExtractor != null)
                         {
@@ -301,11 +289,11 @@ public class AgentConversationOrchestrator
                 }
                 catch (OperationCanceledException ex)
                 {
-                    AnsiConsole.MarkupLine($"[red]❌ Operation canceled: {Markup.Escape(ex.Message)}[/]");
+                    await _ui.ShowErrorAsync($"[red]❌ Operation canceled: {Escape(ex.Message)}[/]");
                 }
                 catch (TimeoutException ex)
                 {
-                    AnsiConsole.MarkupLine($"[red]❌ Timeout: {Markup.Escape(ex.Message)}[/]");
+                    await _ui.ShowErrorAsync($"[red]❌ Timeout: {Escape(ex.Message)}[/]");
                 }
                 catch (Exception ex) when (
                     ex is not StackOverflowException &&
@@ -313,15 +301,15 @@ public class AgentConversationOrchestrator
                     ex is not ThreadAbortException
                 )
                 {
-                    AnsiConsole.WriteException(ex);
+                    await _ui.ShowErrorAsync(ex.ToString());
                 }
             }
 
-            AnsiConsole.Write(new Rule());
+            await _ui.ShowRuleAsync();
         }
 
-        AnsiConsole.Write(new Rule("Max Turns Reached"));
-        AnsiConsole.MarkupLine($"\n[yellow]⏱️  Maximum turns ({_maxTurns}) reached. Conversation ended.[/]");
+        await _ui.ShowRuleAsync("Max Turns Reached");
+        await _ui.ShowMessageAsync($"\n[yellow]⏱️  Maximum turns ({_maxTurns}) reached. Conversation ended.[/]");
 
         if (_dataExtractor != null)
         {
@@ -331,29 +319,10 @@ public class AgentConversationOrchestrator
         await TryAutoSaveAsync();
     }
 
-    private void DisplayResponse(string name, string response)
-    {
-        var panel = new Panel(new Text(response))
-            .Header($"[bold]{Markup.Escape(name)}[/]")
-            .Border(BoxBorder.Rounded);
-
-        AnsiConsole.Write(panel);
-    }
-
-    private void DisplayDocumentPreview(string content)
-    {
-        var panel = new Panel(new Text(content))
-            .Header("[bold cyan]Document State[/]")
-            .Border(BoxBorder.Rounded)
-            .BorderColor(Color.Cyan1);
-
-        AnsiConsole.Write(panel);
-    }
-
     private async Task RunEditorIntervention(List<string> conversationHistory)
     {
-        AnsiConsole.Write(new Rule("Editor Review") { Style = Style.Parse("magenta") });
-        AnsiConsole.MarkupLine("\n[magenta]✂️  Refining document for clarity and conciseness...[/]");
+        await _ui.ShowRuleAsync("Editor Review");
+        await _ui.ShowMessageAsync("\n[magenta]✂️  Refining document for clarity and conciseness...[/]");
 
         try
         {
@@ -364,18 +333,12 @@ public class AgentConversationOrchestrator
                 : "No recent conversation";
 
             string editorResponse = string.Empty;
-            await AnsiConsole.Status()
-                .Spinner(Spinner.Known.Dots)
-                .StartAsync("Editor is reviewing...", async ctx =>
-                {
-                    editorResponse = await _editor!.ReviewAndEditAsync(contextSummary);
-                });
+            await _ui.RunWithStatusAsync("Editor is reviewing...", async () =>
+            {
+                editorResponse = await _editor!.ReviewAndEditAsync(contextSummary);
+            });
             
-            var panel = new Panel(new Text(editorResponse))
-                .Header("[bold magenta]Editor[/]")
-                .Border(BoxBorder.Rounded)
-                .BorderColor(Color.Magenta1);
-            AnsiConsole.Write(panel);
+            await _ui.ShowAgentResponseAsync("Editor", editorResponse);
 
             // Show updated document state
             if (_personas.Count > 0)
@@ -383,20 +346,20 @@ public class AgentConversationOrchestrator
                 var docPreview = _personas[0].GetDocumentPreview();
                 if (!string.IsNullOrWhiteSpace(docPreview))
                 {
-                    DisplayDocumentPreview(docPreview);
+                    await _ui.ShowDocumentPreviewAsync(docPreview);
                 }
             }
         }
         catch (InvalidOperationException ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]⚠️  Editor review skipped (invalid operation): {Markup.Escape(ex.Message)}[/]");
+            await _ui.ShowMessageAsync($"[yellow]⚠️  Editor review skipped (invalid operation): {Escape(ex.Message)}[/]");
         }
         catch (TimeoutException ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]⚠️  Editor review skipped (timeout): {Markup.Escape(ex.Message)}[/]");
+            await _ui.ShowMessageAsync($"[yellow]⚠️  Editor review skipped (timeout): {Escape(ex.Message)}[/]");
         }
 
-        AnsiConsole.WriteLine();
+        await _ui.ShowMessageAsync("");
     }
 
     private bool IsConversationComplete(string response, int turn)
@@ -420,24 +383,22 @@ public class AgentConversationOrchestrator
         return completionIndicators.Any(indicator => lowerResponse.Contains(indicator));
     }
 
-    private Task TryAutoSaveAsync()
+    private async Task TryAutoSaveAsync()
     {
         try
         {
             var path = _doc.SaveToFile("conversation.md");
 
-            AnsiConsole.MarkupLine($"[green]✓ Auto-saved collaborative document ({Markup.Escape(path)})[/]");
+            await _ui.ShowMessageAsync($"[green]✓ Auto-saved collaborative document ({Escape(path)})[/]");
         }
         catch (System.IO.IOException ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]⚠️  Auto-save failed (IO error): {Markup.Escape(ex.Message)}[/]");
+            await _ui.ShowErrorAsync($"[yellow]⚠️  Auto-save failed (IO error): {Escape(ex.Message)}[/]");
         }
         catch (UnauthorizedAccessException ex)
         {
-            AnsiConsole.MarkupLine($"[yellow]⚠️  Auto-save failed (access denied): {Markup.Escape(ex.Message)}[/]");
+            await _ui.ShowErrorAsync($"[yellow]⚠️  Auto-save failed (access denied): {Escape(ex.Message)}[/]");
         }
-        
-        return Task.CompletedTask;
     }
 
     private async Task SummarizeHistoryAsync(List<string> conversationHistory)
@@ -450,7 +411,7 @@ public class AgentConversationOrchestrator
 
         try
         {
-            await AnsiConsole.Status().StartAsync("Summarizing context...", async ctx =>
+            await _ui.RunWithStatusAsync("Summarizing context...", async () =>
             {
                 string summary = string.Empty;
 
@@ -461,16 +422,6 @@ public class AgentConversationOrchestrator
                 else
                 {
                     // Fallback: Use the first available persona to summarize
-                    // Note: We need a way to run a direct prompt without the conversational wrapper.
-                    // Since AgentPersona.RespondAsync is opinionated, we might need a public method to run a raw prompt.
-                    // For now, we will use a simpler fallback to avoid breaking encapsulation,
-                    // or ideally, we should expose a 'Summarize' capability on AgentPersona.
-                    // Given the constraints, we'll try to use the first persona if possible,
-                    // but since we can't easily access the raw agent, we will assume
-                    // a truncation is the safest fallback without refactoring AgentPersona.
-
-                    // Actually, let's try to be smarter. We can't access ._agent.
-                    // But we can just truncate.
                     conversationHistory.RemoveRange(0, 5);
                     conversationHistory.Insert(0, "[... older history removed to save context ...]");
                     return;
@@ -481,40 +432,24 @@ public class AgentConversationOrchestrator
                     conversationHistory.Clear();
                     conversationHistory.Add($"[Summary of previous turns]: {summary}");
                     conversationHistory.AddRange(remainingHistory);
-                    AnsiConsole.MarkupLine("[dim]History summarized to save tokens.[/]");
+                    await _ui.ShowMessageAsync("[dim]History summarized to save tokens.[/]");
                 }
             });
         }
         catch (Exception ex)
         {
-            AnsiConsole.MarkupLine($"[dim red]Summarization failed: {ex.Message}[/]");
+            await _ui.ShowErrorAsync($"[dim red]Summarization failed: {ex.Message}[/]");
         }
     }
 
-    private Task<(string Action, string Message)> GetUserInterventionAsync()
+    // Helper to escape markup since we are using Spectre Console conventions in strings still
+    private string Escape(string text)
     {
-        AnsiConsole.WriteLine();
-        var selection = AnsiConsole.Prompt(
-            new SelectionPrompt<string>()
-                .Title("[green]Director's Chair[/]: What would you like to do?")
-                .AddChoices(new[] {
-                    "Continue",
-                    "Inject Direction/Feedback",
-                    "End Conversation"
-                }));
-
-        if (selection == "End Conversation")
-        {
-            return Task.FromResult(("quit", string.Empty));
-        }
-
-        if (selection == "Inject Direction/Feedback")
-        {
-            var message = AnsiConsole.Ask<string>("[green]Enter your instruction:[/]");
-            return Task.FromResult(("inject", message));
-        }
-
-        return Task.FromResult(("continue", string.Empty));
+        return text.Replace("[", "[[").Replace("]", "]]");
+        // Note: Generic escaping might be needed if UI implementation relies on markup.
+        // For now we assume the string passing uses Spectre-like markup or plain text.
+        // If the UI is Blazor, we might need to handle this differently.
+        // Ideally we should pass plain text and let the UI handle formatting, or use a rich text model.
+        // For simplicity, we keep the markup strings and let the implementations handle them.
     }
-
 }
