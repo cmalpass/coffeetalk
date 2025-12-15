@@ -97,6 +97,15 @@ Reason: Document complete, all personas contributed, clear consensus reached";
         return fallback;
     }
 
+    public async Task<string> SummarizeAsync(string historyText)
+    {
+        var prompt = $"Summarize the following conversation history into a single concise paragraph. Capture key points, decisions, and arguments. Do not lose critical context.\n\nHistory:\n{historyText}";
+        var response = await RetryHandler.ExecuteWithRetryAsync(
+            async () => await _agent.RunAsync(prompt),
+            "Orchestrator summarization");
+        return response.ToString();
+    }
+
     public async Task<AgentPersona?> SelectNextSpeakerAsync(
         string currentMessage,
         List<string> conversationHistory,

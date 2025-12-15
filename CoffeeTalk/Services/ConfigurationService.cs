@@ -135,7 +135,7 @@ public class ConfigurationService
         return settings;
     }
 
-    private async Task RunSetupWizardAsync(AppSettings settings)
+    private Task RunSetupWizardAsync(AppSettings settings)
     {
         var provider = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
@@ -167,6 +167,28 @@ public class ConfigurationService
                 break;
         }
 
+        settings.InteractiveMode = AnsiConsole.Confirm("Enable [bold]Interactive Mode[/] (Director's Chair)?", false);
+        settings.DevilsAdvocate = AnsiConsole.Confirm("Enable [bold]Devil's Advocate[/] mode?", false);
+        settings.ContextSummarization = AnsiConsole.Confirm("Enable [bold]Context Summarization[/]?", false);
+        settings.FactChecking = AnsiConsole.Confirm("Enable [bold]Fact Checking Agent[/]?", false);
+
+        if (AnsiConsole.Confirm("Enable [bold]Structured Data Extraction[/] (JSON)?", false))
+        {
+            settings.StructuredData = new StructuredDataConfig
+            {
+                Enabled = true,
+                SchemaDescription = AnsiConsole.Ask<string>("Enter schema description (e.g., 'Extract action items'):", "Extract key action items and decisions.")
+            };
+        }
+
+        if (settings.Editor?.Enabled == true)
+        {
+             if (AnsiConsole.Confirm("Do you want to add specific [bold]Style Guidelines[/] (e.g., 'Use legal terminology')?", false))
+             {
+                 settings.Editor.StyleGuidelines = AnsiConsole.Ask<string>("Enter your Style Guidelines:");
+             }
+        }
+
         if (settings.Personas.Count == 0 && AnsiConsole.Confirm("No personas configured. Add default personas?", true))
         {
             settings.Personas.Add(new PersonaConfig
@@ -180,6 +202,8 @@ public class ConfigurationService
                 SystemPrompt = "You are a software engineer focused on technical feasibility, architecture, and implementation. Keep responses technical and concise."
             });
         }
+
+        return Task.CompletedTask;
     }
 
     private async Task SaveSettingsAsync(AppSettings settings)
@@ -214,6 +238,11 @@ public class ConfigurationService
             Personas = settings.Personas,
             MaxConversationTurns = settings.MaxConversationTurns,
             ShowThinking = settings.ShowThinking,
+            InteractiveMode = settings.InteractiveMode,
+            DevilsAdvocate = settings.DevilsAdvocate,
+            ContextSummarization = settings.ContextSummarization,
+            StructuredData = settings.StructuredData,
+            FactChecking = settings.FactChecking,
             RateLimit = settings.RateLimit,
             Retry = settings.Retry,
             Orchestrator = settings.Orchestrator,

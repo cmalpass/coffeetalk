@@ -129,6 +129,37 @@ class Program
                 agentPersonas.Add(agentPersona);
             }
 
+            // Inject Devil's Advocate if enabled
+            if (settings.DevilsAdvocate)
+            {
+                var daConfig = new PersonaConfig
+                {
+                    Name = "DevilsAdvocate",
+                    SystemPrompt = "You are the Devil's Advocate. Your sole purpose is to challenge assumptions, find flaws in logic, and force the team to strengthen their arguments. Be constructive but relentless. Do not agree just to be polite. If everyone agrees, find a reason why they might be wrong."
+                };
+
+                // Avoid duplicate if already in config
+                if (!agentPersonas.Any(p => p.Name.Equals(daConfig.Name, StringComparison.OrdinalIgnoreCase)))
+                {
+                    var daAgent = AgentBuilder.CreateAgent(
+                        settings.LlmProvider,
+                        daConfig.Name,
+                        daConfig.SystemPrompt,
+                        tools);
+
+                    var daPersona = new AgentPersona(
+                        daAgent,
+                        daConfig,
+                        sharedDoc,
+                        rateLimiter,
+                        settings.MaxConversationTurns,
+                        agentPersonas.Count + 1); // +1 because we are adding it now
+
+                    agentPersonas.Add(daPersona);
+                    AnsiConsole.MarkupLine("[magenta]😈 Devil's Advocate injected![/]");
+                }
+            }
+
             // Create orchestrator if enabled
             AgentOrchestrator? orchestrator = null;
             if (settings.Orchestrator?.Enabled ?? false)
@@ -165,13 +196,32 @@ class Program
                     rateLimiter);
             }
 
+            // Create Fact Checker if enabled
+            AgentFactChecker? factChecker = null;
+            if (settings.FactChecking)
+            {
+                var factPrompt = AgentFactChecker.BuildSystemPrompt();
+                var factAgent = AgentBuilder.CreateAgent(settings.LlmProvider, "FactChecker", factPrompt);
+                factChecker = new AgentFactChecker(factAgent, rateLimiter);
+            }
+
             // Create conversation orchestrator and start conversation
+            AgentDataExtractor? dataExtractor = null;
+            if (settings.StructuredData?.Enabled == true)
+            {
+                var prompt = AgentDataExtractor.BuildSystemPrompt(settings.StructuredData);
+                var agent = AgentBuilder.CreateAgent(settings.LlmProvider, "DataExtractor", prompt);
+                dataExtractor = new AgentDataExtractor(agent, settings.StructuredData, sharedDoc);
+            }
+
             var conversationOrchestrator = new AgentConversationOrchestrator(
                 agentPersonas,
                 sharedDoc,
                 settings,
                 orchestrator,
-                editor);
+                editor,
+                dataExtractor,
+                factChecker);
             
             await conversationOrchestrator.StartConversationAsync(topic);
 
