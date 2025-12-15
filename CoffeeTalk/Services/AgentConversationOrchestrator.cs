@@ -18,6 +18,7 @@ public class AgentConversationOrchestrator
     private readonly bool _useOrchestrator;
     private readonly AgentEditor? _editor;
     private readonly int _editorInterventionFrequency;
+    private readonly bool _interactiveMode;
 
     public AgentConversationOrchestrator(
         List<AgentPersona> personas,
@@ -36,6 +37,7 @@ public class AgentConversationOrchestrator
         _orchestrator = orchestrator;
         _editor = editor;
         _editorInterventionFrequency = settings.Editor?.InterventionFrequency ?? 3;
+        _interactiveMode = settings.InteractiveMode;
     }
 
     public async Task StartConversationAsync(string topic)
@@ -58,6 +60,12 @@ public class AgentConversationOrchestrator
             AnsiConsole.MarkupLine("[bold]Mode:[/] [blue]🔄 Round-robin (sequential turns)[/]\n");
         }
         
+        if (_interactiveMode)
+        {
+            AnsiConsole.MarkupLine("[bold]Interactive Mode:[/] [green]Enabled (Director's Chair)[/]");
+            AnsiConsole.MarkupLine("[dim]You will be prompted to intervene after each turn.[/]\n");
+        }
+
         AnsiConsole.MarkupLine("[bold]Starting conversation...[/]\n");
         AnsiConsole.Write(new Rule());
 
@@ -126,6 +134,19 @@ public class AgentConversationOrchestrator
                 if (_editor != null && totalTurns % _editorInterventionFrequency == 0)
                 {
                     await RunEditorIntervention(conversationHistory);
+                }
+
+                // Interactive Mode Check
+                if (_interactiveMode)
+                {
+                    var (action, message) = await GetUserInterventionAsync();
+                    if (action == "quit") break;
+                    if (action == "inject" && !string.IsNullOrWhiteSpace(message))
+                    {
+                        AnsiConsole.MarkupLine($"\n[bold green]👤 Director:[/]: {Markup.Escape(message)}");
+                        conversationHistory.Add($"Director (User): {message}");
+                        currentMessage = $"Director (User): {message}";
+                    }
                 }
 
                 // Orchestrator decides completion (already handled in SelectNextSpeakerAsync returning null)
@@ -197,6 +218,28 @@ public class AgentConversationOrchestrator
                     if (_editor != null && totalTurns % _editorInterventionFrequency == 0)
                     {
                         await RunEditorIntervention(conversationHistory);
+                    }
+
+                    // Interactive Mode Check
+                    if (_interactiveMode)
+                    {
+                        var (action, message) = await GetUserInterventionAsync();
+                        if (action == "quit")
+                        {
+                            AnsiConsole.MarkupLine($"\n[yellow]Conversation manually ended by user.[/]");
+                            await TryAutoSaveAsync();
+                            return;
+                        }
+                        if (action == "inject" && !string.IsNullOrWhiteSpace(message))
+                        {
+                            AnsiConsole.MarkupLine($"\n[bold green]👤 Director:[/]: {Markup.Escape(message)}");
+                            conversationHistory.Add($"Director (User): {message}");
+                            currentMessage = $"Director (User): {message}";
+
+                            // In round-robin, we might want the NEXT persona to respond to this,
+                            // or maybe we just let the loop continue.
+                            // Currently, the loop continues to the next persona in the list.
+                        }
                     }
 
                     // Check if the conversation goal seems to be reached
@@ -342,5 +385,31 @@ public class AgentConversationOrchestrator
         }
         
         return Task.CompletedTask;
+    }
+
+    private Task<(string Action, string Message)> GetUserInterventionAsync()
+    {
+        AnsiConsole.WriteLine();
+        var selection = AnsiConsole.Prompt(
+            new SelectionPrompt<string>()
+                .Title("[green]Director's Chair[/]: What would you like to do?")
+                .AddChoices(new[] {
+                    "Continue",
+                    "Inject Direction/Feedback",
+                    "End Conversation"
+                }));
+
+        if (selection == "End Conversation")
+        {
+            return Task.FromResult(("quit", string.Empty));
+        }
+
+        if (selection == "Inject Direction/Feedback")
+        {
+            var message = AnsiConsole.Ask<string>("[green]Enter your instruction:[/]");
+            return Task.FromResult(("inject", message));
+        }
+
+        return Task.FromResult(("continue", string.Empty));
     }
 }

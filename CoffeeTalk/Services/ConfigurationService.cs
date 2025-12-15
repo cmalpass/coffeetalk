@@ -135,7 +135,7 @@ public class ConfigurationService
         return settings;
     }
 
-    private async Task RunSetupWizardAsync(AppSettings settings)
+    private Task RunSetupWizardAsync(AppSettings settings)
     {
         var provider = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
@@ -167,6 +167,8 @@ public class ConfigurationService
                 break;
         }
 
+        settings.InteractiveMode = AnsiConsole.Confirm("Enable [bold]Interactive Mode[/] (Director's Chair)?", false);
+
         if (settings.Personas.Count == 0 && AnsiConsole.Confirm("No personas configured. Add default personas?", true))
         {
             settings.Personas.Add(new PersonaConfig
@@ -180,6 +182,8 @@ public class ConfigurationService
                 SystemPrompt = "You are a software engineer focused on technical feasibility, architecture, and implementation. Keep responses technical and concise."
             });
         }
+
+        return Task.CompletedTask;
     }
 
     private async Task SaveSettingsAsync(AppSettings settings)
@@ -214,6 +218,7 @@ public class ConfigurationService
             Personas = settings.Personas,
             MaxConversationTurns = settings.MaxConversationTurns,
             ShowThinking = settings.ShowThinking,
+            InteractiveMode = settings.InteractiveMode,
             RateLimit = settings.RateLimit,
             Retry = settings.Retry,
             Orchestrator = settings.Orchestrator,

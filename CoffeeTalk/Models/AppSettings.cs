@@ -12,6 +12,7 @@ public class AppSettings
     public OrchestratorConfig? Orchestrator { get; set; }
     public RetryConfig? Retry { get; set; }
     public EditorConfig? Editor { get; set; }
+    public bool InteractiveMode { get; set; }
 }
 
 // PersistedAppSettings mirrors AppSettings but omits sensitive fields like ApiKey
@@ -21,6 +22,7 @@ public class PersistedAppSettings
     public List<PersonaConfig> Personas { get; set; } = new List<PersonaConfig>();
     public int MaxConversationTurns { get; set; }
     public bool ShowThinking { get; set; }
+    public bool InteractiveMode { get; set; }
     public RateLimitConfig? RateLimit { get; set; }
     public RetryConfig? Retry { get; set; }
     public OrchestratorConfig? Orchestrator { get; set; }

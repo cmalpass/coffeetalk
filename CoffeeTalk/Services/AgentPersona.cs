@@ -125,6 +125,7 @@ CRITICAL GUIDELINES - CONCISENESS & CONSENSUS:
 - AVOID NARRATIVE STYLE: This is a professional consensus statement, not an essay.
 - SHORT PARAGRAPHS: Max 2-4 sentences. Use bullet points for lists.
 - NO REDUNDANCY: Read what others have written. Don't repeat points already made.
+- VISUALS: Use Mermaid.js diagrams (code blocks with 'mermaid') to visualize complex flows/structures.
 - EDIT, DON'T JUST ADD: Use ReplaceSection to refine and consolidate content.
 - PURPOSEFUL HEADINGS: Use only the template headings unless absolutely necessary.
 - CONVERGE: If disagreement exists, capture the trade-off succinctly, then converge on a stance.
