@@ -19,16 +19,23 @@ public class AgentConversationOrchestrator
     private readonly AgentEditor? _editor;
     private readonly int _editorInterventionFrequency;
     private readonly bool _interactiveMode;
+    private readonly bool _contextSummarization;
+    private readonly AppSettings _settings;
+    private readonly AgentDataExtractor? _dataExtractor;
+    private readonly AgentFactChecker? _factChecker;
 
     public AgentConversationOrchestrator(
         List<AgentPersona> personas,
         CollaborativeMarkdownDocument doc,
         AppSettings settings,
         AgentOrchestrator? orchestrator = null,
-        AgentEditor? editor = null)
+        AgentEditor? editor = null,
+        AgentDataExtractor? dataExtractor = null,
+        AgentFactChecker? factChecker = null)
     {
         _personas = personas;
         _doc = doc;
+        _settings = settings;
         _maxTurns = settings.MaxConversationTurns;
         _showThinking = settings.ShowThinking;
         _rateLimiter = new RateLimiter(settings.RateLimit);
@@ -38,6 +45,9 @@ public class AgentConversationOrchestrator
         _editor = editor;
         _editorInterventionFrequency = settings.Editor?.InterventionFrequency ?? 3;
         _interactiveMode = settings.InteractiveMode;
+        _contextSummarization = settings.ContextSummarization;
+        _dataExtractor = dataExtractor;
+        _factChecker = factChecker;
     }
 
     public async Task StartConversationAsync(string topic)
@@ -136,6 +146,19 @@ public class AgentConversationOrchestrator
                     await RunEditorIntervention(conversationHistory);
                 }
 
+                // Fact Checker
+                if (_factChecker != null)
+                {
+                    // Check the last message
+                    await _factChecker.CheckAsync(response);
+                }
+
+                // Context Summarization
+                if (_contextSummarization && conversationHistory.Count > 15)
+                {
+                    await SummarizeHistoryAsync(conversationHistory);
+                }
+
                 // Interactive Mode Check
                 if (_interactiveMode)
                 {
@@ -173,6 +196,12 @@ public class AgentConversationOrchestrator
 
         AnsiConsole.Write(new Rule("Conversation Ended"));
         AnsiConsole.MarkupLine($"\n[yellow]⏱️  Maximum turns ({maxTotalTurns}) reached. Conversation ended.[/]");
+
+        if (_dataExtractor != null)
+        {
+            await _dataExtractor.ExtractAndSaveAsync(conversationHistory);
+        }
+
         await TryAutoSaveAsync();
     }
 
@@ -220,6 +249,18 @@ public class AgentConversationOrchestrator
                         await RunEditorIntervention(conversationHistory);
                     }
 
+                    // Fact Checker
+                    if (_factChecker != null)
+                    {
+                        await _factChecker.CheckAsync(response);
+                    }
+
+                    // Context Summarization
+                    if (_contextSummarization && conversationHistory.Count > 15)
+                    {
+                        await SummarizeHistoryAsync(conversationHistory);
+                    }
+
                     // Interactive Mode Check
                     if (_interactiveMode)
                     {
@@ -248,6 +289,12 @@ public class AgentConversationOrchestrator
                         AnsiConsole.Write(new Rule("Conversation Complete"));
                         AnsiConsole.MarkupLine("\n[bold green]✅ Conversation goal appears to be reached![/]");
                         AnsiConsole.MarkupLine($"Total turns: {turn + 1} (across {_personas.Count} personas)");
+
+                        if (_dataExtractor != null)
+                        {
+                            await _dataExtractor.ExtractAndSaveAsync(conversationHistory);
+                        }
+
                         await TryAutoSaveAsync();
                         return;
                     }
@@ -275,6 +322,12 @@ public class AgentConversationOrchestrator
 
         AnsiConsole.Write(new Rule("Max Turns Reached"));
         AnsiConsole.MarkupLine($"\n[yellow]⏱️  Maximum turns ({_maxTurns}) reached. Conversation ended.[/]");
+
+        if (_dataExtractor != null)
+        {
+            await _dataExtractor.ExtractAndSaveAsync(conversationHistory);
+        }
+
         await TryAutoSaveAsync();
     }
 
@@ -387,6 +440,57 @@ public class AgentConversationOrchestrator
         return Task.CompletedTask;
     }
 
+    private async Task SummarizeHistoryAsync(List<string> conversationHistory)
+    {
+        if (_personas.Count == 0) return;
+
+        var historyToSummarize = conversationHistory.Take(10).ToList();
+        var remainingHistory = conversationHistory.Skip(10).ToList();
+        var historyText = string.Join("\n", historyToSummarize);
+
+        try
+        {
+            await AnsiConsole.Status().StartAsync("Summarizing context...", async ctx =>
+            {
+                string summary = string.Empty;
+
+                if (_orchestrator != null)
+                {
+                    summary = await _orchestrator.SummarizeAsync(historyText);
+                }
+                else
+                {
+                    // Fallback: Use the first available persona to summarize
+                    // Note: We need a way to run a direct prompt without the conversational wrapper.
+                    // Since AgentPersona.RespondAsync is opinionated, we might need a public method to run a raw prompt.
+                    // For now, we will use a simpler fallback to avoid breaking encapsulation,
+                    // or ideally, we should expose a 'Summarize' capability on AgentPersona.
+                    // Given the constraints, we'll try to use the first persona if possible,
+                    // but since we can't easily access the raw agent, we will assume
+                    // a truncation is the safest fallback without refactoring AgentPersona.
+
+                    // Actually, let's try to be smarter. We can't access ._agent.
+                    // But we can just truncate.
+                    conversationHistory.RemoveRange(0, 5);
+                    conversationHistory.Insert(0, "[... older history removed to save context ...]");
+                    return;
+                }
+
+                if (!string.IsNullOrWhiteSpace(summary))
+                {
+                    conversationHistory.Clear();
+                    conversationHistory.Add($"[Summary of previous turns]: {summary}");
+                    conversationHistory.AddRange(remainingHistory);
+                    AnsiConsole.MarkupLine("[dim]History summarized to save tokens.[/]");
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            AnsiConsole.MarkupLine($"[dim red]Summarization failed: {ex.Message}[/]");
+        }
+    }
+
     private Task<(string Action, string Message)> GetUserInterventionAsync()
     {
         AnsiConsole.WriteLine();
@@ -412,4 +516,5 @@ public class AgentConversationOrchestrator
 
         return Task.FromResult(("continue", string.Empty));
     }
+
 }

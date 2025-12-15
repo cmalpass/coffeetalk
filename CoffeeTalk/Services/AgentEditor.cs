@@ -24,6 +24,13 @@ public class AgentEditor
     public static string BuildSystemPrompt(EditorConfig config)
     {
         var basePrompt = config.SystemPrompt;
+
+        // Append style guidelines if present
+        if (!string.IsNullOrWhiteSpace(config.StyleGuidelines))
+        {
+            basePrompt += $"\n\nSTYLE & TONE GUIDELINES (STRICT):\n{config.StyleGuidelines}\n";
+        }
+
         var guidelines = @"
 
 Available markdown tools for editing:

@@ -5,6 +5,7 @@ public class EditorConfig
     public bool Enabled { get; set; } = false;
     public int InterventionFrequency { get; set; } = 3; // Editor reviews every N turns
     public string SystemPrompt { get; set; } = DefaultSystemPrompt;
+    public string StyleGuidelines { get; set; } = string.Empty;
 
     public const string DefaultSystemPrompt = @"You are a professional editor responsible for maintaining document quality and coherence.
 
