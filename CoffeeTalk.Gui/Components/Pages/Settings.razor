@@ -110,7 +110,7 @@
     {
         var parameters = new DialogParameters { ["Persona"] = persona };
         var dialog = DialogService.Show<PersonaDialog>("Edit Persona", parameters);
-        var result = await dialog.Result;
+        await dialog.Result;
 
         // Object is modified by reference, so UI updates automatically,
         // but we might want to trigger a state change if we were doing deep cloning.

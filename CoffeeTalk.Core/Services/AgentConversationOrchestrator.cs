@@ -66,7 +66,7 @@ public class AgentConversationOrchestrator
             ? "Orchestrated (AI-directed conversation flow)"
             : "Round-robin (sequential turns)";
         
-        await _ui.ShowConversationHeaderAsync(topic, _personas.Select(a => a.Name), mode, _interactiveMode);
+        await _ui.ShowConversationHeaderAsync(topic, _personas.Select(a => a.Name).ToList(), mode, _interactiveMode);
 
         await _ui.ShowMessageAsync("[bold]Starting conversation...[/]\n");
         await _ui.ShowRuleAsync();

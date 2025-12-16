@@ -16,7 +16,7 @@ namespace CoffeeTalk.Services
 
         public Task ShowErrorAsync(string message)
         {
-            AnsiConsole.MarkupLine(message);
+            AnsiConsole.MarkupLine($"[red]{message}[/]");
             return Task.CompletedTask;
         }
 
@@ -100,7 +100,7 @@ namespace CoffeeTalk.Services
                 });
         }
 
-        public Task ShowConversationHeaderAsync(string topic, IEnumerable<string> participants, string mode, bool interactive)
+        public Task ShowConversationHeaderAsync(string topic, IReadOnlyCollection<string> participants, string mode, bool interactive)
         {
             AnsiConsole.MarkupLine($"\n[bold]🎯 Topic:[/] [cyan]{Markup.Escape(topic)}[/]\n");
             AnsiConsole.MarkupLine($"[bold]Participants:[/] {string.Join(", ", participants.Select(p => Markup.Escape(p)))}\n");

@@ -18,7 +18,7 @@ namespace CoffeeTalk.Core.Interfaces
         Task RunWithStatusAsync(string status, Func<Task> action);
 
         // Additional UI methods
-        Task ShowConversationHeaderAsync(string topic, IEnumerable<string> participants, string mode, bool interactive);
+        Task ShowConversationHeaderAsync(string topic, IReadOnlyCollection<string> participants, string mode, bool interactive);
         Task ShowRuleAsync(string title = "");
         Task ShowMarkupLineAsync(string message);
 

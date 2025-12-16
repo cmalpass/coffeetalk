@@ -99,7 +99,7 @@ namespace CoffeeTalk.Gui.Services
             }
         }
 
-        public Task ShowConversationHeaderAsync(string topic, IEnumerable<string> participants, string mode, bool interactive)
+        public Task ShowConversationHeaderAsync(string topic, IReadOnlyCollection<string> participants, string mode, bool interactive)
         {
              var sb = new StringBuilder();
              sb.AppendLine($"**Topic:** {topic}");
