@@ -4,9 +4,10 @@
 @using CoffeeTalk.Core.Interfaces
 @using CoffeeTalk.Gui.Services
 @using CoffeeTalk.Gui.Components.Pages
+@using MudBlazor
 @namespace CoffeeTalk.Gui.Components.Pages
 
-@inject ConfigurationService ConfigService
+@inject AppState AppState
 @inject BlazorUserInterface UI
 @inject NavigationManager Navigation
 
@@ -14,45 +15,47 @@
 <MudContainer MaxWidth="MaxWidth.Small" Class="mt-5">
     <MudText Typo="Typo.h3" Align="Align.Center" GutterBottom="true">CoffeeTalk Setup</MudText>
 
-    @if (!ConfigLoaded)
-    {
-        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
-    }
-    else
-    {
-        <MudCard Elevation="3">
-            <MudCardContent>
-                <MudTextField @bind-Value="Topic" Label="What would you like to discuss?" Variant="Variant.Outlined" Margin="Margin.Normal" FullWidth="true" />
-            </MudCardContent>
-            <MudCardActions>
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="StartConversation" FullWidth="true">Start Conversation</MudButton>
-            </MudCardActions>
-        </MudCard>
+    <MudCard Elevation="3">
+        <MudCardContent>
+            <MudTextField @bind-Value="Topic" Label="What would you like to discuss?" Variant="Variant.Outlined" Margin="Margin.Normal" FullWidth="true" />
 
-        <MudAlert Severity="Severity.Info" Class="mt-4">
-            Using Provider: <strong>@Settings.LlmProvider.Type</strong><br/>
-            Model: <strong>@Settings.LlmProvider.ModelId</strong>
-        </MudAlert>
-    }
+            <MudText Typo="Typo.subtitle1" Class="mt-4 mb-2">Active Personas</MudText>
+            <MudChipSet T="object" MultiSelection="true" @bind-SelectedValues="SelectedPersonas">
+                @foreach (var persona in AppState.Settings.Personas)
+                {
+                    <MudChip T="object" Value="@((object)persona)" Text="@persona.Name" Color="Color.Primary" Variant="Variant.Outlined" SelectedColor="Color.Primary" />
+                }
+            </MudChipSet>
+        </MudCardContent>
+        <MudCardActions>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="StartConversation" FullWidth="true" Disabled="@(string.IsNullOrWhiteSpace(Topic) || SelectedPersonas == null || SelectedPersonas.Count < 2)">Start Conversation</MudButton>
+        </MudCardActions>
+    </MudCard>
+
+    <MudAlert Severity="Severity.Info" Class="mt-4">
+        Using Provider: <strong>@AppState.Settings.LlmProvider.Type</strong><br/>
+        Model: <strong>@AppState.Settings.LlmProvider.ModelId</strong>
+    </MudAlert>
 </MudContainer>
 
 @code {
-    private AppSettings Settings = new();
-    private bool ConfigLoaded = false;
     private string Topic = "";
+
+    // MudChipSet binding expects IReadOnlyCollection for SelectedValues in newer versions usually?
+    // The error said "cannot convert ICollection to IReadOnlyCollection".
+    // Let's use IReadOnlyCollection.
+    private IReadOnlyCollection<object> SelectedPersonas { get; set; } = new List<object>();
 
     protected override void OnInitialized()
     {
-        Settings = ConfigService.LoadConfiguration();
-        ConfigLoaded = true;
+        // Select all by default
+        SelectedPersonas = AppState.Settings.Personas.Cast<object>().ToList();
     }
 
     private async Task StartConversation()
     {
         if (string.IsNullOrWhiteSpace(Topic)) return;
-
-        // In a real app we might want to validate/configure settings via UI if missing.
-        // For this demo, we assume appsettings.json is populated or we accept defaults.
+        if (SelectedPersonas == null || SelectedPersonas.Count < 2) return;
 
         // We need to run the conversation in a background task so it doesn't block the UI thread
         _ = Task.Run(async () => {
@@ -62,13 +65,16 @@
                 var sharedDoc = new CollaborativeMarkdownDocument();
                 var markdownTools = new MarkdownToolFunctions(sharedDoc);
                 var tools = markdownTools.CreateTools();
-                var rateLimiter = new RateLimiter(Settings.RateLimit);
+                var settings = AppState.Settings;
+                var rateLimiter = new RateLimiter(settings.RateLimit);
 
-                var agentPersonas = new List<AgentPersona>();
-                foreach (var personaConfig in Settings.Personas)
+                var activePersonasConfig = SelectedPersonas.Cast<PersonaConfig>().ToList();
+
+                var activePersonas = new List<AgentPersona>();
+                foreach (var personaConfig in activePersonasConfig)
                 {
                     var agent = AgentBuilder.CreateAgent(
-                        Settings.LlmProvider,
+                        settings.LlmProvider,
                         personaConfig.Name,
                         personaConfig.SystemPrompt,
                         tools);
@@ -78,10 +84,10 @@
                         personaConfig,
                         sharedDoc,
                         rateLimiter,
-                        Settings.MaxConversationTurns,
-                        Settings.Personas.Count);
+                        settings.MaxConversationTurns,
+                        activePersonasConfig.Count);
 
-                    agentPersonas.Add(agentPersona);
+                    activePersonas.Add(agentPersona);
                 }
 
                 // (Simplified setup - skipping orchestrator/editor optional checks for brevity in this initial pass,
@@ -89,9 +95,9 @@
 
                 var conversationOrchestrator = new AgentConversationOrchestrator(
                     UI, // Inject our Blazor UI
-                    agentPersonas,
+                    activePersonas,
                     sharedDoc,
-                    Settings
+                    settings
                     // nulls for optional components for now
                 );
 
@@ -103,11 +109,6 @@
              }
         });
 
-        // Navigate to conversation view (actually we can just swap components or use router)
-        // Since we are using a simple layout, let's just use the router to go to a conversation page.
-        // However, we need to pass state.
-        // Better: Make Conversation.razor the main view and switch mode.
-        // Or just redirect and let the service hold the state (Singleton).
         Navigation.NavigateTo("/conversation");
     }
 }

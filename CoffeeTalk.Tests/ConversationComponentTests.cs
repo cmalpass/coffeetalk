@@ -1,8 +1,8 @@
 using Xunit;
 using Bunit;
-using CoffeeTalk.Gui.Components.Pages; // This is the correct namespace, but sometimes Razor class generation is tricky
-using CoffeeTalk.Gui.Components; // Trying this just in case
+using CoffeeTalk.Gui.Components;
 using CoffeeTalk.Gui.Services;
+using CoffeeTalk.Services;
 using Microsoft.Extensions.DependencyInjection;
 using MudBlazor.Services;
 
@@ -15,6 +15,9 @@ public class ConversationComponentTests : TestContext
     {
         // Arrange
         Services.AddMudServices();
+        Services.AddSingleton<ConfigurationService>();
+        Services.AddSingleton<AppState>();
+        Services.AddSingleton<MudBlazor.ISnackbar, MudBlazor.SnackbarService>();
 
         var ui = new BlazorUserInterface();
         Services.AddSingleton<BlazorUserInterface>(ui);
@@ -22,16 +25,13 @@ public class ConversationComponentTests : TestContext
         ui.Messages.Add(new ChatMessage { Sender = "Agent", Content = "Hello" });
 
         // Act
-        // Use Render fragment as fallback since generic RenderComponent might not find the type if there are namespace issues
+        // Trying to use Render instead of RenderComponent to avoid obsolete error
         var cut = Render(builder => {
-             builder.OpenComponent<Conversation>(0);
-             builder.CloseComponent();
+            builder.OpenComponent<Conversation>(0);
+            builder.CloseComponent();
         });
 
         // Assert
-        // MudBlazor components render differently.
-        // We verify text content.
-
         Assert.Contains("Hello", cut.Markup);
         Assert.Contains("Agent", cut.Markup);
     }

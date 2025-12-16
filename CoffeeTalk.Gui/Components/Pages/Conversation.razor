@@ -1,7 +1,10 @@
 @using CoffeeTalk.Gui.Services
 @using CoffeeTalk.Gui.Components.Pages
+@using MudBlazor
 @namespace CoffeeTalk.Gui.Components
 @inject BlazorUserInterface UI
+@inject AppState AppState
+@inject ISnackbar Snackbar
 
 <MudGrid>
     <MudItem xs="12" sm="4" md="3">
@@ -15,10 +18,14 @@
 
     <MudItem xs="12" sm="8" md="9">
         <MudPaper Class="pa-4 d-flex flex-column" Elevation="4" Style="height: 80vh;">
-            @if (!string.IsNullOrEmpty(UI.StatusMessage))
-            {
-                <MudAlert Severity="Severity.Info" Class="mb-2">@UI.StatusMessage</MudAlert>
-            }
+            <MudStack Row="true" Class="mb-2">
+                 @if (!string.IsNullOrEmpty(UI.StatusMessage))
+                {
+                    <MudAlert Severity="Severity.Info" Class="flex-grow-1">@UI.StatusMessage</MudAlert>
+                }
+                <MudSpacer />
+                <MudButton StartIcon="@Icons.Material.Filled.Save" Variant="Variant.Filled" Color="Color.Secondary" OnClick="SaveChat">Save Chat</MudButton>
+            </MudStack>
 
             <MudList T="string" Class="flex-grow-1 overflow-y-auto" Style="max-height: 100%;">
                 @foreach (var msg in UI.Messages)
@@ -94,5 +101,26 @@
         if (msg.IsSystem) return "pa-2 mb-2 bg-info-subtle";
         if (msg.IsError) return "pa-2 mb-2 bg-danger-subtle";
         return "pa-2 mb-2";
+    }
+
+    private async Task SaveChat()
+    {
+        // We can access the document via UI if we expose it or via a service.
+        // Currently UI.DocumentContent is a string snapshot.
+        // To save properly we might want to use the actual document instance or just save what we have.
+        // Ideally, the Orchestrator handles saving, but here we want to trigger it manually.
+        // For now, let's just save the text we have in the UI to a file in current directory.
+        // In a real desktop app, we'd open a file picker.
+
+        try
+        {
+            var fileName = $"conversation_{DateTime.Now:yyyyMMdd_HHmmss}.md";
+            await File.WriteAllTextAsync(fileName, UI.DocumentContent);
+            Snackbar.Add($"Saved to {fileName}", Severity.Success);
+        }
+        catch(Exception ex)
+        {
+            Snackbar.Add($"Failed to save: {ex.Message}", Severity.Error);
+        }
     }
 }
