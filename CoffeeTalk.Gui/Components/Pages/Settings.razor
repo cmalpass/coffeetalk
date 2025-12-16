@@ -6,77 +6,210 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 
-<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4 mb-4">
     <MudText Typo="Typo.h4" GutterBottom="true">Settings</MudText>
+    <MudText Typo="Typo.body1" Class="mb-4">Configure CoffeeTalk behavior, personas, and integrations.</MudText>
 
     <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6">
-        <MudTabPanel Text="General">
+
+        <!-- GENERAL SETTINGS -->
+        <MudTabPanel Text="General" Icon="@Icons.Material.Filled.Settings">
             <MudGrid>
-                <MudItem xs="12" md="6">
-                    <MudSelect T="string" Label="LLM Provider" @bind-Value="AppState.Settings.LlmProvider.Type" AnchorOrigin="Origin.BottomCenter">
-                        <MudSelectItem Value="@("openai")">OpenAI</MudSelectItem>
-                        <MudSelectItem Value="@("azureopenai")">Azure OpenAI</MudSelectItem>
-                        <MudSelectItem Value="@("ollama")">Ollama</MudSelectItem>
-                    </MudSelect>
-                </MudItem>
-                <MudItem xs="12" md="6">
-                    <MudTextField @bind-Value="AppState.Settings.LlmProvider.ModelId" Label="Model ID" HelperText="e.g. gpt-4, llama2" />
-                </MudItem>
                 <MudItem xs="12">
-                     <MudTextField @bind-Value="AppState.Settings.LlmProvider.ApiKey" Label="API Key" InputType="InputType.Password" HelperText="Leave empty to use environment variable" />
+                     <MudText Typo="Typo.h6" Class="mb-2">LLM Provider</MudText>
+                     <MudPaper Class="pa-4" Outlined="true">
+                        <MudGrid>
+                            <MudItem xs="12" md="6">
+                                <MudSelect T="string" Label="Provider Type" @bind-Value="AppState.Settings.LlmProvider.Type" AnchorOrigin="Origin.BottomCenter" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                    <MudSelectItem Value="@("openai")">OpenAI</MudSelectItem>
+                                    <MudSelectItem Value="@("azureopenai")">Azure OpenAI</MudSelectItem>
+                                    <MudSelectItem Value="@("ollama")">Ollama</MudSelectItem>
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="12" md="6">
+                                <MudTextField @bind-Value="AppState.Settings.LlmProvider.ModelId" Label="Model ID" HelperText="e.g. gpt-4, llama2" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            </MudItem>
+                            <MudItem xs="12" md="6">
+                                <MudTextField @bind-Value="AppState.Settings.LlmProvider.DeploymentName" Label="Deployment Name" HelperText="Required for Azure OpenAI" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            </MudItem>
+                            <MudItem xs="12" md="6">
+                                 <MudTextField @bind-Value="AppState.Settings.LlmProvider.Endpoint" Label="Endpoint" HelperText="Required for Azure/Ollama" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            </MudItem>
+                            <MudItem xs="12">
+                                 <MudTextField @bind-Value="AppState.Settings.LlmProvider.ApiKey" Label="API Key" InputType="InputType.Password" HelperText="Leave empty to use environment variable" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                            </MudItem>
+                        </MudGrid>
+                     </MudPaper>
                 </MudItem>
-                 <MudItem xs="12">
-                     <MudTextField @bind-Value="AppState.Settings.LlmProvider.Endpoint" Label="Endpoint" HelperText="Required for Azure/Ollama" />
-                </MudItem>
-                <MudItem xs="12">
-                    <MudSwitch @bind-Value="AppState.Settings.InteractiveMode" Label="Interactive Mode (Director's Chair)" Color="Color.Primary" />
+
+                <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.h6" Class="mb-2">Conversation</MudText>
+                    <MudPaper Class="pa-4" Outlined="true">
+                        <MudNumericField @bind-Value="AppState.Settings.MaxConversationTurns" Label="Max Turns" Min="1" Max="100" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <MudSwitch @bind-Value="AppState.Settings.ShowThinking" Label="Show Thinking Process" Color="Color.Info" />
+                        <MudSwitch @bind-Value="AppState.Settings.InteractiveMode" Label="Interactive Mode (Director's Chair)" Color="Color.Primary" />
+                    </MudPaper>
                 </MudItem>
             </MudGrid>
         </MudTabPanel>
 
-        <MudTabPanel Text="Personas">
-            <MudTable Items="@AppState.Settings.Personas" Hover="true" Breakpoint="Breakpoint.Sm">
-                <ToolBarContent>
-                    <MudText Typo="Typo.h6">Configured Personas</MudText>
-                    <MudSpacer />
-                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddPersona">Add Persona</MudButton>
-                </ToolBarContent>
-                <HeaderContent>
-                    <MudTh>Name</MudTh>
-                    <MudTh>System Prompt</MudTh>
-                    <MudTh>Actions</MudTh>
-                </HeaderContent>
-                <RowTemplate>
-                    <MudTd DataLabel="Name">@context.Name</MudTd>
-                    <MudTd DataLabel="System Prompt">
-                        <MudText Typo="Typo.body2" Style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 300px;">
-                            @context.SystemPrompt
-                        </MudText>
-                    </MudTd>
-                    <MudTd DataLabel="Actions">
-                        <MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(() => EditPersona(context))" Size="Size.Small" />
-                        <MudIconButton Icon="@Icons.Material.Filled.Delete" OnClick="@(() => DeletePersona(context))" Size="Size.Small" Color="Color.Error" />
-                    </MudTd>
-                </RowTemplate>
-            </MudTable>
+        <!-- PERSONAS SETTINGS -->
+        <MudTabPanel Text="Personas" Icon="@Icons.Material.Filled.People">
+            <MudGrid>
+                <MudItem xs="12">
+                    <MudText Typo="Typo.h6" Class="mb-2">Static Personas</MudText>
+                    <MudTable Items="@AppState.Settings.Personas" Hover="true" Breakpoint="Breakpoint.Sm" Elevation="0" Outlined="true">
+                        <ToolBarContent>
+                            <MudSpacer />
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddPersona">Add Persona</MudButton>
+                        </ToolBarContent>
+                        <HeaderContent>
+                            <MudTh>Name</MudTh>
+                            <MudTh>System Prompt</MudTh>
+                            <MudTh>Actions</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Name">@context.Name</MudTd>
+                            <MudTd DataLabel="System Prompt">
+                                <MudText Typo="Typo.body2" Style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 300px;">
+                                    @context.SystemPrompt
+                                </MudText>
+                            </MudTd>
+                            <MudTd DataLabel="Actions">
+                                <MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(() => EditPersona(context))" Size="Size.Small" />
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" OnClick="@(() => DeletePersona(context))" Size="Size.Small" Color="Color.Error" />
+                            </MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </MudItem>
+
+                <MudItem xs="12">
+                    <MudText Typo="Typo.h6" Class="mb-2">Dynamic Personas</MudText>
+                     <MudPaper Class="pa-4" Outlined="true">
+                        <MudSwitch @bind-Value="DynamicPersonasEnabled" Label="Enable Dynamic Personas" Color="Color.Secondary" />
+                        @if (AppState.Settings.DynamicPersonas?.Enabled ?? false)
+                        {
+                            <MudGrid Class="mt-2">
+                                <MudItem xs="12" md="6">
+                                    <MudNumericField @bind-Value="AppState.Settings.DynamicPersonas!.Count" Label="Count" Min="2" Max="10" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                </MudItem>
+                                <MudItem xs="12" md="6">
+                                    <MudSelect @bind-Value="AppState.Settings.DynamicPersonas!.Mode" Label="Mode" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                        <MudSelectItem Value="@("augment")">Augment (Add to existing)</MudSelectItem>
+                                        <MudSelectItem Value="@("replace")">Replace (Ignore existing)</MudSelectItem>
+                                    </MudSelect>
+                                </MudItem>
+                            </MudGrid>
+                        }
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
         </MudTabPanel>
 
-        <MudTabPanel Text="Advanced">
+        <!-- ORCHESTRATION SETTINGS -->
+        <MudTabPanel Text="Orchestration" Icon="@Icons.Material.Filled.Tune">
             <MudGrid>
-                <MudItem xs="12" md="6">
-                    <MudNumericField @bind-Value="AppState.Settings.MaxConversationTurns" Label="Max Turns" Min="1" Max="100" />
-                </MudItem>
-                <MudItem xs="12" md="6">
-                    <MudNumericField @bind-Value="AppState.Settings.RateLimit" Label="Rate Limit (tokens/min)" />
-                </MudItem>
                 <MudItem xs="12">
-                    <MudSwitch @bind-Value="AppState.Settings.FactChecking" Label="Enable Fact Checking" Color="Color.Warning" />
+                     <MudExpansionPanels MultiExpansion="true">
+                        <MudExpansionPanel Text="Orchestrator" IsExpanded="true">
+                            <MudSwitch @bind-Value="OrchestratorEnabled" Label="Enable Orchestrator" Color="Color.Primary" />
+                             @if (AppState.Settings.Orchestrator?.Enabled ?? false)
+                            {
+                                <MudTextField @bind-Value="AppState.Settings.Orchestrator!.BaseSystemPrompt" Label="Base System Prompt" Lines="5" Variant="Variant.Outlined" Class="mt-2" />
+                            }
+                        </MudExpansionPanel>
+
+                        <MudExpansionPanel Text="Editor">
+                             <MudSwitch @bind-Value="EditorEnabled" Label="Enable Editor" Color="Color.Primary" />
+                             @if (AppState.Settings.Editor?.Enabled ?? false)
+                             {
+                                 <MudGrid Class="mt-2">
+                                     <MudItem xs="12" md="6">
+                                         <MudNumericField @bind-Value="AppState.Settings.Editor!.InterventionFrequency" Label="Intervention Frequency (turns)" Min="1" Max="20" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                     </MudItem>
+                                     <MudItem xs="12">
+                                         <MudTextField @bind-Value="AppState.Settings.Editor!.StyleGuidelines" Label="Style Guidelines" Lines="3" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                     </MudItem>
+                                     <MudItem xs="12">
+                                         <MudTextField @bind-Value="AppState.Settings.Editor!.SystemPrompt" Label="System Prompt" Lines="5" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                     </MudItem>
+                                 </MudGrid>
+                             }
+                        </MudExpansionPanel>
+                    </MudExpansionPanels>
                 </MudItem>
-                <MudItem xs="12">
-                    <MudSwitch @bind-Value="AppState.Settings.DevilsAdvocate" Label="Enable Devil's Advocate" Color="Color.Error" />
+            </MudGrid>
+        </MudTabPanel>
+
+        <!-- TOOLS & SAFETY SETTINGS -->
+        <MudTabPanel Text="Tools & Safety" Icon="@Icons.Material.Filled.Security">
+            <MudGrid>
+                 <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.h6" Class="mb-2">Safety Features</MudText>
+                    <MudPaper Class="pa-4" Outlined="true">
+                        <MudSwitch @bind-Value="AppState.Settings.FactChecking" Label="Enable Fact Checking" Color="Color.Warning" />
+                        <MudSwitch @bind-Value="AppState.Settings.DevilsAdvocate" Label="Enable Devil's Advocate" Color="Color.Error" />
+                        <MudSwitch @bind-Value="AppState.Settings.ContextSummarization" Label="Enable Context Summarization" Color="Color.Secondary" />
+                    </MudPaper>
                 </MudItem>
+
+                 <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.h6" Class="mb-2">Tools Configuration</MudText>
+                    <MudPaper Class="pa-4" Outlined="true">
+                         @{
+                            EnsureToolsConfig();
+                        }
+                        <MudSwitch @bind-Value="AppState.Settings.Tools!.EnableFallbackJsonTools" Label="Enable Fallback JSON Tools" Color="Color.Primary" />
+                        <MudSwitch @bind-Value="AppState.Settings.Tools!.RequireToolsVerification" Label="Require Tools Verification" Color="Color.Primary" />
+                    </MudPaper>
+                </MudItem>
+
                  <MudItem xs="12">
-                    <MudSwitch @bind-Value="AppState.Settings.ShowThinking" Label="Show Thinking Process" Color="Color.Info" />
+                    <MudText Typo="Typo.h6" Class="mb-2">Structured Data Extraction</MudText>
+                    <MudPaper Class="pa-4" Outlined="true">
+                        <MudSwitch @bind-Value="StructuredDataEnabled" Label="Enable Structured Data Extraction" Color="Color.Success" />
+                        @if (AppState.Settings.StructuredData?.Enabled ?? false)
+                        {
+                            <MudGrid Class="mt-2">
+                                <MudItem xs="12" md="6">
+                                    <MudTextField @bind-Value="AppState.Settings.StructuredData!.OutputFile" Label="Output File" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                </MudItem>
+                                <MudItem xs="12">
+                                    <MudTextField @bind-Value="AppState.Settings.StructuredData!.SchemaDescription" Label="Schema Description" Lines="3" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                </MudItem>
+                            </MudGrid>
+                        }
+                    </MudPaper>
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+
+        <!-- ADVANCED SETTINGS -->
+        <MudTabPanel Text="Advanced" Icon="@Icons.Material.Filled.Build">
+            <MudGrid>
+                 <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.h6" Class="mb-2">Rate Limiting</MudText>
+                    <MudPaper Class="pa-4" Outlined="true">
+                        @{
+                            EnsureRateLimitConfig();
+                        }
+                        <MudNumericField @bind-Value="AppState.Settings.RateLimit!.RequestsPerMinute" Label="Requests / Minute" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" />
+                        <MudNumericField @bind-Value="AppState.Settings.RateLimit!.TokensPerMinute" Label="Tokens / Minute" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" />
+                        <MudNumericField @bind-Value="AppState.Settings.RateLimit!.MaxRequestsPerConversation" Label="Max Requests / Conversation" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" />
+                        <MudNumericField @bind-Value="AppState.Settings.RateLimit!.MaxTokensPerConversation" Label="Max Tokens / Conversation" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" />
+                    </MudPaper>
+                </MudItem>
+
+                 <MudItem xs="12" md="6">
+                    <MudText Typo="Typo.h6" Class="mb-2">Retry Policy</MudText>
+                    <MudPaper Class="pa-4" Outlined="true">
+                        @{
+                            EnsureRetryConfig();
+                        }
+                        <MudNumericField @bind-Value="AppState.Settings.Retry!.MaxRetries" Label="Max Retries" Min="0" Max="10" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <MudNumericField @bind-Value="AppState.Settings.Retry!.InitialDelaySeconds" Label="Initial Delay (seconds)" Min="1" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        <MudNumericField @bind-Value="AppState.Settings.Retry!.BackoffMultiplier" Label="Backoff Multiplier" Min="1.0" Step="0.1" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudPaper>
                 </MudItem>
             </MudGrid>
         </MudTabPanel>
@@ -97,7 +230,7 @@
     private async Task AddPersona()
     {
         var parameters = new DialogParameters { ["Persona"] = new PersonaConfig() };
-        var dialog = DialogService.Show<PersonaDialog>("Add Persona", parameters);
+        var dialog = await DialogService.ShowAsync<PersonaDialog>("Add Persona", parameters);
         var result = await dialog.Result;
 
         if (!result.Canceled)
@@ -109,16 +242,69 @@
     private async Task EditPersona(PersonaConfig persona)
     {
         var parameters = new DialogParameters { ["Persona"] = persona };
-        var dialog = DialogService.Show<PersonaDialog>("Edit Persona", parameters);
+        var dialog = await DialogService.ShowAsync<PersonaDialog>("Edit Persona", parameters);
         await dialog.Result;
-
-        // Object is modified by reference, so UI updates automatically,
-        // but we might want to trigger a state change if we were doing deep cloning.
-        // Since we are editing the object directly in the dialog, it's reflected here.
     }
 
     private void DeletePersona(PersonaConfig persona)
     {
         AppState.Settings.Personas.Remove(persona);
+    }
+
+    // Properties to handle Nullable Configs with Toggle Logic
+
+    private bool DynamicPersonasEnabled
+    {
+        get => AppState.Settings.DynamicPersonas?.Enabled ?? false;
+        set
+        {
+            if (AppState.Settings.DynamicPersonas == null) AppState.Settings.DynamicPersonas = new DynamicPersonasConfig();
+            AppState.Settings.DynamicPersonas.Enabled = value;
+        }
+    }
+
+    private bool OrchestratorEnabled
+    {
+        get => AppState.Settings.Orchestrator?.Enabled ?? false;
+        set
+        {
+            if (AppState.Settings.Orchestrator == null) AppState.Settings.Orchestrator = new OrchestratorConfig();
+            AppState.Settings.Orchestrator.Enabled = value;
+        }
+    }
+
+    private bool EditorEnabled
+    {
+        get => AppState.Settings.Editor?.Enabled ?? false;
+        set
+        {
+            if (AppState.Settings.Editor == null) AppState.Settings.Editor = new EditorConfig();
+            AppState.Settings.Editor.Enabled = value;
+        }
+    }
+
+    private bool StructuredDataEnabled
+    {
+        get => AppState.Settings.StructuredData?.Enabled ?? false;
+        set
+        {
+            if (AppState.Settings.StructuredData == null) AppState.Settings.StructuredData = new StructuredDataConfig();
+            AppState.Settings.StructuredData.Enabled = value;
+        }
+    }
+
+    private void EnsureToolsConfig()
+    {
+        if (AppState.Settings.Tools == null) AppState.Settings.Tools = new ToolsConfig();
+    }
+
+    private void EnsureRateLimitConfig()
+    {
+        if (AppState.Settings.RateLimit == null) AppState.Settings.RateLimit = new RateLimitConfig();
+    }
+
+    private void EnsureRetryConfig()
+    {
+        if (AppState.Settings.Retry == null) AppState.Settings.Retry = new RetryConfig();
     }
 }
