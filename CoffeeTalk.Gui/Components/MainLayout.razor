@@ -2,15 +2,19 @@
 @inherits LayoutComponentBase
 @namespace CoffeeTalk.Gui.Components
 
-<MudThemeProvider />
+<MudThemeProvider @ref="_mudThemeProvider" @bind-IsDarkMode="_isDarkMode" Theme="_theme" />
 <MudDialogProvider />
 <MudSnackbarProvider />
 
 <MudLayout>
     <MudAppBar Elevation="1">
         <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
-        <MudText Typo="Typo.h6" Class="ml-3">CoffeeTalk</MudText>
+        <MudIcon Icon="@Icons.Material.Filled.Coffee" Class="ml-3 mr-2" />
+        <MudText Typo="Typo.h5" Class="ml-3">CoffeeTalk</MudText>
         <MudSpacer />
+        <MudToggleIconButton @bind-Toggled="_isDarkMode"
+                             Icon="@Icons.Material.Filled.DarkMode" Color="Color.Inherit"
+                             ToggledIcon="@Icons.Material.Filled.LightMode" ToggledColor="Color.Warning" />
         <MudIconButton Icon="@Icons.Custom.Brands.GitHub" Color="Color.Inherit" Link="https://github.com/microsoft/agents" Target="_blank" />
     </MudAppBar>
     <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2">
@@ -25,6 +29,24 @@
 
 @code {
     bool _drawerOpen = true;
+    bool _isDarkMode;
+    MudThemeProvider _mudThemeProvider = null!;
+
+    private MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight()
+        {
+            Primary = Colors.Brown.Default,
+            Secondary = Colors.DeepOrange.Accent2,
+            AppbarBackground = Colors.Brown.Darken3,
+        },
+        PaletteDark = new PaletteDark()
+        {
+            Primary = Colors.Brown.Lighten2,
+            Secondary = Colors.DeepOrange.Accent2,
+            AppbarBackground = Colors.Brown.Darken4,
+        }
+    };
 
     void DrawerToggle()
     {

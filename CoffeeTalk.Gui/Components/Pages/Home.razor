@@ -12,38 +12,50 @@
 @inject NavigationManager Navigation
 
 
-<MudContainer MaxWidth="MaxWidth.Small" Class="mt-5">
-    <MudText Typo="Typo.h3" Align="Align.Center" GutterBottom="true">CoffeeTalk Setup</MudText>
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8">
+    <MudText Typo="Typo.h2" Align="Align.Center" GutterBottom="true" Color="Color.Primary">CoffeeTalk</MudText>
+    <MudText Typo="Typo.subtitle1" Align="Align.Center" Class="mb-8" Color="Color.Secondary">Orchestrate multi-persona conversations with ease.</MudText>
 
-    <MudCard Elevation="3">
-        <MudCardContent>
-            <MudTextField @bind-Value="Topic" Label="What would you like to discuss?" Variant="Variant.Outlined" Margin="Margin.Normal" FullWidth="true" />
+    <MudGrid Justify="Justify.Center">
+        <MudItem xs="12" md="10">
+            <MudCard Elevation="4" Class="pa-4">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h5">Start a New Conversation</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudTextField @bind-Value="Topic" Label="What would you like to discuss?" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Topic" Margin="Margin.Normal" FullWidth="true" />
 
-            <MudText Typo="Typo.subtitle1" Class="mt-4 mb-2">Active Personas</MudText>
-            <MudChipSet T="object" MultiSelection="true" @bind-SelectedValues="SelectedPersonas">
-                @foreach (var persona in AppState.Settings.Personas)
-                {
-                    <MudChip T="object" Value="@((object)persona)" Text="@persona.Name" Color="Color.Primary" Variant="Variant.Outlined" SelectedColor="Color.Primary" />
-                }
-            </MudChipSet>
-        </MudCardContent>
-        <MudCardActions>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="StartConversation" FullWidth="true" Disabled="@(string.IsNullOrWhiteSpace(Topic) || SelectedPersonas == null || SelectedPersonas.Count < 2)">Start Conversation</MudButton>
-        </MudCardActions>
-    </MudCard>
+                    <MudText Typo="Typo.h6" Class="mt-6 mb-2">Select Participants</MudText>
+                    <MudText Typo="Typo.caption" Class="mb-2 d-block">Choose at least two personas.</MudText>
 
-    <MudAlert Severity="Severity.Info" Class="mt-4">
-        Using Provider: <strong>@AppState.Settings.LlmProvider.Type</strong><br/>
-        Model: <strong>@AppState.Settings.LlmProvider.ModelId</strong>
-    </MudAlert>
+                    <MudPaper Class="pa-4" Outlined="true">
+                        <MudChipSet T="object" MultiSelection="true" @bind-SelectedValues="SelectedPersonas" CheckMark="true">
+                            @foreach (var persona in AppState.Settings.Personas)
+                            {
+                                <MudChip T="object" Value="@((object)persona)" Text="@persona.Name" Color="Color.Primary" Variant="Variant.Text" SelectedColor="Color.Primary" />
+                            }
+                        </MudChipSet>
+                    </MudPaper>
+                </MudCardContent>
+                <MudCardActions Class="d-flex justify-end pa-4">
+                    <MudButton Variant="Variant.Filled" Size="Size.Large" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Chat" OnClick="StartConversation" Disabled="@(string.IsNullOrWhiteSpace(Topic) || SelectedPersonas == null || SelectedPersonas.Count < 2)">Start Conversation</MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" md="10" Class="mt-4">
+             <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" ContentAlignment="HorizontalAlignment.Center">
+                Current Config: <strong>@AppState.Settings.LlmProvider.Type</strong> / <strong>@AppState.Settings.LlmProvider.ModelId</strong>
+            </MudAlert>
+        </MudItem>
+    </MudGrid>
 </MudContainer>
 
 @code {
     private string Topic = "";
 
-    // MudChipSet binding expects IReadOnlyCollection for SelectedValues in newer versions usually?
-    // The error said "cannot convert ICollection to IReadOnlyCollection".
-    // Let's use IReadOnlyCollection.
     private IReadOnlyCollection<object> SelectedPersonas { get; set; } = new List<object>();
 
     protected override void OnInitialized()
