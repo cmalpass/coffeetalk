@@ -11,30 +11,30 @@
 @inject NavigationManager Navigation
 
 
-<div class="container mt-5" style="max-width: 600px; margin: auto;">
-    <h1>CoffeeTalk Setup</h1>
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-5">
+    <MudText Typo="Typo.h3" Align="Align.Center" GutterBottom="true">CoffeeTalk Setup</MudText>
 
     @if (!ConfigLoaded)
     {
-        <p>Loading configuration...</p>
+        <MudProgressCircular Color="Color.Primary" Indeterminate="true" />
     }
     else
     {
-        <div class="card p-3 mb-3">
-            <div class="mb-3">
-                <label class="form-label">Topic</label>
-                <input type="text" class="form-control" @bind="Topic" placeholder="What would you like to discuss?" />
-            </div>
+        <MudCard Elevation="3">
+            <MudCardContent>
+                <MudTextField @bind-Value="Topic" Label="What would you like to discuss?" Variant="Variant.Outlined" Margin="Margin.Normal" FullWidth="true" />
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="StartConversation" FullWidth="true">Start Conversation</MudButton>
+            </MudCardActions>
+        </MudCard>
 
-            <button class="btn btn-primary" @onclick="StartConversation">Start Conversation</button>
-        </div>
-
-        <div class="alert alert-info">
+        <MudAlert Severity="Severity.Info" Class="mt-4">
             Using Provider: <strong>@Settings.LlmProvider.Type</strong><br/>
             Model: <strong>@Settings.LlmProvider.ModelId</strong>
-        </div>
+        </MudAlert>
     }
-</div>
+</MudContainer>
 
 @code {
     private AppSettings Settings = new();

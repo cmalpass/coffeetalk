@@ -3,60 +3,72 @@
 @namespace CoffeeTalk.Gui.Components
 @inject BlazorUserInterface UI
 
-<div class="sidebar">
-    <h3>Document State</h3>
-    <div style="white-space: pre-wrap; font-size: 0.8em;">
-        @UI.DocumentContent
-    </div>
-</div>
+<MudGrid>
+    <MudItem xs="12" sm="4" md="3">
+        <MudPaper Class="pa-4" Elevation="4" Style="height: 80vh; overflow-y: auto;">
+            <MudText Typo="Typo.h6" Class="mb-4">Document State</MudText>
+            <MudText Typo="Typo.body2" Style="white-space: pre-wrap;">
+                @UI.DocumentContent
+            </MudText>
+        </MudPaper>
+    </MudItem>
 
-<div class="chat-area">
-    @if (!string.IsNullOrEmpty(UI.StatusMessage))
-    {
-        <div class="status-bar">
-            <strong>Status:</strong> @UI.StatusMessage
-        </div>
-    }
-
-    <div class="messages-list">
-        @foreach (var msg in UI.Messages)
-        {
-            if (msg.IsDivider)
+    <MudItem xs="12" sm="8" md="9">
+        <MudPaper Class="pa-4 d-flex flex-column" Elevation="4" Style="height: 80vh;">
+            @if (!string.IsNullOrEmpty(UI.StatusMessage))
             {
-                <hr />
-                @if (!string.IsNullOrEmpty(msg.Content))
+                <MudAlert Severity="Severity.Info" Class="mb-2">@UI.StatusMessage</MudAlert>
+            }
+
+            <MudList T="string" Class="flex-grow-1 overflow-y-auto" Style="max-height: 100%;">
+                @foreach (var msg in UI.Messages)
                 {
-                    <div style="text-align:center; color: #888; font-size: 0.8em;">@msg.Content</div>
-                }
-            }
-            else
-            {
-                <div class="message @(msg.IsSystem ? "system" : (msg.IsError ? "error" : "agent"))">
-                    @if (!msg.IsSystem && !msg.IsError)
+                    if (msg.IsDivider)
                     {
-                        <div class="message-header">@msg.Sender</div>
+                        <MudDivider Class="my-2" />
+                        @if (!string.IsNullOrEmpty(msg.Content))
+                        {
+                            <MudText Align="Align.Center" Color="Color.Secondary" Typo="Typo.caption">@msg.Content</MudText>
+                        }
                     }
-                    <div class="message-content">@msg.Content</div>
-                </div>
-            }
-        }
-    </div>
+                    else
+                    {
+                        <MudListItem T="string">
+                            <MudCard Class="@GetMessageClass(msg)" Elevation="2">
+                                <MudCardHeader>
+                                    <CardHeaderContent>
+                                        @if (!msg.IsSystem && !msg.IsError)
+                                        {
+                                            <MudText Typo="Typo.subtitle2" Color="Color.Primary">@msg.Sender</MudText>
+                                        }
+                                    </CardHeaderContent>
+                                </MudCardHeader>
+                                <MudCardContent>
+                                    <MudText Typo="Typo.body1" Style="white-space: pre-wrap;">@msg.Content</MudText>
+                                </MudCardContent>
+                            </MudCard>
+                        </MudListItem>
+                    }
+                }
+            </MudList>
 
-    @if (UI.IsInterventionRequired)
-    {
-        <div class="input-area">
-            <h5>Director's Chair</h5>
-            <div class="mb-2">
-                <button class="btn btn-primary" @onclick='() => Submit("continue", "")'>Continue</button>
-                <button class="btn btn-danger" @onclick='() => Submit("quit", "")'>End Conversation</button>
-            </div>
-            <div class="input-group">
-                <input type="text" class="form-control" placeholder="Inject direction/feedback..." @bind="FeedbackMessage" />
-                <button class="btn btn-secondary" @onclick='() => Submit("inject", FeedbackMessage)'>Inject</button>
-            </div>
-        </div>
-    }
-</div>
+            @if (UI.IsInterventionRequired)
+            {
+                <MudPaper Class="pa-3 mt-3" Elevation="3">
+                    <MudText Typo="Typo.h6">Director's Chair</MudText>
+                    <MudStack Row="true" Spacing="2" Class="mt-2">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick='() => Submit("continue", "")'>Continue</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick='() => Submit("quit", "")'>End Conversation</MudButton>
+                    </MudStack>
+                    <MudStack Row="true" Spacing="2" Class="mt-2">
+                        <MudTextField @bind-Value="FeedbackMessage" Label="Inject direction/feedback..." Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true" />
+                        <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick='() => Submit("inject", FeedbackMessage)'>Inject</MudButton>
+                    </MudStack>
+                </MudPaper>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>
 
 @code {
     private string FeedbackMessage = "";
@@ -75,5 +87,12 @@
     {
         UI.SubmitIntervention(action, message);
         FeedbackMessage = "";
+    }
+
+    private string GetMessageClass(ChatMessage msg)
+    {
+        if (msg.IsSystem) return "pa-2 mb-2 bg-info-subtle";
+        if (msg.IsError) return "pa-2 mb-2 bg-danger-subtle";
+        return "pa-2 mb-2";
     }
 }

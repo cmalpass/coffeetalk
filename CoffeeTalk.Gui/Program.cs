@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using CoffeeTalk.Services;
 using CoffeeTalk.Gui.Services;
 using CoffeeTalk.Core.Interfaces;
-// using CoffeeTalk.Gui.Components; // It seems this is problematic.
+using MudBlazor.Services;
 
 namespace CoffeeTalk.Gui;
 
@@ -20,6 +20,9 @@ class Program
         // Register the UI as a singleton so it can be shared between the background task and the pages
         appBuilder.Services.AddSingleton<BlazorUserInterface>();
         appBuilder.Services.AddSingleton<IUserInterface>(sp => sp.GetRequiredService<BlazorUserInterface>());
+
+        // Add MudBlazor services
+        appBuilder.Services.AddMudServices();
 
         // Try using the type directly if possible, or fully qualified.
         // Since App is in CoffeeTalk.Gui.Components namespace.
