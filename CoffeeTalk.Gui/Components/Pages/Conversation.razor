@@ -122,9 +122,13 @@
         {
             await JSRuntime.InvokeVoidAsync("scrollToBottom", "chat-container");
         }
-        catch (Exception)
+        catch (JSException)
         {
-            // Silently ignore scroll errors as this is a nice-to-have feature
+            // Silently ignore JS errors as scrolling is a nice-to-have feature
+        }
+        catch (TaskCanceledException)
+        {
+            // Silently ignore if the task was cancelled (e.g., component disposed)
         }
     }
 
