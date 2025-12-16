@@ -5,11 +5,13 @@
 @using CoffeeTalk.Gui.Services
 @using CoffeeTalk.Gui.Components.Pages
 @using MudBlazor
+@using Microsoft.Extensions.Logging
 @namespace CoffeeTalk.Gui.Components.Pages
 
 @inject AppState AppState
 @inject BlazorUserInterface UI
 @inject NavigationManager Navigation
+@inject ILogger<Home> Logger
 
 
 <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8">
@@ -69,7 +71,10 @@
         if (string.IsNullOrWhiteSpace(Topic)) return;
         if (SelectedPersonas == null || SelectedPersonas.Count < 2) return;
 
-        // We need to run the conversation in a background task so it doesn't block the UI thread
+        // Navigate to conversation page first
+        Navigation.NavigateTo("/conversation");
+
+        // Run the conversation in a background task so it doesn't block the UI thread
         _ = Task.Run(async () => {
              try
              {
@@ -117,10 +122,9 @@
              }
              catch(Exception ex)
              {
-                 await UI.ShowErrorAsync(ex.ToString());
+                 Logger.LogError(ex, "Error during conversation orchestration");
+                 await UI.ShowErrorAsync($"An error occurred: {ex.Message}");
              }
         });
-
-        Navigation.NavigateTo("/conversation");
     }
 }

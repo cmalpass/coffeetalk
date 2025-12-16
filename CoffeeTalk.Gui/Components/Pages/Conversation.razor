@@ -3,6 +3,7 @@
 @using MudBlazor
 @using Microsoft.JSInterop
 @namespace CoffeeTalk.Gui.Components
+@implements IDisposable
 @inject BlazorUserInterface UI
 @inject AppState AppState
 @inject ISnackbar Snackbar
@@ -110,11 +111,16 @@
         UI.OnChange -= ScrollToBottom;
     }
 
-    private void ScrollToBottom()
+    private async void ScrollToBottom()
     {
-        // Simple fire-and-forget JS interop to scroll chat
-        // In a real app, we'd use OnAfterRenderAsync
-        _ = JSRuntime.InvokeVoidAsync("scrollToBottom", "chat-container");
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("scrollToBottom", "chat-container");
+        }
+        catch
+        {
+            // Silently ignore scroll errors as this is a nice-to-have feature
+        }
     }
 
     private void Submit(string action, string message)
