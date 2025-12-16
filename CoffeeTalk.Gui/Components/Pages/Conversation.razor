@@ -122,7 +122,7 @@
         {
             await JSRuntime.InvokeVoidAsync("scrollToBottom", "chat-container");
         }
-        catch
+        catch (Exception)
         {
             // Silently ignore scroll errors as this is a nice-to-have feature
         }
