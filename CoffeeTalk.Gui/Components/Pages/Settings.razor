@@ -1,0 +1,124 @@
+@page "/settings"
+@using CoffeeTalk.Gui.Services
+@using CoffeeTalk.Models
+@using MudBlazor
+@inject AppState AppState
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4">
+    <MudText Typo="Typo.h4" GutterBottom="true">Settings</MudText>
+
+    <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6">
+        <MudTabPanel Text="General">
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudSelect T="string" Label="LLM Provider" @bind-Value="AppState.Settings.LlmProvider.Type" AnchorOrigin="Origin.BottomCenter">
+                        <MudSelectItem Value="@("openai")">OpenAI</MudSelectItem>
+                        <MudSelectItem Value="@("azureopenai")">Azure OpenAI</MudSelectItem>
+                        <MudSelectItem Value="@("ollama")">Ollama</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudTextField @bind-Value="AppState.Settings.LlmProvider.ModelId" Label="Model ID" HelperText="e.g. gpt-4, llama2" />
+                </MudItem>
+                <MudItem xs="12">
+                     <MudTextField @bind-Value="AppState.Settings.LlmProvider.ApiKey" Label="API Key" InputType="InputType.Password" HelperText="Leave empty to use environment variable" />
+                </MudItem>
+                 <MudItem xs="12">
+                     <MudTextField @bind-Value="AppState.Settings.LlmProvider.Endpoint" Label="Endpoint" HelperText="Required for Azure/Ollama" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSwitch @bind-Value="AppState.Settings.InteractiveMode" Label="Interactive Mode (Director's Chair)" Color="Color.Primary" />
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Personas">
+            <MudTable Items="@AppState.Settings.Personas" Hover="true" Breakpoint="Breakpoint.Sm">
+                <ToolBarContent>
+                    <MudText Typo="Typo.h6">Configured Personas</MudText>
+                    <MudSpacer />
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddPersona">Add Persona</MudButton>
+                </ToolBarContent>
+                <HeaderContent>
+                    <MudTh>Name</MudTh>
+                    <MudTh>System Prompt</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Name">@context.Name</MudTd>
+                    <MudTd DataLabel="System Prompt">
+                        <MudText Typo="Typo.body2" Style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 300px;">
+                            @context.SystemPrompt
+                        </MudText>
+                    </MudTd>
+                    <MudTd DataLabel="Actions">
+                        <MudIconButton Icon="@Icons.Material.Filled.Edit" OnClick="@(() => EditPersona(context))" Size="Size.Small" />
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" OnClick="@(() => DeletePersona(context))" Size="Size.Small" Color="Color.Error" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudTabPanel>
+
+        <MudTabPanel Text="Advanced">
+            <MudGrid>
+                <MudItem xs="12" md="6">
+                    <MudNumericField @bind-Value="AppState.Settings.MaxConversationTurns" Label="Max Turns" Min="1" Max="100" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudNumericField @bind-Value="AppState.Settings.RateLimit" Label="Rate Limit (tokens/min)" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSwitch @bind-Value="AppState.Settings.FactChecking" Label="Enable Fact Checking" Color="Color.Warning" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSwitch @bind-Value="AppState.Settings.DevilsAdvocate" Label="Enable Devil's Advocate" Color="Color.Error" />
+                </MudItem>
+                 <MudItem xs="12">
+                    <MudSwitch @bind-Value="AppState.Settings.ShowThinking" Label="Show Thinking Process" Color="Color.Info" />
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+    </MudTabs>
+
+    <div class="d-flex justify-end mt-4">
+        <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Save" OnClick="SaveSettings">Save Configuration</MudButton>
+    </div>
+</MudContainer>
+
+@code {
+    private async Task SaveSettings()
+    {
+        await AppState.SaveSettingsAsync();
+        Snackbar.Add("Configuration saved successfully!", Severity.Success);
+    }
+
+    private async Task AddPersona()
+    {
+        var parameters = new DialogParameters { ["Persona"] = new PersonaConfig() };
+        var dialog = DialogService.Show<PersonaDialog>("Add Persona", parameters);
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            AppState.Settings.Personas.Add((PersonaConfig)result.Data);
+        }
+    }
+
+    private async Task EditPersona(PersonaConfig persona)
+    {
+        var parameters = new DialogParameters { ["Persona"] = persona };
+        var dialog = DialogService.Show<PersonaDialog>("Edit Persona", parameters);
+        await dialog.Result;
+
+        // Object is modified by reference, so UI updates automatically,
+        // but we might want to trigger a state change if we were doing deep cloning.
+        // Since we are editing the object directly in the dialog, it's reflected here.
+    }
+
+    private void DeletePersona(PersonaConfig persona)
+    {
+        AppState.Settings.Personas.Remove(persona);
+    }
+}

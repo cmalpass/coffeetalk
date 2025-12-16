@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Configuration;
 using CoffeeTalk.Models;
 using CoffeeTalk.Services;
+using CoffeeTalk.Core.Interfaces;
+using CoffeeTalk.Helpers;
 using Spectre.Console;
 
 namespace CoffeeTalk;
@@ -14,8 +16,8 @@ class Program
             var configService = new ConfigurationService();
             var settings = configService.LoadConfiguration();
 
-            // Validate and interactively configure if needed
-            settings = await configService.ValidateAndConfigureAsync(settings);
+            // Validate and interactively configure if needed using the CLI Helper
+            settings = await ConfigurationHelper.ValidateAndConfigureAsync(configService, settings);
 
             // Configure retry handler
             RetryHandler.Configure(settings.Retry);
@@ -203,6 +205,12 @@ class Program
                 var factPrompt = AgentFactChecker.BuildSystemPrompt();
                 var factAgent = AgentBuilder.CreateAgent(settings.LlmProvider, "FactChecker", factPrompt);
                 factChecker = new AgentFactChecker(factAgent, rateLimiter);
+                // Subscribe to alerts
+                factChecker.OnFactCheckAlert += (alert) =>
+                {
+                    AnsiConsole.MarkupLine($"\n[bold red]🕵️ Fact Checker Alert:[/]");
+                    AnsiConsole.MarkupLine($"[red]{Markup.Escape(alert)}[/]");
+                };
             }
 
             // Create conversation orchestrator and start conversation
@@ -214,7 +222,11 @@ class Program
                 dataExtractor = new AgentDataExtractor(agent, settings.StructuredData, sharedDoc);
             }
 
+            // Instantiate UI
+            IUserInterface ui = new ConsoleUserInterface();
+
             var conversationOrchestrator = new AgentConversationOrchestrator(
+                ui,
                 agentPersonas,
                 sharedDoc,
                 settings,

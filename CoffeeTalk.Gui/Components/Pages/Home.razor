@@ -1,0 +1,130 @@
+@page "/"
+@using CoffeeTalk.Models
+@using CoffeeTalk.Services
+@using CoffeeTalk.Core.Interfaces
+@using CoffeeTalk.Gui.Services
+@using CoffeeTalk.Gui.Components.Pages
+@using MudBlazor
+@using Microsoft.Extensions.Logging
+@namespace CoffeeTalk.Gui.Components.Pages
+
+@inject AppState AppState
+@inject BlazorUserInterface UI
+@inject NavigationManager Navigation
+@inject ILogger<Home> Logger
+
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8">
+    <MudText Typo="Typo.h2" Align="Align.Center" GutterBottom="true" Color="Color.Primary">CoffeeTalk</MudText>
+    <MudText Typo="Typo.subtitle1" Align="Align.Center" Class="mb-8" Color="Color.Secondary">Orchestrate multi-persona conversations with ease.</MudText>
+
+    <MudGrid Justify="Justify.Center">
+        <MudItem xs="12" md="10">
+            <MudCard Elevation="4" Class="pa-4">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h5">Start a New Conversation</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudTextField @bind-Value="Topic" Label="What would you like to discuss?" Variant="Variant.Outlined" Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Topic" Margin="Margin.Normal" FullWidth="true" />
+
+                    <MudText Typo="Typo.h6" Class="mt-6 mb-2">Select Participants</MudText>
+                    <MudText Typo="Typo.caption" Class="mb-2 d-block">Choose at least two personas.</MudText>
+
+                    <MudPaper Class="pa-4" Outlined="true">
+                        <MudChipSet T="object" MultiSelection="true" @bind-SelectedValues="SelectedPersonas" CheckMark="true">
+                            @foreach (var persona in AppState.Settings.Personas)
+                            {
+                                <MudChip T="object" Value="@((object)persona)" Text="@persona.Name" Color="Color.Primary" Variant="Variant.Text" SelectedColor="Color.Primary" />
+                            }
+                        </MudChipSet>
+                    </MudPaper>
+                </MudCardContent>
+                <MudCardActions Class="d-flex justify-end pa-4">
+                    <MudButton Variant="Variant.Filled" Size="Size.Large" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Chat" OnClick="StartConversation" Disabled="@(string.IsNullOrWhiteSpace(Topic) || SelectedPersonas == null || SelectedPersonas.Count < 2)">Start Conversation</MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" md="10" Class="mt-4">
+             <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" ContentAlignment="HorizontalAlignment.Center">
+                Current Config: <strong>@AppState.Settings.LlmProvider.Type</strong> / <strong>@AppState.Settings.LlmProvider.ModelId</strong>
+            </MudAlert>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+@code {
+    private string Topic = "";
+
+    private IReadOnlyCollection<object> SelectedPersonas { get; set; } = new List<object>();
+
+    protected override void OnInitialized()
+    {
+        // Select all by default
+        SelectedPersonas = AppState.Settings.Personas.Cast<object>().ToList();
+    }
+
+    private async Task StartConversation()
+    {
+        if (string.IsNullOrWhiteSpace(Topic)) return;
+        if (SelectedPersonas == null || SelectedPersonas.Count < 2) return;
+
+        // Navigate to conversation page first
+        Navigation.NavigateTo("/conversation");
+
+        // Run the conversation in a background task so it doesn't block the UI thread
+        _ = Task.Run(async () => {
+             try
+             {
+                // We need to replicate Program.cs setup logic here but using the UI service
+                var sharedDoc = new CollaborativeMarkdownDocument();
+                var markdownTools = new MarkdownToolFunctions(sharedDoc);
+                var tools = markdownTools.CreateTools();
+                var settings = AppState.Settings;
+                var rateLimiter = new RateLimiter(settings.RateLimit);
+
+                var activePersonasConfig = SelectedPersonas.Cast<PersonaConfig>().ToList();
+
+                var activePersonas = new List<AgentPersona>();
+                foreach (var personaConfig in activePersonasConfig)
+                {
+                    var agent = AgentBuilder.CreateAgent(
+                        settings.LlmProvider,
+                        personaConfig.Name,
+                        personaConfig.SystemPrompt,
+                        tools);
+
+                    var agentPersona = new AgentPersona(
+                        agent,
+                        personaConfig,
+                        sharedDoc,
+                        rateLimiter,
+                        settings.MaxConversationTurns,
+                        activePersonasConfig.Count);
+
+                    activePersonas.Add(agentPersona);
+                }
+
+                // (Simplified setup - skipping orchestrator/editor optional checks for brevity in this initial pass,
+                // but can be added similarly to CLI Program.cs)
+
+                var conversationOrchestrator = new AgentConversationOrchestrator(
+                    UI, // Inject our Blazor UI
+                    activePersonas,
+                    sharedDoc,
+                    settings
+                    // nulls for optional components for now
+                );
+
+                await conversationOrchestrator.StartConversationAsync(Topic);
+             }
+             catch(Exception ex)
+             {
+                 Logger.LogError(ex, "Error during conversation orchestration");
+                 await UI.ShowErrorAsync("An error occurred while starting the conversation. Please check your configuration and try again.");
+             }
+        });
+    }
+}

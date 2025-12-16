@@ -1,0 +1,13 @@
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components.Routing
+@using CoffeeTalk.Gui.Components.Pages
+@namespace CoffeeTalk.Gui.Components
+
+<Router AppAssembly="@typeof(App).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)" />
+    </Found>
+    <NotFound>
+        <p>Sorry, there's nothing at this address.</p>
+    </NotFound>
+</Router>
