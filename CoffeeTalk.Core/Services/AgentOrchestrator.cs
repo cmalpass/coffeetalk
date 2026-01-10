@@ -1,5 +1,6 @@
 using Microsoft.Agents.AI;
 using CoffeeTalk.Models;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace CoffeeTalk.Services;
@@ -31,23 +32,25 @@ public class AgentOrchestrator
 
     public static string BuildSystemPrompt(OrchestratorConfig config, List<AgentPersona> personas)
     {
+        var sb = new StringBuilder();
         var basePrompt = config.BaseSystemPrompt ?? OrchestratorConfig.DefaultBaseSystemPrompt;
-        var prompt = basePrompt + "\n\n";
+        sb.AppendLine(basePrompt);
+        sb.AppendLine();
 
         // Add dynamically generated persona descriptions
-        prompt += "Available personas:\n";
+        sb.AppendLine("Available personas:");
         foreach (var persona in personas)
         {
-            prompt += $"- {persona.Name}: ";
+            sb.Append($"- {persona.Name}: ");
             
             // Extract key characteristics from system prompt
             var description = ExtractPersonaDescription(persona.SystemPrompt);
-            prompt += description + "\n";
+            sb.AppendLine(description);
         }
-        prompt += "\n";
+        sb.AppendLine();
 
         // Add response format instructions
-        prompt += @"You must decide:
+        sb.AppendLine(@"You must decide:
 1. Whether the conversation should continue or conclude
 2. If continuing, which persona should speak next
 
@@ -62,18 +65,19 @@ Decision criteria for CONCLUDE:
 - Remaining turns are insufficient for meaningful additions
 - DO NOT conclude prematurely just because personas agree on one point
 
-Example (continue):
-";
+Example (continue):");
+
         if (personas.Count > 0)
         {
-            prompt += personas[0].Name + "\n";
-            prompt += "Reason: Need to address trade-offs section\n\n";
+            sb.AppendLine(personas[0].Name);
+            sb.AppendLine("Reason: Need to address trade-offs section");
+            sb.AppendLine();
         }
-        prompt += @"Example (conclude):
+        sb.AppendLine(@"Example (conclude):
 CONCLUDE
-Reason: Document complete, all personas contributed, clear consensus reached";
+Reason: Document complete, all personas contributed, clear consensus reached");
 
-        return prompt;
+        return sb.ToString();
     }
 
     private static string ExtractPersonaDescription(string systemPrompt)
@@ -160,46 +164,51 @@ Reason: Document complete, all personas contributed, clear consensus reached";
 
     private string BuildOrchestratorContext(string currentMessage, List<string> history, int turnsRemaining)
     {
-        var context = $"Current topic/message: {currentMessage}\n\n";
+        var sb = new StringBuilder();
+        sb.AppendLine($"Current topic/message: {currentMessage}");
+        sb.AppendLine();
 
         // Add recent history
         if (history.Count > 0)
         {
             var recentHistory = history.TakeLast(5);
-            context += "Recent conversation:\n" + string.Join("\n", recentHistory) + "\n\n";
+            sb.AppendLine("Recent conversation:");
+            sb.AppendLine(string.Join("\n", recentHistory));
+            sb.AppendLine();
         }
 
         // Add document state
         var headings = _doc.ListHeadings();
-        context += "Current document state:\n";
-        context += string.IsNullOrWhiteSpace(headings) ? "[Document is empty]\n" : headings + "\n";
-        context += "\n";
+        sb.AppendLine("Current document state:");
+        sb.AppendLine(string.IsNullOrWhiteSpace(headings) ? "[Document is empty]" : headings);
+        sb.AppendLine();
 
         // Add participation stats
-        context += "Speaker participation count:\n";
+        sb.AppendLine("Speaker participation count:");
         foreach (var kvp in _speakerCount.OrderBy(x => x.Value))
         {
-            context += $"- {kvp.Key}: {kvp.Value} time(s)\n";
+            sb.AppendLine($"- {kvp.Key}: {kvp.Value} time(s)");
         }
-        context += "\n";
+        sb.AppendLine();
 
         // Add available personas with their expertise
-        context += "Available personas:\n";
+        sb.AppendLine("Available personas:");
         foreach (var persona in _availablePersonas)
         {
-            context += $"- {persona.Name}\n";
+            sb.AppendLine($"- {persona.Name}");
         }
-        context += "\n";
+        sb.AppendLine();
 
         // Add urgency if needed
         if (turnsRemaining <= 3)
         {
-            context += $"⚠️ URGENT: Only {turnsRemaining} turn(s) remaining. Select someone who can help wrap up and conclude.\n\n";
+            sb.AppendLine($"⚠️ URGENT: Only {turnsRemaining} turn(s) remaining. Select someone who can help wrap up and conclude.");
+            sb.AppendLine();
         }
 
-        context += "Who should speak next?";
+        sb.Append("Who should speak next?");
         
-        return context;
+        return sb.ToString();
     }
 
     private AgentPersona? ParsePersonaSelection(string response)
