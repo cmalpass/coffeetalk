@@ -150,27 +150,119 @@ public class CollaborativeMarkdownDocument
     {
         lock (_lock)
         {
-            var lines = _content.ToString().Split('\n');
-            var headings = new List<string>();
-            foreach (var line in lines)
+            var result = new StringBuilder();
+
+            bool isStartOfLine = true;
+            bool checkingHashes = false;
+            int hashCount = 0;
+            bool isHeading = false;
+            int currentHeadingStartIndex = -1;
+
+            foreach (var chunk in _content.GetChunks())
             {
-                if (Regex.IsMatch(line, "^#{1,6} "))
+                var span = chunk.Span;
+                for (int i = 0; i < span.Length; i++)
                 {
-                    headings.Add(line.Trim());
+                    char c = span[i];
+
+                    if (isStartOfLine)
+                    {
+                        if (c == '#')
+                        {
+                            checkingHashes = true;
+                            hashCount = 1;
+                            isStartOfLine = false;
+                        }
+                        else if (c == '\n')
+                        {
+                            isStartOfLine = true;
+                        }
+                        else
+                        {
+                            isStartOfLine = false;
+                        }
+                    }
+                    else if (checkingHashes)
+                    {
+                        if (c == '#')
+                        {
+                            hashCount++;
+                            if (hashCount > 6)
+                            {
+                                checkingHashes = false;
+                            }
+                        }
+                        else if (c == ' ')
+                        {
+                            if (hashCount >= 1 && hashCount <= 6)
+                            {
+                                isHeading = true;
+                                if (result.Length > 0) result.Append('\n');
+
+                                result.Append('#', hashCount);
+                                result.Append(' ');
+                                currentHeadingStartIndex = result.Length;
+                            }
+                            checkingHashes = false;
+                        }
+                        else
+                        {
+                            checkingHashes = false;
+                            if (c == '\n') isStartOfLine = true;
+                        }
+                    }
+                    else if (isHeading)
+                    {
+                        if (c == '\n')
+                        {
+                            // End of heading line. Trim trailing whitespace.
+                            while (result.Length > currentHeadingStartIndex && char.IsWhiteSpace(result[result.Length - 1]))
+                            {
+                                result.Length--;
+                            }
+
+                            isHeading = false;
+                            isStartOfLine = true;
+                        }
+                        else if (c != '\r')
+                        {
+                            result.Append(c);
+                        }
+                    }
+                    else
+                    {
+                        // Just scanning for newline
+                        if (c == '\n')
+                        {
+                            isStartOfLine = true;
+                        }
+                    }
                 }
             }
-            return string.Join("\n", headings);
+
+            if (isHeading)
+            {
+                while (result.Length > currentHeadingStartIndex && char.IsWhiteSpace(result[result.Length - 1]))
+                {
+                    result.Length--;
+                }
+            }
+
+            return result.ToString();
         }
     }
 
-    public string SaveToFile(string path)
+    public async Task<string> SaveToFileAsync(string path)
     {
+        string contentToWrite;
         lock (_lock)
         {
-            var fullPath = Path.GetFullPath(string.IsNullOrWhiteSpace(path) ? "conversation.md" : path);
-            Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-            File.WriteAllText(fullPath, _content.ToString());
-            return fullPath;
+            contentToWrite = _content.ToString();
         }
+
+        var fullPath = Path.GetFullPath(string.IsNullOrWhiteSpace(path) ? "conversation.md" : path);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        await File.WriteAllTextAsync(fullPath, contentToWrite);
+        return fullPath;
     }
 }

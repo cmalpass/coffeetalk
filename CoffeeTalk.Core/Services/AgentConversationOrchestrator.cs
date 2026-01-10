@@ -387,7 +387,7 @@ public class AgentConversationOrchestrator
     {
         try
         {
-            var path = _doc.SaveToFile("conversation.md");
+            var path = await _doc.SaveToFileAsync("conversation.md");
 
             await _ui.ShowMessageAsync($"[green]✓ Auto-saved collaborative document ({Escape(path)})[/]");
         }
@@ -405,9 +405,8 @@ public class AgentConversationOrchestrator
     {
         if (_personas.Count == 0) return;
 
-        var historyToSummarize = conversationHistory.Take(10).ToList();
-        var remainingHistory = conversationHistory.Skip(10).ToList();
-        var historyText = string.Join("\n", historyToSummarize);
+        int countToSummarize = Math.Min(conversationHistory.Count, 10);
+        var historyText = string.Join("\n", conversationHistory.Take(countToSummarize));
 
         try
         {
@@ -422,16 +421,20 @@ public class AgentConversationOrchestrator
                 else
                 {
                     // Fallback: Use the first available persona to summarize
-                    conversationHistory.RemoveRange(0, 5);
-                    conversationHistory.Insert(0, "[... older history removed to save context ...]");
+                    if (conversationHistory.Count >= 5)
+                    {
+                        conversationHistory.RemoveRange(0, 5);
+                        conversationHistory.Insert(0, "[... older history removed to save context ...]");
+                    }
                     return;
                 }
 
                 if (!string.IsNullOrWhiteSpace(summary))
                 {
-                    conversationHistory.Clear();
-                    conversationHistory.Add($"[Summary of previous turns]: {summary}");
-                    conversationHistory.AddRange(remainingHistory);
+                    // Ensure we don't remove more than available if list shrank (unlikely but safe)
+                    int removeCount = Math.Min(conversationHistory.Count, countToSummarize);
+                    conversationHistory.RemoveRange(0, removeCount);
+                    conversationHistory.Insert(0, $"[Summary of previous turns]: {summary}");
                     await _ui.ShowMessageAsync("[dim]History summarized to save tokens.[/]");
                 }
             });
