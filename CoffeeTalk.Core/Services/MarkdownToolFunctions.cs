@@ -28,7 +28,7 @@ public class MarkdownToolFunctions
             AIFunctionFactory.Create(InsertAfterHeading),
             AIFunctionFactory.Create(ReplaceSection),
             AIFunctionFactory.Create(ListHeadings),
-            AIFunctionFactory.Create(SaveToFile)
+            AIFunctionFactory.Create(SaveToFileAsync)
         };
     }
 
@@ -80,8 +80,8 @@ public class MarkdownToolFunctions
     }
 
     [Description("Save the shared markdown document to disk and return the full file path")]
-    public string SaveToFile([Description("Output path; default is conversation.md in the working directory")] string? path = null)
+    public Task<string> SaveToFileAsync([Description("Output path; default is conversation.md in the working directory")] string? path = null)
     {
-        return _doc.SaveToFile(path ?? "conversation.md");
+        return _doc.SaveToFileAsync(path ?? "conversation.md");
     }
 }
