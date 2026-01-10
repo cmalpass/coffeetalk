@@ -14,6 +14,7 @@ public class AgentOrchestrator
     private readonly CollaborativeMarkdownDocument _doc;
     private readonly Dictionary<string, int> _speakerCount = new();
     private readonly List<AgentPersona> _availablePersonas;
+    private string _cachedSpeakerStats = string.Empty;
 
     public AgentOrchestrator(AIAgent agent, OrchestratorConfig config, CollaborativeMarkdownDocument doc, List<AgentPersona> personas)
     {
@@ -27,6 +28,7 @@ public class AgentOrchestrator
         {
             _speakerCount[persona.Name] = 0;
         }
+        UpdateCachedSpeakerStats();
     }
 
     public static string BuildSystemPrompt(OrchestratorConfig config, List<AgentPersona> personas)
@@ -144,6 +146,7 @@ Reason: Document complete, all personas contributed, clear consensus reached";
         if (selectedPersona != null)
         {
             _speakerCount[selectedPersona.Name]++;
+            UpdateCachedSpeakerStats();
             
             // Extract reason if present
             var reasonMatch = Regex.Match(responseText, @"Reason:\s*(.+)", RegexOptions.IgnoreCase);
@@ -177,10 +180,7 @@ Reason: Document complete, all personas contributed, clear consensus reached";
 
         // Add participation stats
         context += "Speaker participation count:\n";
-        foreach (var kvp in _speakerCount.OrderBy(x => x.Value))
-        {
-            context += $"- {kvp.Key}: {kvp.Value} time(s)\n";
-        }
+        context += _cachedSpeakerStats;
         context += "\n";
 
         // Add available personas with their expertise
@@ -245,5 +245,15 @@ Reason: Document complete, all personas contributed, clear consensus reached";
         
         var firstLine = lines[0].Trim();
         return firstLine.Equals("CONCLUDE", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void UpdateCachedSpeakerStats()
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var kvp in _speakerCount.OrderBy(x => x.Value))
+        {
+            sb.AppendLine($"- {kvp.Key}: {kvp.Value} time(s)");
+        }
+        _cachedSpeakerStats = sb.ToString();
     }
 }
