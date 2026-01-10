@@ -387,7 +387,7 @@ public class AgentConversationOrchestrator
     {
         try
         {
-            var path = _doc.SaveToFile("conversation.md");
+            var path = await _doc.SaveToFileAsync("conversation.md");
 
             await _ui.ShowMessageAsync($"[green]✓ Auto-saved collaborative document ({Escape(path)})[/]");
         }

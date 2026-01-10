@@ -163,14 +163,17 @@ public class CollaborativeMarkdownDocument
         }
     }
 
-    public string SaveToFile(string path)
+    public async Task<string> SaveToFileAsync(string path)
     {
+        string contentToWrite;
         lock (_lock)
         {
-            var fullPath = Path.GetFullPath(string.IsNullOrWhiteSpace(path) ? "conversation.md" : path);
-            Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-            File.WriteAllText(fullPath, _content.ToString());
-            return fullPath;
+            contentToWrite = _content.ToString();
         }
+
+        var fullPath = Path.GetFullPath(string.IsNullOrWhiteSpace(path) ? "conversation.md" : path);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        await File.WriteAllTextAsync(fullPath, contentToWrite);
+        return fullPath;
     }
 }
