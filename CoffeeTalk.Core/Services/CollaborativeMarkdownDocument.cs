@@ -254,11 +254,11 @@ public class CollaborativeMarkdownDocument
         }
 
         var fullPath = Path.GetFullPath(string.IsNullOrWhiteSpace(path) ? "conversation.md" : path);
-        // Ensure directory exists without blocking the calling thread
+        // Ensure directory exists
         var dir = Path.GetDirectoryName(fullPath);
         if (!string.IsNullOrEmpty(dir))
         {
-            await Task.Run(() => Directory.CreateDirectory(dir));
+            Directory.CreateDirectory(dir);
         }
         await File.WriteAllTextAsync(fullPath, contentToWrite);
         return fullPath;
