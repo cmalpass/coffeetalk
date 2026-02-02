@@ -327,9 +327,16 @@ public class AgentConversationOrchestrator
         try
         {
             // Build context from recent conversation
-            var recentContext = conversationHistory.TakeLast(6).ToList();
-            var contextSummary = recentContext.Count > 0
-                ? string.Join("\n", recentContext)
+            var countToTake = Math.Min(conversationHistory.Count, 6);
+            var sbContext = new StringBuilder();
+            int startIndex = conversationHistory.Count - countToTake;
+            for (int i = 0; i < countToTake; i++)
+            {
+                if (i > 0) sbContext.Append('\n');
+                sbContext.Append(conversationHistory[startIndex + i]);
+            }
+            var contextSummary = sbContext.Length > 0
+                ? sbContext.ToString()
                 : "No recent conversation";
 
             string editorResponse = string.Empty;
@@ -406,7 +413,13 @@ public class AgentConversationOrchestrator
         if (_personas.Count == 0) return;
 
         int countToSummarize = Math.Min(conversationHistory.Count, 10);
-        var historyText = string.Join("\n", conversationHistory.Take(countToSummarize));
+        var sb = new StringBuilder();
+        for (int i = 0; i < countToSummarize; i++)
+        {
+            if (i > 0) sb.Append('\n');
+            sb.Append(conversationHistory[i]);
+        }
+        var historyText = sb.ToString();
 
         try
         {
