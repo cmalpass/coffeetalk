@@ -8,7 +8,7 @@ namespace CoffeeTalk.Services;
 /// <summary>
 /// Orchestrator agent that decides which persona should speak next using Microsoft Agent Framework
 /// </summary>
-public class AgentOrchestrator
+public partial class AgentOrchestrator
 {
     private readonly AIAgent _agent;
     private readonly OrchestratorConfig _config;
@@ -41,7 +41,7 @@ public class AgentOrchestrator
         sb.AppendLine("Available personas:");
         foreach (var persona in personas)
         {
-            sb.Append($"- {persona.Name}: ");
+            sb.Append("- ").Append(persona.Name).Append(": ");
             
             // Extract key characteristics from system prompt
             var description = ExtractPersonaDescription(persona.SystemPrompt);
@@ -80,15 +80,20 @@ Reason: Document complete, all personas contributed, clear consensus reached");
         return sb.ToString();
     }
 
+    [GeneratedRegex(@"You are [^,]+,\s*(.+?)(?:\.|You|Your|\n)", RegexOptions.Singleline)]
+    private static partial Regex DescriptionRegex();
+
     private static string ExtractPersonaDescription(string systemPrompt)
     {
         // Try to extract the key description from "You are [Name], [description]"
-        var match = Regex.Match(systemPrompt, @"You are [^,]+,\s*(.+?)(?:\.|You|Your|\n)", RegexOptions.Singleline);
+        var match = DescriptionRegex().Match(systemPrompt);
         if (match.Success)
         {
             var desc = match.Groups[1].Value.Trim();
             // Limit to first sentence or ~100 chars for conciseness
-            var firstSentence = desc.Split('.')[0];
+            int dotIndex = desc.IndexOf('.');
+            var firstSentence = dotIndex >= 0 ? desc.Substring(0, dotIndex) : desc;
+
             if (firstSentence.Length > 150)
             {
                 firstSentence = firstSentence.Substring(0, 147) + "...";
