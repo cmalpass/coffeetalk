@@ -101,10 +101,7 @@ public class CollaborativeMarkdownDocument
             var insertIndex = match.Index + match.Length;
             // Insert a blank line and the content after the heading
             var insertion = "\n" + content.Trim() + "\n\n";
-            _content.Clear();
-            _content.Append(doc.Substring(0, insertIndex));
-            _content.Append(insertion);
-            _content.Append(doc.Substring(insertIndex));
+            _content.Insert(insertIndex, insertion);
         }
     }
 
@@ -135,14 +132,10 @@ public class CollaborativeMarkdownDocument
             int sectionEnd = nextHeadingMatch.Success ? nextHeadingMatch.Index : doc.Length;
 
             // Build new document with replaced section
-            var before = doc.Substring(0, sectionStart);
-            var after = doc.Substring(sectionEnd);
             var replacement = "\n" + content.Trim() + "\n\n"; // ensure surrounding blank lines
 
-            _content.Clear();
-            _content.Append(before);
-            _content.Append(replacement);
-            _content.Append(after);
+            _content.Remove(sectionStart, sectionEnd - sectionStart);
+            _content.Insert(sectionStart, replacement);
         }
     }
 
@@ -261,7 +254,12 @@ public class CollaborativeMarkdownDocument
         }
 
         var fullPath = Path.GetFullPath(string.IsNullOrWhiteSpace(path) ? "conversation.md" : path);
-        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        // Ensure directory exists without blocking the calling thread
+        var dir = Path.GetDirectoryName(fullPath);
+        if (!string.IsNullOrEmpty(dir))
+        {
+            await Task.Run(() => Directory.CreateDirectory(dir));
+        }
         await File.WriteAllTextAsync(fullPath, contentToWrite);
         return fullPath;
     }
