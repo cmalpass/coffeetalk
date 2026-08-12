@@ -55,10 +55,13 @@
     </MudGrid>
 </MudContainer>
 
+@implements IDisposable
 @code {
     private string Topic = "";
 
     private IReadOnlyCollection<object> SelectedPersonas { get; set; } = new List<object>();
+    private Task? _conversationTask;
+    private CancellationTokenSource? _cts;
 
     protected override void OnInitialized()
     {
@@ -71,60 +74,73 @@
         if (string.IsNullOrWhiteSpace(Topic)) return;
         if (SelectedPersonas == null || SelectedPersonas.Count < 2) return;
 
+        // Cancel any existing conversation
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = new CancellationTokenSource();
+
         // Navigate to conversation page first
         Navigation.NavigateTo("/conversation");
 
-        // Run the conversation in a background task so it doesn't block the UI thread
-        _ = Task.Run(async () => {
-             try
-             {
-                // We need to replicate Program.cs setup logic here but using the UI service
-                var sharedDoc = new CollaborativeMarkdownDocument();
-                var markdownTools = new MarkdownToolFunctions(sharedDoc);
-                var tools = markdownTools.CreateTools();
-                var settings = AppState.Settings;
-                var rateLimiter = new RateLimiter(settings.RateLimit);
+        // Run the conversation, tracking the task for cancellation
+        _conversationTask = RunConversationAsync(_cts.Token);
+    }
 
-                var activePersonasConfig = SelectedPersonas.Cast<PersonaConfig>().ToList();
+    private async Task RunConversationAsync(CancellationToken ct)
+    {
+        try
+        {
+            var sharedDoc = new CollaborativeMarkdownDocument();
+            var markdownTools = new MarkdownToolFunctions(sharedDoc);
+            var tools = markdownTools.CreateTools();
+            var settings = AppState.Settings;
+            var rateLimiter = new RateLimiter(settings.RateLimit);
 
-                var activePersonas = new List<AgentPersona>();
-                foreach (var personaConfig in activePersonasConfig)
-                {
-                    var agent = AgentBuilder.CreateAgent(
-                        settings.LlmProvider,
-                        personaConfig.Name,
-                        personaConfig.SystemPrompt,
-                        tools);
+            var activePersonasConfig = SelectedPersonas.Cast<PersonaConfig>().ToList();
 
-                    var agentPersona = new AgentPersona(
-                        agent,
-                        personaConfig,
-                        sharedDoc,
-                        rateLimiter,
-                        settings.MaxConversationTurns,
-                        activePersonasConfig.Count);
+            var activePersonas = new List<AgentPersona>();
+            foreach (var personaConfig in activePersonasConfig)
+            {
+                var agent = AgentBuilder.CreateAgent(
+                    settings.LlmProvider,
+                    personaConfig.Name,
+                    personaConfig.SystemPrompt,
+                    tools);
 
-                    activePersonas.Add(agentPersona);
-                }
-
-                // (Simplified setup - skipping orchestrator/editor optional checks for brevity in this initial pass,
-                // but can be added similarly to CLI Program.cs)
-
-                var conversationOrchestrator = new AgentConversationOrchestrator(
-                    UI, // Inject our Blazor UI
-                    activePersonas,
+                var agentPersona = new AgentPersona(
+                    agent,
+                    personaConfig,
                     sharedDoc,
-                    settings
-                    // nulls for optional components for now
-                );
+                    rateLimiter,
+                    settings.MaxConversationTurns,
+                    activePersonasConfig.Count);
 
-                await conversationOrchestrator.StartConversationAsync(Topic);
-             }
-             catch(Exception ex)
-             {
-                 Logger.LogError(ex, "Error during conversation orchestration");
-                 await UI.ShowErrorAsync("An error occurred while starting the conversation. Please check your configuration and try again.");
-             }
-        });
+                activePersonas.Add(agentPersona);
+            }
+
+            var conversationOrchestrator = new AgentConversationOrchestrator(
+                UI,
+                activePersonas,
+                sharedDoc,
+                settings
+            );
+
+            await conversationOrchestrator.StartConversationAsync(Topic);
+        }
+        catch (OperationCanceledException)
+        {
+            // Conversation was cancelled
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error during conversation orchestration");
+            await UI.ShowErrorAsync("An error occurred while starting the conversation. Please check your configuration and try again.");
+        }
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
     }
 }

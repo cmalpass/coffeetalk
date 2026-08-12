@@ -10,6 +10,7 @@ namespace CoffeeTalk.Gui.Services
         public event Action? OnChange;
 
         // Chat History
+        private readonly object _messagesLock = new();
         public List<ChatMessage> Messages { get; } = new();
 
         // Current Status
@@ -20,6 +21,7 @@ namespace CoffeeTalk.Gui.Services
         public string DocumentContent { get; private set; } = "";
 
         // User Intervention
+        private readonly object _tcsLock = new();
         private TaskCompletionSource<(string Action, string Message)>? _interventionTcs;
         public bool IsInterventionRequired { get; private set; }
 
@@ -27,21 +29,24 @@ namespace CoffeeTalk.Gui.Services
 
         public Task ShowMessageAsync(string message)
         {
-            Messages.Add(new ChatMessage { Sender = "System", Content = message, IsSystem = true });
+            lock (_messagesLock)
+                Messages.Add(new ChatMessage { Sender = "System", Content = message, IsSystem = true });
             NotifyStateChanged();
             return Task.CompletedTask;
         }
 
         public Task ShowErrorAsync(string message)
         {
-            Messages.Add(new ChatMessage { Sender = "Error", Content = message, IsError = true });
+            lock (_messagesLock)
+                Messages.Add(new ChatMessage { Sender = "Error", Content = message, IsError = true });
             NotifyStateChanged();
             return Task.CompletedTask;
         }
 
         public Task ShowAgentResponseAsync(string agentName, string response)
         {
-            Messages.Add(new ChatMessage { Sender = agentName, Content = response });
+            lock (_messagesLock)
+                Messages.Add(new ChatMessage { Sender = agentName, Content = response });
             NotifyStateChanged();
             return Task.CompletedTask;
         }
@@ -55,19 +60,30 @@ namespace CoffeeTalk.Gui.Services
 
         public Task<(string Action, string Message)> GetUserInterventionAsync()
         {
-            IsInterventionRequired = true;
-            NotifyStateChanged();
+            lock (_tcsLock)
+            {
+                if (_interventionTcs != null)
+                    return _interventionTcs.Task; // Already waiting for intervention
 
-            _interventionTcs = new TaskCompletionSource<(string Action, string Message)>();
-            return _interventionTcs.Task;
+                IsInterventionRequired = true;
+                NotifyStateChanged();
+
+                _interventionTcs = new TaskCompletionSource<(string Action, string Message)>();
+                return _interventionTcs.Task;
+            }
         }
 
         // Called by UI component when user submits intervention
         public void SubmitIntervention(string action, string message)
         {
+            lock (_tcsLock)
+            {
+                if (_interventionTcs == null) return;
+                if (!_interventionTcs.TrySetResult((action, message))) return;
+                _interventionTcs = null;
+            }
             IsInterventionRequired = false;
             NotifyStateChanged();
-            _interventionTcs?.SetResult((action, message));
         }
 
         public Task SetStatusAsync(string status)
@@ -107,15 +123,16 @@ namespace CoffeeTalk.Gui.Services
              sb.AppendLine($"**Mode:** {mode}");
              if (interactive) sb.AppendLine("*Interactive Mode Enabled*");
 
-             Messages.Add(new ChatMessage { Sender = "System", Content = sb.ToString(), IsSystem = true });
+             lock (_messagesLock)
+                 Messages.Add(new ChatMessage { Sender = "System", Content = sb.ToString(), IsSystem = true });
              NotifyStateChanged();
              return Task.CompletedTask;
         }
 
         public Task ShowRuleAsync(string title = "")
         {
-            // Can be represented as a divider in UI
-            Messages.Add(new ChatMessage { IsDivider = true, Content = title });
+            lock (_messagesLock)
+                Messages.Add(new ChatMessage { IsDivider = true, Content = title });
             NotifyStateChanged();
             return Task.CompletedTask;
         }

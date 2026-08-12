@@ -132,35 +132,23 @@ Reason: Document complete, all personas contributed, clear consensus reached");
         // Check if orchestrator signals conclusion
         if (ShouldConclude(responseText))
         {
-            // Extract reason if present
             var reasonMatch = Regex.Match(responseText, @"Reason:\s*(.+)", RegexOptions.IgnoreCase);
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            if (reasonMatch.Success)
-            {
-                Console.WriteLine($"  [Orchestrator: {reasonMatch.Groups[1].Value.Trim()}]");
-            }
-            else
-            {
-                Console.WriteLine("  [Orchestrator: Conversation complete]");
-            }
-            Console.ResetColor();
+            var reason = reasonMatch.Success ? reasonMatch.Groups[1].Value.Trim() : "Conversation complete";
+            System.Diagnostics.Trace.WriteLine($"[Orchestrator] {reason}", "Info");
             return null; // Signal conversation end
         }
 
         // Parse the response to extract persona name
         var selectedPersona = ParsePersonaSelection(responseText);
-        
+
         if (selectedPersona != null)
         {
             _speakerCount[selectedPersona.Name]++;
-            
-            // Extract reason if present
+
             var reasonMatch = Regex.Match(responseText, @"Reason:\s*(.+)", RegexOptions.IgnoreCase);
             if (reasonMatch.Success)
             {
-                Console.ForegroundColor = ConsoleColor.DarkGray;
-                Console.WriteLine($"  [Orchestrator: {reasonMatch.Groups[1].Value.Trim()}]");
-                Console.ResetColor();
+                System.Diagnostics.Trace.WriteLine($"[Orchestrator] {reasonMatch.Groups[1].Value.Trim()}", "Info");
             }
         }
 

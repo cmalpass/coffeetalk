@@ -101,19 +101,18 @@
 
     protected override void OnInitialized()
     {
-        UI.OnChange += StateHasChanged;
-        UI.OnChange += OnChangeScrollToBottom;
+        UI.OnChange += OnUiChanged;
     }
 
     public void Dispose()
     {
-        UI.OnChange -= StateHasChanged;
-        UI.OnChange -= OnChangeScrollToBottom;
+        UI.OnChange -= OnUiChanged;
     }
 
-    private void OnChangeScrollToBottom()
+    private void OnUiChanged()
     {
-        _ = ScrollToBottomAsync();
+        StateHasChanged();
+        _ = InvokeAsync(async () => { await ScrollToBottomAsync(); });
     }
 
     private async Task ScrollToBottomAsync()

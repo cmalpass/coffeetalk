@@ -47,13 +47,14 @@ public class RateLimiter
         while (true)
         {
             ct.ThrowIfCancellationRequested();
-            RollWindow();
 
             var delayMs = 0;
 
-            // Per-conversation caps
             lock (_convLock)
             {
+                RollWindow();
+
+                // Per-conversation caps
                 if (_cfg.MaxRequestsPerConversation.HasValue && _convRequests + 1 > _cfg.MaxRequestsPerConversation.Value)
                 {
                     throw new InvalidOperationException($"Conversation request cap reached ({_cfg.MaxRequestsPerConversation})");
@@ -62,37 +63,35 @@ public class RateLimiter
                 {
                     throw new InvalidOperationException($"Conversation token cap reached ({_cfg.MaxTokensPerConversation})");
                 }
+
+                // Per-minute caps
+                if (_cfg.RequestsPerMinute.HasValue && _requestsInWindow + 1 > _cfg.RequestsPerMinute.Value)
+                {
+                    var secondsLeft = 60 - (int)(DateTime.UtcNow - _windowStart).TotalSeconds;
+                    delayMs = Math.Max(100, secondsLeft * 1000);
+                }
+                if (_cfg.TokensPerMinute.HasValue && _tokensInWindow + estimatedTokens > _cfg.TokensPerMinute.Value)
+                {
+                    var secondsLeft = 60 - (int)(DateTime.UtcNow - _windowStart).TotalSeconds;
+                    delayMs = Math.Max(delayMs, Math.Max(100, secondsLeft * 1000));
+                }
+
+                if (delayMs > 0)
+                {
+                    // Will delay outside lock
+                }
+                else
+                {
+                    // Reserve atomically
+                    _requestsInWindow += 1;
+                    _tokensInWindow += estimatedTokens;
+                    _convRequests += 1;
+                    _convTokens += estimatedTokens;
+                    return;
+                }
             }
 
-            // Per-minute caps
-            if (_cfg.RequestsPerMinute.HasValue && _requestsInWindow + 1 > _cfg.RequestsPerMinute.Value)
-            {
-                var secondsLeft = 60 - (int)(DateTime.UtcNow - _windowStart).TotalSeconds;
-                delayMs = Math.Max(100, secondsLeft * 1000);
-            }
-            if (_cfg.TokensPerMinute.HasValue && _tokensInWindow + estimatedTokens > _cfg.TokensPerMinute.Value)
-            {
-                var secondsLeft = 60 - (int)(DateTime.UtcNow - _windowStart).TotalSeconds;
-                delayMs = Math.Max(delayMs, Math.Max(100, secondsLeft * 1000));
-            }
-
-            if (delayMs > 0)
-            {
-                await Task.Delay(delayMs, ct);
-                continue;
-            }
-
-            // Reserve
-            _requestsInWindow += 1;
-            _tokensInWindow += estimatedTokens;
-
-            lock (_convLock)
-            {
-                _convRequests += 1;
-                _convTokens += estimatedTokens;
-            }
-
-            return;
+            await Task.Delay(delayMs, ct);
         }
     }
 
@@ -112,10 +111,10 @@ public class RateLimiter
     public void AccountAdditionalTokens(int tokens)
     {
         if (_cfg == null) return;
-        RollWindow();
-        _tokensInWindow += Math.Max(0, tokens);
         lock (_convLock)
         {
+            RollWindow();
+            _tokensInWindow += Math.Max(0, tokens);
             _convTokens += Math.Max(0, tokens);
             if (_cfg.MaxTokensPerConversation.HasValue && _convTokens > _cfg.MaxTokensPerConversation.Value)
             {
