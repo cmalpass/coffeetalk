@@ -3,6 +3,7 @@ using Bunit;
 using CoffeeTalk.Gui.Components;
 using CoffeeTalk.Gui.Services;
 using CoffeeTalk.Services;
+using CoffeeTalk.Core.Interfaces;
 using Microsoft.JSInterop;
 using Microsoft.Extensions.DependencyInjection;
 using MudBlazor.Services;
@@ -21,6 +22,7 @@ public class ConversationComponentTests : TestContext
         context.Services.AddSingleton<IApplicationDataPathResolver>(
             new ApplicationDataPathResolver(Path.Combine(Path.GetTempPath(), "coffeetalk-tests", Guid.NewGuid().ToString("N"))));
         context.Services.AddSingleton<MudBlazor.ISnackbar, MudBlazor.SnackbarService>();
+        context.Services.AddSingleton<IPdfDocumentExporter, PdfDocumentExporter>();
 
         var ui = new BlazorUserInterface();
         context.Services.AddSingleton(ui);

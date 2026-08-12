@@ -13,6 +13,8 @@
     <PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.0.0-preview.251001.2" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="9.0.10" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.10" />
+    <!-- PdfSharpCore is MIT-licensed and avoids platform-specific GDI+ dependencies. -->
+    <PackageReference Include="PdfSharpCore" Version="1.3.65" />
   </ItemGroup>
 
 </Project>

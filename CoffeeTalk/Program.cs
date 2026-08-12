@@ -66,6 +66,16 @@ class Program
                 });
                 AnsiConsole.MarkupLine($"[green]Saved conversation {Markup.Escape(saveId)}[/]");
             }
+            var exportFormat = GetOption(args, "--export-format");
+            if (exportFormat is not null)
+            {
+                await ExportDocumentAsync(
+                    dataPaths,
+                    new PdfDocumentExporter(),
+                    exportFormat,
+                    ((ConsoleUserInterface)ui).DocumentContent,
+                    topic);
+            }
             AnsiConsole.MarkupLine("\n[bold green]Thank you for using CoffeeTalk! ☕[/]");
         }
         catch (OperationCanceledException ex)
@@ -119,5 +129,37 @@ class Program
         return index >= 0 && index + 1 < args.Length && !args[index + 1].StartsWith("-", StringComparison.Ordinal)
             ? args[index + 1]
             : null;
+    }
+
+    private static async Task ExportDocumentAsync(
+        IApplicationDataPathResolver dataPaths,
+        IPdfDocumentExporter pdfExporter,
+        string format,
+        string content,
+        string topic)
+    {
+        var normalizedFormat = format.ToLowerInvariant();
+        if (normalizedFormat is not ("markdown" or "md" or "pdf"))
+            throw new ArgumentException("Export format must be markdown or pdf.", nameof(format));
+
+        var extension = normalizedFormat == "pdf" ? "pdf" : "md";
+        var safeTopic = new string(topic.Select(character =>
+            Path.GetInvalidFileNameChars().Contains(character) || character is '/' or '\\'
+                ? '_'
+                : character).ToArray()).Trim();
+        safeTopic = string.IsNullOrWhiteSpace(safeTopic) ? "conversation" : safeTopic;
+        var path = dataPaths.ResolveExportPath(
+            $"{safeTopic}_{DateTime.Now:yyyyMMdd_HHmmss}.{extension}",
+            $"conversation.{extension}");
+
+        if (normalizedFormat == "pdf")
+            await pdfExporter.ExportAsync(content, path);
+        else
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            await File.WriteAllTextAsync(path, content);
+        }
+
+        AnsiConsole.MarkupLine($"[green]Exported to {Markup.Escape(path)}[/]");
     }
 }
