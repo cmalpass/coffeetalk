@@ -9,21 +9,29 @@ namespace CoffeeTalk.Services
     public class ConsoleUserInterface : IUserInterface
     {
         public bool StopRequested => false;
+        public string? ConversationTopic { get; private set; }
+        public IReadOnlyList<string> ConversationParticipants { get; private set; } = Array.Empty<string>();
+        public DateTimeOffset? ConversationStartedAt { get; private set; }
+        public string DocumentContent { get; private set; } = string.Empty;
+        public List<ConsoleMessage> Messages { get; } = new();
 
         public Task ShowMessageAsync(string message)
         {
+            Messages.Add(new ConsoleMessage("System", message, true, false, false));
             AnsiConsole.MarkupLine(message);
             return Task.CompletedTask;
         }
 
         public Task ShowErrorAsync(string message)
         {
+            Messages.Add(new ConsoleMessage("Error", message, false, true, false));
             AnsiConsole.MarkupLine($"[red]{message}[/]");
             return Task.CompletedTask;
         }
 
         public Task ShowAgentResponseAsync(string agentName, string response)
         {
+            Messages.Add(new ConsoleMessage(agentName, response, false, false, false));
             var panel = new Panel(new Text(response))
                 .Header($"[bold]{Markup.Escape(agentName)}[/]")
                 .Border(BoxBorder.Rounded);
@@ -34,6 +42,7 @@ namespace CoffeeTalk.Services
 
         public Task ShowDocumentPreviewAsync(string content)
         {
+            DocumentContent = content;
             var panel = new Panel(new Text(content))
                 .Header("[bold cyan]Document State[/]")
                 .Border(BoxBorder.Rounded)
@@ -104,6 +113,9 @@ namespace CoffeeTalk.Services
 
         public Task ShowConversationHeaderAsync(string topic, IReadOnlyCollection<string> participants, string mode, bool interactive)
         {
+            ConversationTopic = topic;
+            ConversationParticipants = participants.ToList();
+            ConversationStartedAt = DateTimeOffset.Now;
             AnsiConsole.MarkupLine($"\n[bold]🎯 Topic:[/] [cyan]{Markup.Escape(topic)}[/]\n");
             AnsiConsole.MarkupLine($"[bold]Participants:[/] {string.Join(", ", participants.Select(p => Markup.Escape(p)))}\n");
             AnsiConsole.MarkupLine($"[bold]Mode:[/] {mode}\n");
@@ -128,4 +140,6 @@ namespace CoffeeTalk.Services
             return Task.CompletedTask;
         }
     }
+
+    public sealed record ConsoleMessage(string Sender, string Content, bool IsSystem, bool IsError, bool IsDivider);
 }

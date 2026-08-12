@@ -225,8 +225,8 @@ namespace CoffeeTalk.Gui.Services
             StatusMessage = null;
             IsBusy = false;
             CurrentThinkingPersona = null;
-            DocumentContent = "";
-            DocumentMarkdown = "";
+            DocumentContent = record.DocumentContent;
+            DocumentMarkdown = record.DocumentContent;
             NotifyStateChanged();
         }
 

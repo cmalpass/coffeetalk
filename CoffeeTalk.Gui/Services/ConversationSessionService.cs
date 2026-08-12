@@ -1,7 +1,6 @@
 using CoffeeTalk.Models;
 using CoffeeTalk.Services;
 using Microsoft.Extensions.Logging;
-using System.Text.Json;
 
 namespace CoffeeTalk.Gui.Services;
 
@@ -141,12 +140,9 @@ public sealed class ConversationSessionService : IConversationSessionService, ID
                         Status = cts.IsCancellationRequested || _ui.StopRequested ? "Stopped" : "Completed",
                         MessageCount = messages.Count,
                         Personas = _ui.ConversationParticipants.ToList(),
-                        Messages = messages.ToList()
+                        Messages = messages.ToList(),
+                        DocumentContent = _ui.DocumentMarkdown
                     });
-                }
-                catch (JsonException ex)
-                {
-                    _logger.LogError(ex, "Failed to serialize conversation history for {Topic}", topic);
                 }
                 catch (IOException ex)
                 {

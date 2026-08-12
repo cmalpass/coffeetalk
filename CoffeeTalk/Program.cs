@@ -14,6 +14,10 @@ class Program
         try
         {
             var dataPaths = new ApplicationDataPathResolver();
+            var persistence = new ConversationPersistenceService(dataPaths);
+            if (await HandleHistoryCommandAsync(args, persistence))
+                return;
+
             var configService = new ConfigurationService(dataPaths);
             var settings = configService.LoadConfiguration();
             settings = await ConfigurationHelper.ValidateAndConfigureAsync(configService, settings);
@@ -42,6 +46,26 @@ class Program
 
             AnsiConsole.MarkupLine($"[bold]Personas:[/] {string.Join(", ", pipeline.Personas.Select(p => Markup.Escape(p.Name)))}\n");
             await pipeline.CreateConversation(ui).StartConversationAsync(topic);
+            if (args.Contains("--save", StringComparer.OrdinalIgnoreCase))
+            {
+                var consoleUi = (ConsoleUserInterface)ui;
+                var saveId = GetOption(args, "--save") ?? Guid.NewGuid().ToString("N");
+                await persistence.SaveAsync(new ConversationState
+                {
+                    Id = saveId,
+                    Topic = consoleUi.ConversationTopic ?? topic,
+                    Participants = consoleUi.ConversationParticipants.Select(name => new ConversationParticipant { Name = name }).ToList(),
+                    StartedAt = consoleUi.ConversationStartedAt ?? DateTimeOffset.Now,
+                    CompletedAt = DateTimeOffset.Now,
+                    DocumentContent = consoleUi.DocumentContent,
+                    Messages = consoleUi.Messages.Select(message => new ConversationMessage
+                    {
+                        Sender = message.Sender, Content = message.Content, IsSystem = message.IsSystem,
+                        IsError = message.IsError, IsDivider = message.IsDivider, Timestamp = DateTimeOffset.Now
+                    }).ToList()
+                });
+                AnsiConsole.MarkupLine($"[green]Saved conversation {Markup.Escape(saveId)}[/]");
+            }
             AnsiConsole.MarkupLine("\n[bold green]Thank you for using CoffeeTalk! ☕[/]");
         }
         catch (OperationCanceledException ex)
@@ -55,5 +79,45 @@ class Program
             AnsiConsole.MarkupLine("\n[bold red]Please check your configuration and try again.[/]");
             Environment.Exit(1);
         }
+    }
+
+    private static async Task<bool> HandleHistoryCommandAsync(string[] args, ConversationPersistenceService persistence)
+    {
+        if (args.Contains("--list", StringComparer.OrdinalIgnoreCase))
+        {
+            foreach (var state in await persistence.ListAsync())
+                AnsiConsole.MarkupLine($"{Markup.Escape(state.Id)}  {Markup.Escape(state.Topic)}  {state.Status}");
+            return true;
+        }
+
+        var deleteId = GetOption(args, "--delete");
+        if (deleteId is not null)
+        {
+            await persistence.DeleteAsync(deleteId);
+            AnsiConsole.MarkupLine($"[green]Deleted conversation {Markup.Escape(deleteId)}[/]");
+            return true;
+        }
+
+        var resumeId = GetOption(args, "--resume");
+        if (resumeId is not null)
+        {
+            var state = await persistence.ResumeAsync(resumeId);
+            AnsiConsole.MarkupLine($"[bold]Topic:[/] {Markup.Escape(state.Topic)}");
+            AnsiConsole.MarkupLine($"[bold]Status:[/] {Markup.Escape(state.Status)}");
+            AnsiConsole.WriteLine(state.DocumentContent);
+            foreach (var message in state.Messages)
+                AnsiConsole.MarkupLine($"[bold]{Markup.Escape(message.Sender)}:[/] {Markup.Escape(message.Content)}");
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string? GetOption(string[] args, string option)
+    {
+        var index = Array.FindIndex(args, value => value.Equals(option, StringComparison.OrdinalIgnoreCase));
+        return index >= 0 && index + 1 < args.Length && !args[index + 1].StartsWith("-", StringComparison.Ordinal)
+            ? args[index + 1]
+            : null;
     }
 }
