@@ -149,7 +149,10 @@ public class AgentPersona
             bool hasUpdate;
             try
             {
-                hasUpdate = await updates.MoveNextAsync();
+                hasUpdate = await _retryService.ExecuteAsync(
+                    _ => updates.MoveNextAsync().AsTask(),
+                    $"{Name} streaming response chunk",
+                    cancellationToken);
             }
             catch (Exception ex)
             {
