@@ -12,11 +12,13 @@ public class AgentPersonaGenerator
 {
     private readonly AIAgent _agent;
     private readonly IRetryService _retryService;
+    private readonly RateLimiter? _rateLimiter;
 
-    public AgentPersonaGenerator(AIAgent agent, IRetryService retryService)
+    public AgentPersonaGenerator(AIAgent agent, IRetryService retryService, RateLimiter? rateLimiter = null)
     {
         _agent = agent;
         _retryService = retryService;
+        _rateLimiter = rateLimiter;
     }
 
     public AgentPersonaGenerator(AIAgent agent)
@@ -45,11 +47,14 @@ REQUIREMENTS:
 
         var prompt = $"Topic: {topic}\nGenerate {count} personas for this conversation. JSON array only, in this shape:\n[\n  {{\"name\":\"<ShortUniqueName>\",\"systemPrompt\":\"You are <ShortUniqueName>, <1-2 sentence role and perspective>. Collaborate concisely, avoid redundancy, and use tools effectively when available.\"}},\n  ...\n]";
 
+        if (_rateLimiter != null)
+            await _rateLimiter.ThrottleAsync(_rateLimiter.EstimateTokens(prompt), cancellationToken);
         var response = await _retryService.ExecuteAsync(
             async cancellationToken => await _agent.RunAsync(prompt, cancellationToken: cancellationToken),
             "Generate personas",
             cancellationToken);
         var responseText = response.ToString();
+        _rateLimiter?.AccountAdditionalTokens(_rateLimiter.EstimateTokens(responseText));
 
         // Try to parse JSON array
         List<GeneratedPersona>? generated;

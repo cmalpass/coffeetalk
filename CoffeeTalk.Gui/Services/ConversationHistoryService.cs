@@ -40,9 +40,6 @@ public sealed class ConversationHistoryService
     public Task DeleteAsync(string id, CancellationToken cancellationToken = default)
         => _persistence.DeleteAsync(id, cancellationToken);
 
-    public string Add(ConversationRecord record)
-        => SaveAsync(record).GetAwaiter().GetResult();
-
     private async Task<ConversationRecord> ResumeCoreAsync(string id, CancellationToken cancellationToken)
         => ToRecord(await _persistence.ResumeAsync(id, cancellationToken));
 

@@ -128,37 +128,40 @@ public sealed class ConversationSessionService : IConversationSessionService, ID
         }
         finally
         {
+            ConversationRecord? record = null;
             lock (_gate)
             {
-                try
+                var messages = _ui.GetMessagesSnapshot();
+                record = new ConversationRecord
                 {
-                    var messages = _ui.GetMessagesSnapshot();
-                    _history.Add(new ConversationRecord
-                    {
-                        Topic = topic,
-                        StartedAt = _ui.ConversationStartedAt ?? DateTime.Now,
-                        CompletedAt = DateTime.Now,
-                        Status = cts.IsCancellationRequested || _ui.StopRequested ? "Stopped" : "Completed",
-                        MessageCount = messages.Count,
-                        Personas = _ui.ConversationParticipants.ToList(),
-                        Messages = messages.ToList(),
-                        DocumentContent = _ui.DocumentMarkdown
-                    });
-                }
-                catch (IOException ex)
-                {
-                    _logger.LogError(ex, "Failed to write conversation history for {Topic}", topic);
-                }
-                catch (UnauthorizedAccessException ex)
-                {
-                    _logger.LogError(ex, "Failed to persist conversation history for {Topic}", topic);
-                }
+                    Topic = topic,
+                    StartedAt = _ui.ConversationStartedAt ?? DateTime.Now,
+                    CompletedAt = DateTime.Now,
+                    Status = cts.IsCancellationRequested || _ui.StopRequested ? "Stopped" : "Completed",
+                    MessageCount = messages.Count,
+                    Personas = _ui.ConversationParticipants.ToList(),
+                    Messages = messages.ToList(),
+                    DocumentContent = _ui.DocumentMarkdown
+                };
                 if (ReferenceEquals(_cts, cts))
                 {
                     _ui.EndConversation();
                     _conversationTask = null;
                     _cts = null;
                 }
+            }
+            try
+            {
+                if (record is not null)
+                    await _history.SaveAsync(record);
+            }
+            catch (IOException ex)
+            {
+                _logger.LogError(ex, "Failed to write conversation history for {Topic}", topic);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                _logger.LogError(ex, "Failed to persist conversation history for {Topic}", topic);
             }
             cts.Dispose();
         }
