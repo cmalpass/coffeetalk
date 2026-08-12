@@ -60,6 +60,36 @@ public class CollaborativeMarkdownDocumentTests
         Assert.Equal(1, count);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void InsertAfterHeading_ShouldPreserveContent_WhenInsertedContentIsBlank(string? insertedContent)
+    {
+        var doc = new CollaborativeMarkdownDocument();
+        doc.Restore("## Details\n\nExisting content.\n\n");
+        var before = doc.GetContent();
+
+        doc.InsertAfterHeading("Details", insertedContent);
+
+        Assert.Equal(before, doc.GetContent());
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ReplaceSection_ShouldPreserveContent_WhenReplacementContentIsBlank(string? replacementContent)
+    {
+        var doc = new CollaborativeMarkdownDocument();
+        doc.Restore("## Details\n\nExisting content.\n\n## Next\n\nNext content.\n\n");
+        var before = doc.GetContent();
+
+        doc.ReplaceSection("Details", replacementContent);
+
+        Assert.Equal(before, doc.GetContent());
+    }
+
     [Fact]
     public void Restore_ShouldRevertContent()
     {

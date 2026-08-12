@@ -86,8 +86,7 @@ public class CollaborativeMarkdownDocument
 
     public void InsertAfterHeading(string? headingText, string? content)
     {
-        if (string.IsNullOrWhiteSpace(headingText)) return;
-        content ??= "";
+        if (string.IsNullOrWhiteSpace(headingText) || string.IsNullOrWhiteSpace(content)) return;
         lock (_lock)
         {
             var doc = _content.ToString();
@@ -113,8 +112,7 @@ public class CollaborativeMarkdownDocument
     // Replace the entire content under a heading until the next heading, or append if not exists
     public void ReplaceSection(string? headingText, string? content)
     {
-        if (string.IsNullOrWhiteSpace(headingText)) return;
-        content ??= "";
+        if (string.IsNullOrWhiteSpace(headingText) || string.IsNullOrWhiteSpace(content)) return;
         lock (_lock)
         {
             var doc = _content.ToString();
