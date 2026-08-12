@@ -66,6 +66,7 @@ public sealed class ConversationHistoryService
                 migrated.Add(state);
             }
 
+            File.Delete(path);
             return migrated;
         }
         catch (JsonException ex)

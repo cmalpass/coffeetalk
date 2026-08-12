@@ -53,4 +53,14 @@ public sealed class RateLimiterTests
         Assert.Equal(2, limiter.EstimateTokens("abc"));
         Assert.Equal(0, limiter.EstimateTokens(string.Empty));
     }
+
+    [Fact]
+    public async Task AccountAdditionalTokens_EnforcesPerMinuteTokenCap()
+    {
+        var limiter = new RateLimiter(new RateLimitConfig { TokensPerMinute = 3 });
+
+        await limiter.ThrottleAsync(2);
+
+        Assert.Throws<InvalidOperationException>(() => limiter.AccountAdditionalTokens(2));
+    }
 }
