@@ -49,4 +49,23 @@ public sealed class ConfigurationServiceTests
         Assert.Null(loaded.Tools);
         Assert.Null(loaded.Orchestrator);
     }
+
+    [Fact]
+    public void LoadConfiguration_UsesProviderEnvironmentApiKeyWhenUnset()
+    {
+        const string variable = "OPENAI_API_KEY";
+        var original = Environment.GetEnvironmentVariable(variable);
+        var root = Path.Combine(Path.GetTempPath(), "coffeetalk-tests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            Environment.SetEnvironmentVariable(variable, "test-key");
+            var service = new ConfigurationService(new ApplicationDataPathResolver(root));
+
+            Assert.Equal("test-key", service.LoadConfiguration().LlmProvider.ApiKey);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(variable, original);
+        }
+    }
 }

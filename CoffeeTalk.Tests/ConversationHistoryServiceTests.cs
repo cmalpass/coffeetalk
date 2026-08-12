@@ -39,6 +39,10 @@ public sealed class ConversationHistoryServiceTests
 
             Assert.Equal(2, records.Count);
             Assert.Contains(records, record => record.Id == "legacy");
+
+            await history.DeleteAsync("legacy");
+
+            Assert.DoesNotContain(await history.AllAsync(), record => record.Id == "legacy");
         }
         finally
         {

@@ -116,6 +116,10 @@ public class RateLimiter
             RollWindow();
             _tokensInWindow += Math.Max(0, tokens);
             _convTokens += Math.Max(0, tokens);
+            if (_cfg.TokensPerMinute.HasValue && _tokensInWindow > _cfg.TokensPerMinute.Value)
+            {
+                throw new InvalidOperationException($"Per-minute token cap reached ({_cfg.TokensPerMinute})");
+            }
             if (_cfg.MaxTokensPerConversation.HasValue && _convTokens > _cfg.MaxTokensPerConversation.Value)
             {
                 throw new InvalidOperationException($"Conversation token cap reached ({_cfg.MaxTokensPerConversation})");

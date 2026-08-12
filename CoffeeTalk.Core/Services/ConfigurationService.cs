@@ -28,6 +28,15 @@ public class ConfigurationService
 
         var settings = new AppSettings();
         configuration.Bind(settings);
+        if (string.IsNullOrWhiteSpace(settings.LlmProvider.ApiKey))
+        {
+            settings.LlmProvider.ApiKey = settings.LlmProvider.Type.ToLowerInvariant() switch
+            {
+                "openai" => Environment.GetEnvironmentVariable("OPENAI_API_KEY") ?? string.Empty,
+                "azureopenai" => Environment.GetEnvironmentVariable("AZURE_OPENAI_API_KEY") ?? string.Empty,
+                _ => string.Empty
+            };
+        }
 
         return settings;
     }
