@@ -105,7 +105,15 @@ public sealed class ConversationSessionService : IConversationSessionService, ID
         CancellationTokenSource cts)
     {
         if (previousTask is not null)
-            await previousTask.ConfigureAwait(false);
+        {
+            try
+            {
+                await previousTask.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (previousTask.IsCanceled)
+            {
+            }
+        }
 
         cts.Token.ThrowIfCancellationRequested();
         _ui.ResetForNewConversation();
