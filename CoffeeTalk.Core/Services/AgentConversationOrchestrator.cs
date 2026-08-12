@@ -53,6 +53,7 @@ public class AgentConversationOrchestrator
 
     public async Task StartConversationAsync(string topic, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (_personas.Count == 0)
         {
             await _ui.ShowErrorAsync("[red]No personas configured. Please add personas to appsettings.json[/]");
@@ -71,13 +72,21 @@ public class AgentConversationOrchestrator
         var conversationHistory = new List<string>();
         var currentMessage = $"Let's discuss: {topic}";
         
-        if (_useOrchestrator)
+        try
         {
-            await RunOrchestratedConversationAsync(topic, conversationHistory, currentMessage, cancellationToken);
+            if (_useOrchestrator)
+            {
+                await RunOrchestratedConversationAsync(topic, conversationHistory, currentMessage, cancellationToken);
+            }
+            else
+            {
+                await RunRoundRobinConversationAsync(conversationHistory, currentMessage, cancellationToken);
+            }
         }
-        else
+        catch (OperationCanceledException)
         {
-            await RunRoundRobinConversationAsync(conversationHistory, currentMessage, cancellationToken);
+            await TryAutoSaveAsync(CancellationToken.None);
+            throw;
         }
     }
 
@@ -154,6 +163,7 @@ public class AgentConversationOrchestrator
                 // Interactive Mode Check
                 if (_interactiveMode)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     var (action, message) = await _ui.GetUserInterventionAsync();
                     if (action == "quit") break;
                     if (action == "inject" && !string.IsNullOrWhiteSpace(message))
@@ -169,7 +179,7 @@ public class AgentConversationOrchestrator
             catch (OperationCanceledException ex)
             {
                 System.Diagnostics.Trace.WriteLine($"[Orchestrator] Operation canceled: {ex.Message}", "Info");
-                await _ui.ShowErrorAsync("[red]❌ Operation canceled.[/]");
+                throw;
             }
             catch (TimeoutException ex)
             {
@@ -203,7 +213,7 @@ public class AgentConversationOrchestrator
             await _dataExtractor.ExtractAndSaveAsync(conversationHistory, cancellationToken);
         }
 
-        await TryAutoSaveAsync();
+        await TryAutoSaveAsync(cancellationToken);
     }
 
     private async Task RunRoundRobinConversationAsync(List<string> conversationHistory, string currentMessage, CancellationToken cancellationToken)
@@ -268,11 +278,12 @@ public class AgentConversationOrchestrator
                     // Interactive Mode Check
                     if (_interactiveMode)
                     {
+                        cancellationToken.ThrowIfCancellationRequested();
                         var (action, message) = await _ui.GetUserInterventionAsync();
                         if (action == "quit")
                         {
                             await _ui.ShowMessageAsync($"\n[yellow]Conversation manually ended by user.[/]");
-                            await TryAutoSaveAsync();
+                            await TryAutoSaveAsync(cancellationToken);
                             return;
                         }
                         if (action == "inject" && !string.IsNullOrWhiteSpace(message))
@@ -296,17 +307,17 @@ public class AgentConversationOrchestrator
 
                         if (_dataExtractor != null)
                         {
-                            await _dataExtractor.ExtractAndSaveAsync(conversationHistory);
+                            await _dataExtractor.ExtractAndSaveAsync(conversationHistory, cancellationToken);
                         }
 
-                        await TryAutoSaveAsync();
+                        await TryAutoSaveAsync(cancellationToken);
                         return;
                     }
                 }
                 catch (OperationCanceledException ex)
                     {
                         System.Diagnostics.Trace.WriteLine($"[RoundRobin] Operation canceled: {ex.Message}", "Info");
-                        await _ui.ShowErrorAsync("[red]❌ Operation canceled.[/]");
+                    throw;
                     }
                     catch (TimeoutException ex)
                     {
@@ -336,10 +347,10 @@ public class AgentConversationOrchestrator
 
         if (_dataExtractor != null)
         {
-            await _dataExtractor.ExtractAndSaveAsync(conversationHistory);
+            await _dataExtractor.ExtractAndSaveAsync(conversationHistory, cancellationToken);
         }
 
-        await TryAutoSaveAsync();
+        await TryAutoSaveAsync(cancellationToken);
     }
 
     private async Task RunEditorIntervention(List<string> conversationHistory, CancellationToken cancellationToken)
@@ -412,11 +423,11 @@ public class AgentConversationOrchestrator
         return completionIndicators.Any(indicator => lowerResponse.Contains(indicator));
     }
 
-    private async Task TryAutoSaveAsync()
+    private async Task TryAutoSaveAsync(CancellationToken cancellationToken)
     {
         try
         {
-            var path = await _doc.SaveToFileAsync("conversation.md");
+            var path = await _doc.SaveToFileAsync("conversation.md", cancellationToken);
 
             await _ui.ShowMessageAsync($"[green]✓ Auto-saved collaborative document ({Escape(path)})[/]");
         }
@@ -474,6 +485,10 @@ public class AgentConversationOrchestrator
                     await _ui.ShowMessageAsync("[dim]History summarized to save tokens.[/]");
                 }
             });
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception)
         {

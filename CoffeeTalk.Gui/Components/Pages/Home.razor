@@ -5,17 +5,12 @@
 @using CoffeeTalk.Gui.Services
 @using CoffeeTalk.Gui.Components.Pages
 @using MudBlazor
-@using Microsoft.Extensions.Logging
 @namespace CoffeeTalk.Gui.Components.Pages
 
 @inject AppState AppState
-@inject BlazorUserInterface UI
 @inject NavigationManager Navigation
-@inject ILogger<Home> Logger
 @inject ConversationHistoryService History
-@inject IApplicationDataPathResolver DataPaths
-@inject IOperationalEventSink OperationalEvents
-@inject ConversationPipelineBuilder PipelineBuilder
+@inject IConversationSessionService Session
 
 
 <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8">
@@ -110,14 +105,11 @@
     </MudGrid>
 </MudContainer>
 
-@implements IDisposable
 @code {
     private string Topic = "";
 
     private IReadOnlyCollection<object> SelectedPersonas { get; set; } = new List<object>();
     private IReadOnlyList<ConversationRecord> _recentConversations = Array.Empty<ConversationRecord>();
-    private Task? _conversationTask;
-    private CancellationTokenSource? _cts;
 
     protected override void OnInitialized()
     {
@@ -126,66 +118,18 @@
         _recentConversations = History.Recent();
     }
 
-    private async Task StartConversation()
+    private void StartConversation()
     {
         if (string.IsNullOrWhiteSpace(Topic)) return;
         if (SelectedPersonas == null || SelectedPersonas.Count < 2) return;
 
-        // Cancel any existing conversation
-        _cts?.Cancel();
-        _cts?.Dispose();
-        _cts = new CancellationTokenSource();
-
-        // Navigate to conversation page first
+        Session.Start(Topic, SelectedPersonas.Cast<PersonaConfig>().ToList());
         Navigation.NavigateTo("/conversation");
-
-        // Run the conversation, tracking the task for cancellation
-        _conversationTask = RunConversationAsync(_cts.Token);
     }
 
-    private async Task RunConversationAsync(CancellationToken ct)
+    private async Task ResumeConversation(ConversationRecord conversation)
     {
-        try
-        {
-            var settings = AppState.Settings;
-            var activePersonasConfig = SelectedPersonas.Cast<PersonaConfig>().ToList();
-            var pipeline = await PipelineBuilder.BuildAsync(settings, Topic, activePersonasConfig, ct);
-            await pipeline.CreateConversation(UI).StartConversationAsync(Topic, ct);
-        }
-        catch (OperationCanceledException)
-        {
-            // Conversation was cancelled
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error during conversation orchestration");
-            await UI.ShowErrorAsync("An error occurred while starting the conversation. Please check your configuration and try again.");
-        }
-        finally
-        {
-            History.Add(new ConversationRecord
-            {
-                Topic = Topic,
-                StartedAt = UI.ConversationStartedAt ?? DateTime.Now,
-                CompletedAt = DateTime.Now,
-                Status = UI.StopRequested ? "Stopped" : "Completed",
-                MessageCount = UI.Messages.Count,
-                Personas = UI.ConversationParticipants.ToList(),
-                Messages = UI.Messages.ToList()
-            });
-            UI.EndConversation();
-        }
-    }
-
-    public void Dispose()
-    {
-        _cts?.Cancel();
-        _cts?.Dispose();
-    }
-
-    private void ResumeConversation(ConversationRecord conversation)
-    {
-        UI.LoadConversation(conversation);
+        await Session.LoadConversationAsync(conversation);
         Navigation.NavigateTo("/conversation");
     }
 }

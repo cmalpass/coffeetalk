@@ -52,7 +52,7 @@ Output Format:
         {
             if (_rateLimiter != null)
             {
-                await _rateLimiter.ThrottleAsync(_rateLimiter.EstimateTokens(prompt));
+                await _rateLimiter.ThrottleAsync(_rateLimiter.EstimateTokens(prompt), cancellationToken);
             }
 
             var response = await _retryService.ExecuteAsync(

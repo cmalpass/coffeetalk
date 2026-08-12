@@ -95,7 +95,7 @@ Prefer replacing existing sections over appending new content. Use ReplaceSectio
         if (_rateLimiter != null)
         {
             var estimatedTokens = _rateLimiter.EstimateTokens(prompt);
-            await _rateLimiter.ThrottleAsync(estimatedTokens);
+            await _rateLimiter.ThrottleAsync(estimatedTokens, cancellationToken);
         }
 
         // Execute with retry logic

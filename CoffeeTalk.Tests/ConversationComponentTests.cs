@@ -5,6 +5,7 @@ using CoffeeTalk.Gui.Services;
 using CoffeeTalk.Services;
 using Microsoft.Extensions.DependencyInjection;
 using MudBlazor.Services;
+using Moq;
 
 namespace CoffeeTalk.Tests;
 
@@ -23,6 +24,7 @@ public class ConversationComponentTests : TestContext
 
         var ui = new BlazorUserInterface();
         Services.AddSingleton<BlazorUserInterface>(ui);
+        Services.AddSingleton<IConversationSessionService>(new Mock<IConversationSessionService>().Object);
 
         ui.Messages.Add(new ChatMessage { Sender = "Agent", Content = "Hello" });
 

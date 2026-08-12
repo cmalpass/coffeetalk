@@ -82,9 +82,9 @@ namespace CoffeeTalk.Gui.Services
                     return _interventionTcs.Task; // Already waiting for intervention
 
                 IsInterventionRequired = true;
+                _interventionTcs = new TaskCompletionSource<(string Action, string Message)>(
+                    TaskCreationOptions.RunContinuationsAsynchronously);
                 NotifyStateChanged();
-
-                _interventionTcs = new TaskCompletionSource<(string Action, string Message)>();
                 return _interventionTcs.Task;
             }
         }
@@ -104,6 +104,23 @@ namespace CoffeeTalk.Gui.Services
             }
             IsInterventionRequired = false;
             NotifyStateChanged();
+        }
+
+        public void CancelIntervention(bool markStop = true)
+        {
+            TaskCompletionSource<(string Action, string Message)>? tcs;
+            lock (_tcsLock)
+            {
+                tcs = _interventionTcs;
+                _interventionTcs = null;
+                IsInterventionRequired = false;
+                if (markStop)
+                    StopRequested = true;
+            }
+
+            tcs?.TrySetCanceled();
+            if (tcs is not null)
+                NotifyStateChanged();
         }
 
         public Task SetStatusAsync(string status)
@@ -156,26 +173,55 @@ namespace CoffeeTalk.Gui.Services
             IsConversationRunning = false;
             CurrentThinkingPersona = null;
             IsInterventionRequired = false;
+            CancelIntervention(false);
+            NotifyStateChanged();
+        }
+
+        public void ResetForNewConversation()
+        {
+            CancelIntervention();
+            lock (_messagesLock)
+                Messages.Clear();
+            StopRequested = false;
+            ConversationTopic = null;
+            ConversationParticipants = Array.Empty<string>();
+            ConversationMode = null;
+            ConversationStartedAt = null;
+            IsConversationRunning = false;
+            StatusMessage = null;
+            IsBusy = false;
+            CurrentThinkingPersona = null;
+            DocumentContent = "";
+            DocumentMarkdown = "";
             NotifyStateChanged();
         }
 
         public void LoadConversation(ConversationRecord record)
         {
-            Messages.Clear();
-            Messages.AddRange(record.Messages.Select(message => new ChatMessage
+            lock (_messagesLock)
             {
-                Sender = message.Sender,
-                Content = message.Content,
-                IsSystem = message.IsSystem,
-                IsError = message.IsError,
-                IsDivider = message.IsDivider,
-                Timestamp = message.Timestamp
-            }));
+                Messages.Clear();
+                Messages.AddRange(record.Messages.Select(message => new ChatMessage
+                {
+                    Sender = message.Sender,
+                    Content = message.Content,
+                    IsSystem = message.IsSystem,
+                    IsError = message.IsError,
+                    IsDivider = message.IsDivider,
+                    Timestamp = message.Timestamp
+                }));
+            }
             ConversationTopic = record.Topic;
             ConversationParticipants = record.Personas;
             ConversationMode = "History";
             ConversationStartedAt = record.StartedAt;
             IsConversationRunning = false;
+            StopRequested = false;
+            StatusMessage = null;
+            IsBusy = false;
+            CurrentThinkingPersona = null;
+            DocumentContent = "";
+            DocumentMarkdown = "";
             NotifyStateChanged();
         }
 

@@ -87,7 +87,7 @@ Based on the schema description '{_config.SchemaDescription}', extract the data 
 
             var outputPath = _paths.ResolveDataPath(_config.OutputFile, "data.json");
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
-            await File.WriteAllTextAsync(outputPath, json);
+            await File.WriteAllTextAsync(outputPath, json, cancellationToken);
         }
         catch (OperationCanceledException)
         {

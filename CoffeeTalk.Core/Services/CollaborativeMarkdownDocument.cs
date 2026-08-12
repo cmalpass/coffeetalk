@@ -251,7 +251,7 @@ public class CollaborativeMarkdownDocument
         }
     }
 
-    public async Task<string> SaveToFileAsync(string? path)
+    public async Task<string> SaveToFileAsync(string? path, CancellationToken cancellationToken = default)
     {
         string contentToWrite;
         lock (_lock)
@@ -261,7 +261,7 @@ public class CollaborativeMarkdownDocument
 
         var fullPath = _paths.ResolveExportPath(path, "conversation.md");
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-        await File.WriteAllTextAsync(fullPath, contentToWrite);
+        await File.WriteAllTextAsync(fullPath, contentToWrite, cancellationToken);
         return fullPath;
     }
 }
