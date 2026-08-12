@@ -52,6 +52,28 @@ Sets up an ideation and problem-solving team:
 - Strategic planning
 - Creative exploration
 
+### 5. Rude Experts (`rude-experts.json`)
+Features brilliant but abrasive experts who clash while providing deep technical knowledge:
+- **Dr. Cranston**: Arrogant computer scientist with expertise in algorithms and architecture
+- **Maxine 'Max' Rodriguez**: Blunt security researcher specializing in cybersecurity and cryptography
+- **Viktor Petrov**: Grumpy systems engineer with decades of production experience
+- **Professor Eleanor Chen**: Pretentious ML/AI expert who dismisses outdated approaches
+- **Rajesh 'Raj' Kumar**: Ruthless performance optimization specialist obsessed with efficiency
+- **Dr. Sarah Mitchell**: Acidic code quality evangelist and clean code advocate
+- **Marcus Webb**: Weary DevOps engineer with dark humor about production incidents
+- **Jamie Lin**: UX researcher and the slightly nice one who advocates for users (the voice of reason)
+
+**Good topics:**
+- Technical architecture debates
+- Security vs. performance trade-offs
+- System design decisions
+- ML/AI implementation strategies
+- Code review and optimization discussions
+- Production deployment strategies
+- User experience vs. technical constraints
+
+**Warning:** This configuration is designed for entertainment and exploring confrontational dynamics. The personas are intentionally rude and argumentative while still providing valuable technical insights. Jamie Lin provides a slightly more diplomatic counterbalance to the group.
+
 ## How to Use
 
 1. **Copy to appsettings.json:**
