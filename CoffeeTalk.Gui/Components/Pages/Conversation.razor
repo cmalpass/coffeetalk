@@ -11,6 +11,7 @@
 @inject IDialogService DialogService
 @inject IJSRuntime JSRuntime
 @inject IApplicationDataPathResolver DataPaths
+@inject IPdfDocumentExporter PdfExporter
 
 @if (UI.IsConversationRunning || !string.IsNullOrEmpty(UI.ConversationTopic))
 {
@@ -311,6 +312,15 @@
                     extension = "json";
                     mimeType = "application/json";
                     break;
+                case "pdf":
+                    extension = "pdf";
+                    var pdfTopic = MakeSafeFileNamePart(UI.ConversationTopic ?? "conversation");
+                    var pdfFileName = $"{pdfTopic}_{DateTime.Now:yyyyMMdd_HHmmss}.{extension}";
+                    var pdfPath = DataPaths.ResolveExportPath(pdfFileName, "conversation.pdf");
+                    Directory.CreateDirectory(Path.GetDirectoryName(pdfPath)!);
+                    await PdfExporter.ExportAsync(UI.DocumentMarkdown, pdfPath);
+                    Snackbar.Add($"Exported to {pdfPath}", Severity.Success);
+                    return;
                 default:
                     content = ConversationExportService.GenerateMarkdown(
                         UI.ConversationTopic,

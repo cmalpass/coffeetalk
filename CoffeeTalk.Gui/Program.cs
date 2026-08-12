@@ -16,6 +16,7 @@ class Program
 
         appBuilder.Services.AddLogging();
         appBuilder.Services.AddSingleton<IApplicationDataPathResolver, ApplicationDataPathResolver>();
+        appBuilder.Services.AddSingleton<IPdfDocumentExporter, PdfDocumentExporter>();
         appBuilder.Services.AddSingleton<ConfigurationService>();
         appBuilder.Services.AddSingleton<AppState>();
         appBuilder.Services.AddSingleton<ConversationHistoryService>();
