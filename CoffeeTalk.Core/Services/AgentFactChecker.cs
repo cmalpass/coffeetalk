@@ -22,6 +22,11 @@ public class AgentFactChecker
         _eventSink = eventSink ?? NullOperationalEventSink.Instance;
     }
 
+    public AgentFactChecker(AIAgent agent, RateLimiter? rateLimiter)
+        : this(agent, rateLimiter, new RetryService(null))
+    {
+    }
+
     public static string BuildSystemPrompt()
     {
         return @"You are a rigorous Fact-Checking Agent.
@@ -51,7 +56,7 @@ Output Format:
             }
 
             var response = await _retryService.ExecuteAsync(
-                async () => await _agent.RunAsync(prompt),
+                async cancellationToken => await _agent.RunAsync(prompt, cancellationToken: cancellationToken),
                 "Fact Check",
                 cancellationToken);
 

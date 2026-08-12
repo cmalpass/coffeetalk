@@ -24,6 +24,11 @@ public class AgentEditor
         _retryService = retryService;
     }
 
+    public AgentEditor(AIAgent agent, EditorConfig config, CollaborativeMarkdownDocument doc, RateLimiter? rateLimiter)
+        : this(agent, config, doc, rateLimiter, new RetryService(null))
+    {
+    }
+
     public static string BuildSystemPrompt(EditorConfig config)
     {
         var basePrompt = config.SystemPrompt;
@@ -95,7 +100,7 @@ Prefer replacing existing sections over appending new content. Use ReplaceSectio
 
         // Execute with retry logic
         var response = await _retryService.ExecuteAsync(
-            async () => await _agent.RunAsync(prompt),
+            async cancellationToken => await _agent.RunAsync(prompt, cancellationToken: cancellationToken),
             "Editor review",
             cancellationToken);
         var responseText = response.ToString();

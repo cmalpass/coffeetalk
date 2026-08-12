@@ -19,6 +19,11 @@ public class AgentPersonaGenerator
         _retryService = retryService;
     }
 
+    public AgentPersonaGenerator(AIAgent agent)
+        : this(agent, new RetryService(null))
+    {
+    }
+
     public static string BuildSystemPrompt()
     {
         return @"You generate a set of distinct, complementary expert personas for a collaborative discussion.
@@ -34,15 +39,16 @@ REQUIREMENTS:
 - Emphasize constructive collaboration, concision, and evidence-based reasoning.";
     }
 
-    public async Task<List<PersonaConfig>> GenerateAsync(string topic, int requestedCount, IEnumerable<string>? reservedNames = null)
+    public async Task<List<PersonaConfig>> GenerateAsync(string topic, int requestedCount, IEnumerable<string>? reservedNames = null, CancellationToken cancellationToken = default)
     {
         int count = Math.Clamp(requestedCount, 2, 10);
 
         var prompt = $"Topic: {topic}\nGenerate {count} personas for this conversation. JSON array only, in this shape:\n[\n  {{\"name\":\"<ShortUniqueName>\",\"systemPrompt\":\"You are <ShortUniqueName>, <1-2 sentence role and perspective>. Collaborate concisely, avoid redundancy, and use tools effectively when available.\"}},\n  ...\n]";
 
         var response = await _retryService.ExecuteAsync(
-            async () => await _agent.RunAsync(prompt),
-            "Generate personas");
+            async cancellationToken => await _agent.RunAsync(prompt, cancellationToken: cancellationToken),
+            "Generate personas",
+            cancellationToken);
         var responseText = response.ToString();
 
         // Try to parse JSON array

@@ -38,6 +38,17 @@ public class AgentPersona
         _retryService = retryService;
     }
 
+    public AgentPersona(
+        AIAgent agent,
+        PersonaConfig config,
+        CollaborativeMarkdownDocument doc,
+        RateLimiter? rateLimiter,
+        int maxTurns,
+        int agentCount)
+        : this(agent, config, doc, rateLimiter, maxTurns, agentCount, new RetryService(null))
+    {
+    }
+
     public async Task<string> RespondAsync(string currentMessage, List<string> conversationHistory, CancellationToken cancellationToken = default)
     {
         // Build context from recent conversation history (last 3 messages to reduce tokens)
@@ -76,7 +87,7 @@ public class AgentPersona
         try
         {
             var response = await _retryService.ExecuteAsync(
-                async () => await _agent.RunAsync(contextMessage),
+                async cancellationToken => await _agent.RunAsync(contextMessage, cancellationToken: cancellationToken),
                 $"{Name} response",
                 cancellationToken);
             responseText = response.ToString();

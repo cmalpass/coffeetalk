@@ -36,6 +36,11 @@ public class AgentDataExtractor
      System.Diagnostics.Trace.Listeners.Add(_tracer);
  }
 
+ public AgentDataExtractor(AIAgent agent, StructuredDataConfig config, CollaborativeMarkdownDocument doc, IApplicationDataPathResolver? paths = null)
+     : this(agent, config, doc, new RetryService(null), null, paths)
+ {
+ }
+
     public static string BuildSystemPrompt(StructuredDataConfig config)
     {
         return $@"You are a data extraction specialist.
@@ -49,7 +54,7 @@ Output Requirement:
 - If data is missing, use null or empty strings.";
     }
 
-    public async Task ExtractAndSaveAsync(List<string> conversationHistory)
+    public async Task ExtractAndSaveAsync(List<string> conversationHistory, CancellationToken cancellationToken = default)
     {
         // UI notification should be handled by the caller or injected UI, but for now we just process.
         // Since we are moving this to Core, we remove AnsiConsole calls.
@@ -74,8 +79,9 @@ Based on the schema description '{_config.SchemaDescription}', extract the data 
         try
         {
             var response = await _retryService.ExecuteAsync(
-                async () => await _agent.RunAsync(prompt),
-                "Data extraction");
+                async cancellationToken => await _agent.RunAsync(prompt, cancellationToken: cancellationToken),
+                "Data extraction",
+                cancellationToken);
 
             var json = CleanJson(response.ToString());
 

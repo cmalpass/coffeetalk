@@ -35,6 +35,11 @@ public partial class AgentOrchestrator
         }
     }
 
+    public AgentOrchestrator(AIAgent agent, OrchestratorConfig config, CollaborativeMarkdownDocument doc, List<AgentPersona> personas)
+        : this(agent, config, doc, personas, new RetryService(null))
+    {
+    }
+
     public static string BuildSystemPrompt(OrchestratorConfig config, List<AgentPersona> personas)
     {
         var sb = new StringBuilder();
@@ -115,7 +120,7 @@ Reason: Document complete, all personas contributed, clear consensus reached");
     {
         var prompt = $"Summarize the following conversation history into a single concise paragraph. Capture key points, decisions, and arguments. Do not lose critical context.\n\nHistory:\n{historyText}";
         var response = await _retryService.ExecuteAsync(
-            async () => await _agent.RunAsync(prompt),
+            async cancellationToken => await _agent.RunAsync(prompt, cancellationToken: cancellationToken),
             "Orchestrator summarization",
             cancellationToken);
         return response.ToString();
@@ -132,7 +137,7 @@ Reason: Document complete, all personas contributed, clear consensus reached");
 
         // Execute with retry logic for rate limiting (HTTP 429)
         var response = await _retryService.ExecuteAsync(
-            async () => await _agent.RunAsync(context),
+            async cancellationToken => await _agent.RunAsync(context, cancellationToken: cancellationToken),
             "Orchestrator selection",
             cancellationToken);
         var responseText = response.ToString();

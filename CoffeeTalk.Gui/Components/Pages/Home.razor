@@ -183,7 +183,7 @@
                 settings
             );
 
-            await conversationOrchestrator.StartConversationAsync(Topic);
+            await conversationOrchestrator.StartConversationAsync(Topic, ct);
         }
         catch (OperationCanceledException)
         {

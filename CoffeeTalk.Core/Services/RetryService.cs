@@ -16,7 +16,7 @@ public sealed class RetryService : IRetryService
     }
 
     public async Task<T> ExecuteAsync<T>(
-        Func<Task<T>> operation,
+        Func<CancellationToken, Task<T>> operation,
         string operationName,
         CancellationToken cancellationToken = default)
     {
@@ -28,7 +28,7 @@ public sealed class RetryService : IRetryService
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                return await operation();
+                return await operation(cancellationToken);
             }
             catch (HttpRequestException ex) when (IsRateLimitHttpException(ex))
             {

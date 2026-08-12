@@ -200,7 +200,7 @@ public class AgentConversationOrchestrator
 
         if (_dataExtractor != null)
         {
-            await _dataExtractor.ExtractAndSaveAsync(conversationHistory);
+            await _dataExtractor.ExtractAndSaveAsync(conversationHistory, cancellationToken);
         }
 
         await TryAutoSaveAsync();

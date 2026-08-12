@@ -38,7 +38,7 @@ public sealed class NullOperationalEventSink : IOperationalEventSink
 public interface IRetryService
 {
     Task<T> ExecuteAsync<T>(
-        Func<Task<T>> operation,
+        Func<CancellationToken, Task<T>> operation,
         string operationName,
         CancellationToken cancellationToken = default);
 }

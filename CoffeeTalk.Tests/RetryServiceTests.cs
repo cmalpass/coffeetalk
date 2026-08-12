@@ -19,7 +19,7 @@ public class RetryServiceTests
 
         await Assert.ThrowsAsync<HttpRequestException>(() =>
             service.ExecuteAsync<string>(
-                () => Task.FromException<string>(new HttpRequestException("rate limit")),
+                _ => Task.FromException<string>(new HttpRequestException("rate limit")),
                 "Test operation"));
 
         Assert.Collection(
@@ -38,7 +38,7 @@ public class RetryServiceTests
 
         await Assert.ThrowsAsync<OperationCanceledException>(() =>
             service.ExecuteAsync(
-                () => Task.FromResult("unused"),
+                _ => Task.FromResult("unused"),
                 "Test operation",
                 cancellation.Token));
 
