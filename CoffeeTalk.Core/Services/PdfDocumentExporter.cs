@@ -120,57 +120,30 @@ public sealed class PdfDocumentExporter : IPdfDocumentExporter
         }
 
         var currentLine = string.Empty;
-        foreach (var word in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        foreach (var character in text)
         {
-            if (graphics.MeasureString(word, font).Width > maxWidth)
+            var candidate = currentLine + character;
+            if (currentLine.Length == 0 || graphics.MeasureString(candidate, font).Width <= maxWidth)
             {
-                if (currentLine.Length > 0)
-                {
-                    yield return currentLine;
-                    currentLine = string.Empty;
-                }
-
-                foreach (var chunk in SplitLongWord(graphics, word, font, maxWidth))
-                    yield return chunk;
-
+                currentLine = candidate;
                 continue;
             }
 
-            var candidate = currentLine.Length == 0 ? word : $"{currentLine} {word}";
-            if (graphics.MeasureString(candidate, font).Width <= maxWidth)
+            var breakIndex = currentLine.LastIndexOfAny([' ', '\t']);
+            if (breakIndex >= 0)
             {
-                currentLine = candidate;
+                yield return currentLine[..(breakIndex + 1)];
+                currentLine = currentLine[(breakIndex + 1)..] + character;
             }
             else
             {
                 yield return currentLine;
-                currentLine = word;
+                currentLine = character.ToString();
             }
         }
 
         if (currentLine.Length > 0)
             yield return currentLine;
-    }
-
-    private static IEnumerable<string> SplitLongWord(XGraphics graphics, string word, XFont font, double maxWidth)
-    {
-        var chunk = string.Empty;
-        foreach (var character in word)
-        {
-            var candidate = chunk + character;
-            if (chunk.Length > 0 && graphics.MeasureString(candidate, font).Width > maxWidth)
-            {
-                yield return chunk;
-                chunk = character.ToString();
-            }
-            else
-            {
-                chunk = candidate;
-            }
-        }
-
-        if (chunk.Length > 0)
-            yield return chunk;
     }
 
     private readonly record struct PendingLine(string Text, XFont Font, double LineHeight);
