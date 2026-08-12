@@ -146,23 +146,29 @@
 
         if (!result.Canceled)
         {
-            AppState.Settings.Personas.Add((PersonaConfig)result.Data);
-            AppState.NotifyStateChanged();
+            AppState.AddPersona((PersonaConfig)result.Data);
         }
     }
 
     private async Task EditPersona(PersonaConfig persona)
     {
-        var parameters = new DialogParameters { ["Persona"] = persona };
+        var editablePersona = new PersonaConfig
+        {
+            Name = persona.Name,
+            SystemPrompt = persona.SystemPrompt
+        };
+        var parameters = new DialogParameters { ["Persona"] = editablePersona };
         var dialog = DialogService.Show<PersonaDialog>("Edit Persona", parameters);
-        await dialog.Result;
+        var result = await dialog.Result;
 
-        AppState.NotifyStateChanged();
+        if (!result.Canceled)
+        {
+            AppState.UpdatePersona(persona, (PersonaConfig)result.Data);
+        }
     }
 
     private void DeletePersona(PersonaConfig persona)
     {
-        AppState.Settings.Personas.Remove(persona);
-        AppState.NotifyStateChanged();
+        AppState.RemovePersona(persona);
     }
 }
