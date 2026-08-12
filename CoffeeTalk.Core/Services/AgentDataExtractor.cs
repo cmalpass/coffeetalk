@@ -11,13 +11,17 @@ public class AgentDataExtractor
     private readonly AIAgent _agent;
     private readonly StructuredDataConfig _config;
     private readonly CollaborativeMarkdownDocument _doc;
+ private readonly System.Diagnostics.TextWriterTraceListener? _tracer;
 
-    public AgentDataExtractor(AIAgent agent, StructuredDataConfig config, CollaborativeMarkdownDocument doc)
-    {
-        _agent = agent;
-        _config = config;
-        _doc = doc;
-    }
+ public AgentDataExtractor(AIAgent agent, StructuredDataConfig config, CollaborativeMarkdownDocument doc)
+ {
+     _agent = agent;
+     _config = config;
+     _doc = doc;
+     // Use Trace for logging without external dependencies
+     _tracer = new System.Diagnostics.TextWriterTraceListener(System.Console.Error);
+     System.Diagnostics.Trace.Listeners.Add(_tracer);
+ }
 
     public static string BuildSystemPrompt(StructuredDataConfig config)
     {
@@ -64,9 +68,9 @@ Based on the schema description '{_config.SchemaDescription}', extract the data 
 
             await File.WriteAllTextAsync(_config.OutputFile, json);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Log error if logger available
+            System.Diagnostics.Trace.WriteLine($"[AgentDataExtractor] Data extraction failed: {ex.Message}", "Error");
         }
     }
 

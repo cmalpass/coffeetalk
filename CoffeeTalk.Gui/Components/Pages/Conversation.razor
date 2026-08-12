@@ -128,14 +128,12 @@
 
     protected override void OnInitialized()
     {
-        UI.OnChange += StateHasChanged;
-        UI.OnChange += OnChangeScrollToBottom;
+        UI.OnChange += OnUiChanged;
     }
 
     public void Dispose()
     {
-        UI.OnChange -= StateHasChanged;
-        UI.OnChange -= OnChangeScrollToBottom;
+        UI.OnChange -= OnUiChanged;
     }
 
     private void StopConversation() => UI.SubmitIntervention("quit", "");
@@ -143,6 +141,12 @@
     {
         UI.SubmitIntervention(action, message);
         FeedbackMessage = "";
+    }
+
+    private void OnUiChanged()
+    {
+        StateHasChanged();
+        _ = InvokeAsync(async () => { await ScrollToBottomAsync(); });
     }
 
     private void OnChangeScrollToBottom() => _ = ScrollToBottomAsync();

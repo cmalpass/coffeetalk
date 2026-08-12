@@ -14,7 +14,6 @@ public class AgentConversationOrchestrator
     private readonly CollaborativeMarkdownDocument _doc;
     private readonly int _maxTurns;
     private readonly bool _showThinking;
-    private readonly RateLimiter? _rateLimiter;
     private readonly AgentOrchestrator? _orchestrator;
     private readonly bool _useOrchestrator;
     private readonly AgentEditor? _editor;
@@ -42,8 +41,6 @@ public class AgentConversationOrchestrator
         _settings = settings;
         _maxTurns = settings.MaxConversationTurns;
         _showThinking = settings.ShowThinking;
-        _rateLimiter = new RateLimiter(settings.RateLimit);
-        _rateLimiter.ResetConversation();
         _useOrchestrator = orchestrator != null;
         _orchestrator = orchestrator;
         _editor = editor;
@@ -169,21 +166,24 @@ public class AgentConversationOrchestrator
 
                 // Orchestrator decides completion (already handled in SelectNextSpeakerAsync returning null)
             }
-            catch (OperationCanceledException ex)
+            catch (OperationCanceledException)
             {
-                await _ui.ShowErrorAsync($"[red]❌ Operation canceled: {Escape(ex.Message)}[/]");
+                await _ui.ShowErrorAsync("[red]❌ Operation canceled.[/]");
             }
-            catch (TimeoutException ex)
+            catch (TimeoutException)
             {
-                await _ui.ShowErrorAsync($"[red]❌ Timeout: {Escape(ex.Message)}[/]");
+                await _ui.ShowErrorAsync("[red]❌ Operation timed out.[/]");
             }
             catch (Exception ex) when (
-                ex is not StackOverflowException &&
-                ex is not OutOfMemoryException &&
-                ex is not ThreadAbortException
+                ex is StackOverflowException ||
+                ex is OutOfMemoryException
             )
             {
-                await _ui.ShowErrorAsync(ex.ToString());
+                throw;
+            }
+            catch (Exception)
+            {
+                await _ui.ShowErrorAsync("[red]❌ An unexpected error occurred.[/]");
             }
 
             await _ui.ShowRuleAsync();
@@ -297,21 +297,24 @@ public class AgentConversationOrchestrator
                         return;
                     }
                 }
-                catch (OperationCanceledException ex)
+                catch (OperationCanceledException)
                 {
-                    await _ui.ShowErrorAsync($"[red]❌ Operation canceled: {Escape(ex.Message)}[/]");
+                    await _ui.ShowErrorAsync("[red]❌ Operation canceled.[/]");
                 }
-                catch (TimeoutException ex)
+                catch (TimeoutException)
                 {
-                    await _ui.ShowErrorAsync($"[red]❌ Timeout: {Escape(ex.Message)}[/]");
+                    await _ui.ShowErrorAsync("[red]❌ Operation timed out.[/]");
                 }
                 catch (Exception ex) when (
-                    ex is not StackOverflowException &&
-                    ex is not OutOfMemoryException &&
-                    ex is not ThreadAbortException
+                    ex is StackOverflowException ||
+                    ex is OutOfMemoryException
                 )
                 {
-                    await _ui.ShowErrorAsync(ex.ToString());
+                    throw;
+                }
+                catch (Exception)
+                {
+                    await _ui.ShowErrorAsync("[red]❌ An unexpected error occurred.[/]");
                 }
             }
 
@@ -383,9 +386,8 @@ public class AgentConversationOrchestrator
     {
         // For round-robin mode only: very conservative early completion
         // Require at least 80% of max turns before allowing early conclusion
-        var maxTotalTurns = _maxTurns * _personas.Count;
-        var minTurnsBeforeConclusion = Math.Max(6, (int)(maxTotalTurns * 0.8));
-        
+        var minTurnsBeforeConclusion = Math.Max(6, (int)(_maxTurns * 0.8));
+
         if (turn < minTurnsBeforeConclusion) return false;
 
         // Only match extremely explicit conclusion statements
@@ -443,11 +445,12 @@ public class AgentConversationOrchestrator
                 }
                 else
                 {
-                    // Fallback: Use the first available persona to summarize
-                    if (conversationHistory.Count >= 5)
+                    // Fallback: truncate oldest messages to save context
+                    int removeCount = Math.Min(countToSummarize, conversationHistory.Count);
+                    if (removeCount > 0)
                     {
-                        conversationHistory.RemoveRange(0, 5);
-                        conversationHistory.Insert(0, "[... older history removed to save context ...]");
+                        conversationHistory.RemoveRange(0, removeCount);
+                        conversationHistory.Insert(0, $"[... {removeCount} older messages truncated to save context ...]");
                     }
                     return;
                 }

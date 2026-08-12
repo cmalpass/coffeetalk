@@ -28,42 +28,34 @@ public static class RetryHandler
             catch (HttpRequestException ex) when (IsRateLimitHttpException(ex))
             {
                 retryCount++;
-                
+
                 if (retryCount > _config.MaxRetries)
                 {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"\n❌ {operationName} failed after {_config.MaxRetries} retries due to rate limiting.");
-                    Console.ResetColor();
+                    System.Diagnostics.Trace.WriteLine($"[{operationName}] Failed after {_config.MaxRetries} retries due to rate limiting.", "Error");
                     throw;
                 }
 
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($"\n⚠️  Rate limit hit (HTTP 429). Retry {retryCount}/{_config.MaxRetries} - waiting {delaySeconds} seconds...");
-                Console.ResetColor();
+                System.Diagnostics.Trace.WriteLine($"[{operationName}] Rate limit hit (HTTP 429). Retry {retryCount}/{_config.MaxRetries} - waiting {delaySeconds}s...", "Warning");
 
                 await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
-                
+
                 // Exponential backoff
                 delaySeconds = (int)(delaySeconds * _config.BackoffMultiplier);
             }
             catch (Exception ex) when (IsRateLimitException(ex))
             {
                 retryCount++;
-                
+
                 if (retryCount > _config.MaxRetries)
                 {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"\n❌ {operationName} failed after {_config.MaxRetries} retries due to rate limiting.");
-                    Console.ResetColor();
+                    System.Diagnostics.Trace.WriteLine($"[{operationName}] Failed after {_config.MaxRetries} retries due to rate limiting.", "Error");
                     throw;
                 }
 
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($"\n⚠️  Rate limit hit. Retry {retryCount}/{_config.MaxRetries} - waiting {delaySeconds} seconds...");
-                Console.ResetColor();
+                System.Diagnostics.Trace.WriteLine($"[{operationName}] Rate limit hit. Retry {retryCount}/{_config.MaxRetries} - waiting {delaySeconds}s...", "Warning");
 
                 await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
-                
+
                 // Exponential backoff
                 delaySeconds = (int)(delaySeconds * _config.BackoffMultiplier);
             }

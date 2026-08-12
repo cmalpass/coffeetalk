@@ -67,7 +67,10 @@
                     <MudNumericField @bind-Value="AppState.Settings.MaxConversationTurns" Label="Max Turns" Min="1" Max="100" />
                 </MudItem>
                 <MudItem xs="12" md="6">
-                    <MudNumericField @bind-Value="AppState.Settings.RateLimit" Label="Rate Limit (tokens/min)" />
+                    <MudNumericField @bind-Value="AppState.Settings.RateLimit!.TokensPerMinute" Label="Rate Limit (tokens/min)" Nullable="true" />
+                </MudItem>
+                <MudItem xs="12" md="6">
+                    <MudNumericField @bind-Value="AppState.Settings.RateLimit!.RequestsPerMinute" Label="Requests/Minute" Nullable="true" />
                 </MudItem>
                 <MudItem xs="12">
                     <MudSwitch @bind-Value="AppState.Settings.FactChecking" Label="Enable Fact Checking" Color="Color.Warning" />
@@ -143,6 +146,7 @@
         if (!result.Canceled)
         {
             AppState.Settings.Personas.Add((PersonaConfig)result.Data);
+            AppState.NotifyStateChanged();
         }
     }
 
@@ -152,13 +156,12 @@
         var dialog = DialogService.Show<PersonaDialog>("Edit Persona", parameters);
         await dialog.Result;
 
-        // Object is modified by reference, so UI updates automatically,
-        // but we might want to trigger a state change if we were doing deep cloning.
-        // Since we are editing the object directly in the dialog, it's reflected here.
+        AppState.NotifyStateChanged();
     }
 
     private void DeletePersona(PersonaConfig persona)
     {
         AppState.Settings.Personas.Remove(persona);
+        AppState.NotifyStateChanged();
     }
 }
