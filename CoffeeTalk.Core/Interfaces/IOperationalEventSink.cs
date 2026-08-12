@@ -15,7 +15,10 @@ public sealed record OperationalEvent(
     int? MaxRetries = null,
     int? DelaySeconds = null,
     string? Decision = null,
-    string? Reason = null);
+    string? Reason = null)
+{
+    public Exception? Exception { get; init; }
+}
 
 public interface IOperationalEventSink
 {

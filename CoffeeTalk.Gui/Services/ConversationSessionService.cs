@@ -132,15 +132,16 @@ public sealed class ConversationSessionService : IConversationSessionService, ID
             {
                 try
                 {
+                    var messages = _ui.GetMessagesSnapshot();
                     _history.Add(new ConversationRecord
                     {
                         Topic = topic,
                         StartedAt = _ui.ConversationStartedAt ?? DateTime.Now,
                         CompletedAt = DateTime.Now,
                         Status = cts.IsCancellationRequested || _ui.StopRequested ? "Stopped" : "Completed",
-                        MessageCount = _ui.Messages.Count,
+                        MessageCount = messages.Count,
                         Personas = _ui.ConversationParticipants.ToList(),
-                        Messages = _ui.Messages.ToList()
+                        Messages = messages.ToList()
                     });
                 }
                 catch (JsonException ex)

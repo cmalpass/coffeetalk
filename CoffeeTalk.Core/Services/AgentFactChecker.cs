@@ -74,11 +74,14 @@ Output Format:
         {
             throw;
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             _eventSink.Publish(new OperationalEvent(
                 OperationalEventKind.OperationFailure,
-                "Fact check"));
+                "Fact check")
+            {
+                Exception = ex
+            });
         }
     }
 }
