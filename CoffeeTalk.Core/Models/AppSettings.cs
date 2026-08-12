@@ -41,6 +41,7 @@ public class PersistedAppSettings
     public OrchestratorConfig? Orchestrator { get; set; }
     public EditorConfig? Editor { get; set; }
     public DynamicPersonasConfig? DynamicPersonas { get; set; }
+    public ToolsConfig? Tools { get; set; }
 }
 
 public class PersistedLlmProviderConfig

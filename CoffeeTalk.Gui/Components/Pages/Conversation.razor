@@ -2,6 +2,7 @@
 @using MudBlazor
 @using Microsoft.JSInterop
 @using Markdig
+@using CoffeeTalk.Services
 @namespace CoffeeTalk.Gui.Components
 @implements IDisposable
 @inject BlazorUserInterface UI
@@ -9,6 +10,7 @@
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
 @inject IJSRuntime JSRuntime
+@inject IApplicationDataPathResolver DataPaths
 
 @if (UI.IsConversationRunning || !string.IsNullOrEmpty(UI.ConversationTopic))
 {
@@ -190,8 +192,10 @@
         try
         {
             var fileName = $"conversation_{DateTime.Now:yyyyMMdd_HHmmss}.md";
-            await File.WriteAllTextAsync(fileName, UI.DocumentMarkdown);
-            Snackbar.Add($"Saved to {fileName}", Severity.Success);
+            var path = DataPaths.ResolveExportPath(fileName, "conversation.md");
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            await File.WriteAllTextAsync(path, UI.DocumentMarkdown);
+            Snackbar.Add($"Saved to {path}", Severity.Success);
         }
         catch (IOException ex)
         {
@@ -273,11 +277,22 @@
                     break;
             }
 
-            var fileName = $"{UI.ConversationTopic ?? "conversation"}_{DateTime.Now:yyyyMMdd_HHmmss}.{extension}";
-            await File.WriteAllTextAsync(fileName, content);
-            Snackbar.Add($"Exported to {fileName}", Severity.Success);
+            var topic = MakeSafeFileNamePart(UI.ConversationTopic ?? "conversation");
+            var fileName = $"{topic}_{DateTime.Now:yyyyMMdd_HHmmss}.{extension}";
+            var path = DataPaths.ResolveExportPath(fileName, "conversation.md");
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            await File.WriteAllTextAsync(path, content);
+            Snackbar.Add($"Exported to {path}", Severity.Success);
         }
         catch (IOException ex)
+        {
+            Snackbar.Add($"Export failed: {ex.Message}", Severity.Error);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            Snackbar.Add($"Export failed: {ex.Message}", Severity.Error);
+        }
+        catch (ArgumentException ex)
         {
             Snackbar.Add($"Export failed: {ex.Message}", Severity.Error);
         }
@@ -373,6 +388,14 @@
     private static string EscapeHtml(string text) => System.Net.WebUtility.HtmlEncode(text);
 
     private static string EscapeJson(string text) => text.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r").Replace("\t", "\\t");
+
+    private static string MakeSafeFileNamePart(string value)
+    {
+        var invalidCharacters = Path.GetInvalidFileNameChars();
+        var safe = new string(value.Select(character =>
+            invalidCharacters.Contains(character) || character is '/' or '\\' ? '_' : character).ToArray()).Trim();
+        return string.IsNullOrWhiteSpace(safe) ? "conversation" : safe;
+    }
 
     private int GetMessageCount()
     {

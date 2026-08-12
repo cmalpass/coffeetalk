@@ -13,6 +13,7 @@
 @inject NavigationManager Navigation
 @inject ILogger<Home> Logger
 @inject ConversationHistoryService History
+@inject IApplicationDataPathResolver DataPaths
 
 
 <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8">
@@ -144,7 +145,7 @@
     {
         try
         {
-            var sharedDoc = new CollaborativeMarkdownDocument();
+            var sharedDoc = new CollaborativeMarkdownDocument(DataPaths);
             var markdownTools = new MarkdownToolFunctions(sharedDoc);
             var tools = markdownTools.CreateTools();
             var settings = AppState.Settings;

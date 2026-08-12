@@ -13,7 +13,8 @@ class Program
     {
         try
         {
-            var configService = new ConfigurationService();
+            var dataPaths = new ApplicationDataPathResolver();
+            var configService = new ConfigurationService(dataPaths);
             var settings = configService.LoadConfiguration();
 
             // Validate and interactively configure if needed using the CLI Helper
@@ -38,7 +39,7 @@ class Program
                     }));
 
             // Create shared collaborative document
-            var sharedDoc = new CollaborativeMarkdownDocument();
+            var sharedDoc = new CollaborativeMarkdownDocument(dataPaths);
 
             // Create markdown tool functions
             var markdownTools = new MarkdownToolFunctions(sharedDoc);
@@ -219,7 +220,7 @@ class Program
             {
                 var prompt = AgentDataExtractor.BuildSystemPrompt(settings.StructuredData);
                 var agent = AgentBuilder.CreateAgent(settings.LlmProvider, "DataExtractor", prompt);
-                dataExtractor = new AgentDataExtractor(agent, settings.StructuredData, sharedDoc);
+                dataExtractor = new AgentDataExtractor(agent, settings.StructuredData, sharedDoc, dataPaths);
             }
 
             // Instantiate UI

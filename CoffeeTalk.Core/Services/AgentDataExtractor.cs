@@ -11,13 +11,15 @@ public class AgentDataExtractor
     private readonly AIAgent _agent;
     private readonly StructuredDataConfig _config;
     private readonly CollaborativeMarkdownDocument _doc;
+    private readonly IApplicationDataPathResolver _paths;
  private readonly System.Diagnostics.TextWriterTraceListener? _tracer;
 
- public AgentDataExtractor(AIAgent agent, StructuredDataConfig config, CollaborativeMarkdownDocument doc)
+ public AgentDataExtractor(AIAgent agent, StructuredDataConfig config, CollaborativeMarkdownDocument doc, IApplicationDataPathResolver? paths = null)
  {
      _agent = agent;
      _config = config;
      _doc = doc;
+     _paths = paths ?? new ApplicationDataPathResolver();
      // Use Trace for logging without external dependencies
      _tracer = new System.Diagnostics.TextWriterTraceListener(System.Console.Error);
      System.Diagnostics.Trace.Listeners.Add(_tracer);
@@ -66,7 +68,9 @@ Based on the schema description '{_config.SchemaDescription}', extract the data 
 
             var json = CleanJson(response.ToString());
 
-            await File.WriteAllTextAsync(_config.OutputFile, json);
+            var outputPath = _paths.ResolveDataPath(_config.OutputFile, "data.json");
+            Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+            await File.WriteAllTextAsync(outputPath, json);
         }
         catch (Exception ex)
         {

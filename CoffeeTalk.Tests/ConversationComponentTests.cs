@@ -17,6 +17,8 @@ public class ConversationComponentTests : TestContext
         Services.AddMudServices();
         Services.AddSingleton<ConfigurationService>();
         Services.AddSingleton<AppState>();
+        Services.AddSingleton<IApplicationDataPathResolver>(
+            new ApplicationDataPathResolver(Path.Combine(Path.GetTempPath(), "coffeetalk-tests", Guid.NewGuid().ToString("N"))));
         Services.AddSingleton<MudBlazor.ISnackbar, MudBlazor.SnackbarService>();
 
         var ui = new BlazorUserInterface();

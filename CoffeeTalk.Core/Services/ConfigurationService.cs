@@ -8,12 +8,22 @@ public class ConfigurationService
 {
     private const string SettingsFile = "appsettings.json";
     private static readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
+    private readonly IApplicationDataPathResolver _paths;
+
+    public ConfigurationService(IApplicationDataPathResolver? paths = null)
+    {
+        _paths = paths ?? new ApplicationDataPathResolver();
+    }
 
     public AppSettings LoadConfiguration()
     {
+        var settingsPath = File.Exists(_paths.ConfigurationFilePath)
+            ? _paths.ConfigurationFilePath
+            : FindLegacyConfigurationPath();
+
         var configuration = new ConfigurationBuilder()
-            .SetBasePath(AppContext.BaseDirectory)
-            .AddJsonFile(SettingsFile, optional: true, reloadOnChange: false)
+            .SetBasePath(Path.GetDirectoryName(settingsPath)!)
+            .AddJsonFile(Path.GetFileName(settingsPath), optional: true, reloadOnChange: false)
             .Build();
 
         var settings = new AppSettings();
@@ -31,7 +41,18 @@ public class ConfigurationService
         var persistedSettings = MapToPersistedAppSettings(settings);
         var json = JsonSerializer.Serialize(persistedSettings, _jsonOptions);
 
-        await File.WriteAllTextAsync(SettingsFile, json);
+        Directory.CreateDirectory(_paths.RootDirectory);
+        await File.WriteAllTextAsync(_paths.ConfigurationFilePath, json);
+    }
+
+    private static string FindLegacyConfigurationPath()
+    {
+        var basePath = Path.Combine(AppContext.BaseDirectory, SettingsFile);
+        if (File.Exists(basePath))
+            return basePath;
+
+        var currentPath = Path.GetFullPath(SettingsFile);
+        return currentPath;
     }
 
     // Helper method to map AppSettings to PersistedAppSettings, omitting sensitive fields
@@ -44,7 +65,7 @@ public class ConfigurationService
                 Type = settings.LlmProvider.Type,
                 Endpoint = settings.LlmProvider.Endpoint,
                 ModelId = settings.LlmProvider.ModelId,
-                DeploymentName = settings.LlmProvider.DeploymentName
+                DeploymentName = settings.LlmProvider.DeploymentName ?? string.Empty
                 // ApiKey is intentionally omitted
             },
             Personas = settings.Personas,
@@ -59,7 +80,8 @@ public class ConfigurationService
             Retry = settings.Retry,
             Orchestrator = settings.Orchestrator,
             Editor = settings.Editor,
-            DynamicPersonas = settings.DynamicPersonas
+            DynamicPersonas = settings.DynamicPersonas,
+            Tools = settings.Tools
         };
     }
 }
