@@ -3,6 +3,7 @@ using PdfSharpCore.Drawing;
 using PdfSharpCore.Fonts;
 using PdfSharpCore.Pdf;
 using PdfSharpCore.Utils;
+using System.Text;
 
 namespace CoffeeTalk.Services;
 
@@ -38,7 +39,7 @@ public sealed class PdfDocumentExporter : IPdfDocumentExporter
                     var text = isHeading ? line[(headingLength + 1)..] : line;
                     var fontForLine = isHeading ? headingFont : font;
                     var lineHeight = isHeading ? 24d : 16d;
-                    foreach (var wrappedText in WrapText(graphics, text, fontForLine, page.Width - 80))
+                    foreach (var wrappedText in WrapText(graphics, text, fontForLine, page.Width - 80, cancellationToken))
                         pendingLines.Enqueue(new PendingLine(wrappedText, fontForLine, lineHeight));
                 }
 
@@ -111,7 +112,12 @@ public sealed class PdfDocumentExporter : IPdfDocumentExporter
         y += lineHeight;
     }
 
-    private static IEnumerable<string> WrapText(XGraphics graphics, string text, XFont font, double maxWidth)
+    private static IEnumerable<string> WrapText(
+        XGraphics graphics,
+        string text,
+        XFont font,
+        double maxWidth,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(text))
         {
@@ -120,8 +126,10 @@ public sealed class PdfDocumentExporter : IPdfDocumentExporter
         }
 
         var currentLine = string.Empty;
-        foreach (var character in text)
+        foreach (var rune in text.EnumerateRunes())
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            var character = rune.ToString();
             var candidate = currentLine + character;
             if (currentLine.Length == 0 || graphics.MeasureString(candidate, font).Width <= maxWidth)
             {
@@ -138,7 +146,7 @@ public sealed class PdfDocumentExporter : IPdfDocumentExporter
             else
             {
                 yield return currentLine;
-                currentLine = character.ToString();
+                currentLine = character;
             }
         }
 
