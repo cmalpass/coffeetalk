@@ -1,5 +1,6 @@
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
+using CoffeeTalk.Models;
 
 namespace CoffeeTalk.Services;
 
@@ -9,10 +10,12 @@ namespace CoffeeTalk.Services;
 public class MarkdownToolFunctions
 {
     private readonly CollaborativeMarkdownDocument _doc;
+    public ToolsConfig Configuration { get; }
 
-    public MarkdownToolFunctions(CollaborativeMarkdownDocument doc)
+    public MarkdownToolFunctions(CollaborativeMarkdownDocument doc, ToolsConfig? configuration = null)
     {
         _doc = doc;
+        Configuration = configuration ?? new ToolsConfig();
     }
 
     /// <summary>
