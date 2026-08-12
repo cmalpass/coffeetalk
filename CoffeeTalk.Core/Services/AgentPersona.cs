@@ -164,6 +164,7 @@ public class AgentPersona
                 continue;
 
             emitted = true;
+            _rateLimiter?.AccountAdditionalTokens(_rateLimiter.EstimateTokens(text));
             yield return text;
         }
 

@@ -76,7 +76,8 @@ public sealed class ApplicationDataPathResolver : IWorkspacePathResolver
                      .Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
         {
             current = Path.Combine(current, segment);
-            if (Directory.Exists(current) && File.GetAttributes(current).HasFlag(FileAttributes.ReparsePoint))
+            if ((Directory.Exists(current) || File.Exists(current)) &&
+                File.GetAttributes(current).HasFlag(FileAttributes.ReparsePoint))
                 throw new UnauthorizedAccessException("Reparse points are not allowed in the data directory.");
         }
         return fullPath;

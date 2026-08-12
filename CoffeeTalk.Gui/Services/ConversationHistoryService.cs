@@ -20,9 +20,8 @@ public sealed class ConversationHistoryService
 
     public async Task<IReadOnlyList<ConversationRecord>> RecentAsync(int count = 10, CancellationToken cancellationToken = default)
     {
+        await MigrateLegacyAsync(cancellationToken);
         var states = await _persistence.ListAsync(cancellationToken);
-        if (states.Count == 0)
-            states = await MigrateLegacyAsync(cancellationToken);
         return states.Take(count).Select(ToRecord).ToList();
     }
 
@@ -77,8 +76,8 @@ public sealed class ConversationHistoryService
 
     private async Task<IReadOnlyList<ConversationState>> GetStatesAsync(CancellationToken cancellationToken)
     {
-        var states = await _persistence.ListAsync(cancellationToken);
-        return states.Count == 0 ? await MigrateLegacyAsync(cancellationToken) : states;
+        await MigrateLegacyAsync(cancellationToken);
+        return await _persistence.ListAsync(cancellationToken);
     }
 
     private static ConversationState ToState(ConversationRecord record) => new()
