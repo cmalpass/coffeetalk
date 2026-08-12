@@ -108,12 +108,45 @@ class Program
         if (!File.Exists(legacyPath))
             return;
 
-        var records = JsonSerializer.Deserialize<List<ConversationState>>(
-            await File.ReadAllTextAsync(legacyPath),
-            new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? [];
-        foreach (var state in records)
-            await persistence.SaveAsync(state);
-        File.Delete(legacyPath);
+        try
+        {
+            var records = JsonSerializer.Deserialize<List<LegacyConversationRecord>>(
+                await File.ReadAllTextAsync(legacyPath),
+                new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? [];
+            foreach (var record in records)
+            {
+                await persistence.SaveAsync(new ConversationState
+                {
+                    Id = record.Id,
+                    Topic = record.Topic,
+                    StartedAt = record.StartedAt,
+                    CompletedAt = record.CompletedAt,
+                    Status = record.Status,
+                    DocumentContent = record.DocumentContent,
+                    Participants = record.Personas.Select(name => new ConversationParticipant { Name = name }).ToList(),
+                    Messages = record.Messages,
+                    Metadata = record.Metadata
+                });
+            }
+            File.Delete(legacyPath);
+        }
+        catch (JsonException)
+        {
+            AnsiConsole.MarkupLine("[yellow]Legacy conversation history is invalid; preserving it for recovery.[/]");
+        }
+    }
+
+    private sealed class LegacyConversationRecord
+    {
+        public string Id { get; set; } = Guid.NewGuid().ToString("N");
+        public string Topic { get; set; } = string.Empty;
+        public DateTimeOffset StartedAt { get; set; }
+        public DateTimeOffset? CompletedAt { get; set; }
+        public string Status { get; set; } = "Completed";
+        public List<string> Personas { get; set; } = [];
+        public List<ConversationMessage> Messages { get; set; } = [];
+        public string DocumentContent { get; set; } = string.Empty;
+        public Dictionary<string, string> Metadata { get; set; } = [];
     }
 
     private static async Task<bool> HandleHistoryCommandAsync(string[] args, ConversationPersistenceService persistence)
