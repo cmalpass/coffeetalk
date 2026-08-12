@@ -62,6 +62,7 @@ public sealed class ConversationSessionService : IConversationSessionService, ID
             cts = _cts = new CancellationTokenSource();
             _conversationTask = RunAfterPreviousAsync(previousTask, topic, personas.ToList(), cts);
         }
+        _ui.CancelIntervention(false);
     }
 
     public void Cancel()

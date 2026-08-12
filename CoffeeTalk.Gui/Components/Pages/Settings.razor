@@ -131,6 +131,7 @@
 
     protected override void OnInitialized()
     {
+        AppState.Settings.RateLimit ??= new RateLimitConfig();
         AppState.Settings.Editor ??= new EditorConfig();
         AppState.Settings.DynamicPersonas ??= new DynamicPersonasConfig();
         AppState.Settings.Tools ??= new ToolsConfig();

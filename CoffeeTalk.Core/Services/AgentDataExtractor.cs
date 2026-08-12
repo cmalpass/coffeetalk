@@ -13,7 +13,6 @@ public class AgentDataExtractor
     private readonly StructuredDataConfig _config;
     private readonly CollaborativeMarkdownDocument _doc;
     private readonly IApplicationDataPathResolver _paths;
- private readonly System.Diagnostics.TextWriterTraceListener? _tracer;
  private readonly IRetryService _retryService;
  private readonly IOperationalEventSink _eventSink;
 
@@ -31,9 +30,6 @@ public class AgentDataExtractor
      _paths = paths ?? new ApplicationDataPathResolver();
      _retryService = retryService;
      _eventSink = eventSink ?? NullOperationalEventSink.Instance;
-     // Use Trace for logging without external dependencies
-     _tracer = new System.Diagnostics.TextWriterTraceListener(System.Console.Error);
-     System.Diagnostics.Trace.Listeners.Add(_tracer);
  }
 
  public AgentDataExtractor(AIAgent agent, StructuredDataConfig config, CollaborativeMarkdownDocument doc, IApplicationDataPathResolver? paths = null)

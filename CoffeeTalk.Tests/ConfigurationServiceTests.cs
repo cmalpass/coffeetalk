@@ -24,4 +24,29 @@ public sealed class ConfigurationServiceTests
         Assert.Equal(false, loaded.Tools?.EnableFallbackJsonTools);
         Assert.Equal(false, loaded.Tools?.RequireToolsVerification);
     }
+
+    [Fact]
+    public async Task SaveAndLoad_AllowsPartialNullableSettings()
+    {
+        var resolver = new ApplicationDataPathResolver(
+            Path.Combine(Path.GetTempPath(), "coffeetalk-tests", Guid.NewGuid().ToString("N")));
+        var service = new ConfigurationService(resolver);
+
+        await service.SaveSettingsAsync(new AppSettings
+        {
+            RateLimit = null,
+            Tools = null,
+            Orchestrator = null,
+            Editor = null,
+            DynamicPersonas = null,
+            StructuredData = null,
+            Retry = null
+        });
+
+        var loaded = service.LoadConfiguration();
+
+        Assert.Null(loaded.RateLimit);
+        Assert.Null(loaded.Tools);
+        Assert.Null(loaded.Orchestrator);
+    }
 }
