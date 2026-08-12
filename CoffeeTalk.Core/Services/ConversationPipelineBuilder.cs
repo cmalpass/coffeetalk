@@ -63,6 +63,7 @@ public sealed class ConversationPipeline
 public sealed class ConversationPipelineBuilder
 {
     private const string DevilsAdvocateName = "DevilsAdvocate";
+    private const string FallbackJsonToolName = "ExecuteJsonTool";
     private readonly IApplicationDataPathResolver _dataPaths;
     private readonly IOperationalEventSink _eventSink;
     private readonly IConversationAgentFactory _agentFactory;
@@ -111,6 +112,7 @@ public sealed class ConversationPipelineBuilder
                 notify);
         }
 
+        ValidateAllowedTools(personaConfigs, tools);
         var personas = CreatePersonas(settings, personaConfigs, sharedDocument, rateLimiter, retryService, tools);
 
         if (settings.DevilsAdvocate &&
@@ -275,7 +277,8 @@ public sealed class ConversationPipelineBuilder
         AIFunction[] tools,
         int? totalPersonaCount = null)
     {
-        var agent = _agentFactory.Create(settings.LlmProvider, config.Name, config.SystemPrompt, tools);
+        var personaTools = FilterTools(config, tools);
+        var agent = _agentFactory.Create(settings.LlmProvider, config.Name, config.SystemPrompt, personaTools);
         return new AgentPersona(
             agent,
             config,
@@ -283,6 +286,45 @@ public sealed class ConversationPipelineBuilder
             rateLimiter,
             settings.MaxConversationTurns,
             totalPersonaCount ?? agentCount,
-            retryService);
+            retryService,
+            personaTools.Select(tool => tool.Name).ToList());
+    }
+
+    private static void ValidateAllowedTools(IEnumerable<PersonaConfig> configs, AIFunction[] tools)
+    {
+        var availableNames = tools
+            .Select(tool => tool.Name)
+            .Where(name => !name.Equals(FallbackJsonToolName, StringComparison.OrdinalIgnoreCase))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var config in configs)
+        {
+            if (config.AllowedTools is null)
+                continue;
+
+            var unknown = config.AllowedTools
+                .Where(name => !availableNames.Contains(name))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (unknown.Count > 0)
+            {
+                throw new ArgumentException(
+                    $"Persona '{config.Name}' contains unknown or unsupported tools: {string.Join(", ", unknown)}.",
+                    nameof(configs));
+            }
+        }
+    }
+
+    private static AIFunction[] FilterTools(PersonaConfig config, AIFunction[] tools)
+    {
+        if (config.AllowedTools is null)
+            return tools;
+
+        var allowed = config.AllowedTools.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return tools
+            .Where(tool =>
+                !tool.Name.Equals(FallbackJsonToolName, StringComparison.OrdinalIgnoreCase) &&
+                allowed.Contains(tool.Name))
+            .ToArray();
     }
 }
