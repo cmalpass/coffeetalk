@@ -16,6 +16,16 @@ public sealed class ApplicationDataPathResolverTests
     }
 
     [Theory]
+    [InlineData("../outside.html")]
+    [InlineData("/tmp/outside.json")]
+    public void ResolveExportPath_RejectsEscapes(string path)
+    {
+        var resolver = new ApplicationDataPathResolver(Path.Combine(Path.GetTempPath(), "coffeetalk-tests", Guid.NewGuid().ToString("N")));
+
+        Assert.Throws<UnauthorizedAccessException>(() => resolver.ResolveExportPath(path, "conversation.md"));
+    }
+
+    [Theory]
     [InlineData("../outside.txt")]
     [InlineData("/tmp/outside.txt")]
     public void ResolveDataPath_RejectsEscapes(string path)

@@ -1,7 +1,6 @@
 @using CoffeeTalk.Gui.Services
 @using MudBlazor
 @using Microsoft.JSInterop
-@using Markdig
 @using CoffeeTalk.Services
 @namespace CoffeeTalk.Gui.Components
 @implements IDisposable
@@ -147,11 +146,6 @@
     private int _documentTab;
     private string? _exportFormat;
 
-    private static readonly MarkdownPipeline _markdownPipeline = new MarkdownPipelineBuilder()
-        .UsePipeTables()
-        .UseGridTables()
-        .Build();
-
     protected override void OnInitialized()
     {
         UI.OnChange += OnUiChanged;
@@ -261,17 +255,29 @@
             switch (format.ToLower())
             {
                 case "html":
-                    content = GenerateHtmlExport();
+                    content = ConversationExportService.GenerateHtml(
+                        UI.ConversationTopic,
+                        UI.ConversationStartedAt,
+                        UI.ConversationParticipants,
+                        UI.Messages);
                     extension = "html";
                     mimeType = "text/html";
                     break;
                 case "json":
-                    content = GenerateJsonExport();
+                    content = ConversationExportService.GenerateJson(
+                        UI.ConversationTopic,
+                        UI.ConversationStartedAt,
+                        UI.ConversationParticipants,
+                        UI.Messages);
                     extension = "json";
                     mimeType = "application/json";
                     break;
                 default:
-                    content = UI.DocumentMarkdown;
+                    content = ConversationExportService.GenerateMarkdown(
+                        UI.ConversationTopic,
+                        UI.ConversationStartedAt,
+                        UI.ConversationParticipants,
+                        UI.Messages);
                     extension = "md";
                     mimeType = "text/markdown";
                     break;
@@ -297,97 +303,6 @@
             Snackbar.Add($"Export failed: {ex.Message}", Severity.Error);
         }
     }
-
-    private string GenerateHtmlExport()
-    {
-        var html = @"<!DOCTYPE html>
-<html>
-<head>
-    <meta charset=""utf-8"">
-    <title>";
-        html += UI.ConversationTopic ?? "Conversation";
-        html += @"</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        .message { margin: 10px 0; padding: 10px; border-left: 3px solid #ccc; }
-        .sender { font-weight: bold; color: #666; }
-        .timestamp { color: #999; font-size: 0.8em; }
-        .system { background: #f5f5f5; padding: 5px; border-radius: 3px; }
-        .error { background: #ffebee; padding: 5px; border-radius: 3px; }
-    </style>
-</head>
-<body>
-    <h1>";
-        html += UI.ConversationTopic ?? "Conversation";
-        html += @"</h1>
-    <p>Started: " + (UI.ConversationStartedAt?.ToString("yyyy-MM-dd HH:mm") ?? "Unknown") + @"</p>
-    <hr/>
-";
-
-        foreach (var msg in UI.Messages)
-        {
-            if (msg.IsDivider)
-            {
-                html += "    <hr/>\n";
-            }
-            else if (msg.IsSystem)
-            {
-                html += $"    <div class=\"system\">{EscapeHtml(msg.Content)}</div>\n";
-            }
-            else if (msg.IsError)
-            {
-                html += $"    <div class=\"error\">{EscapeHtml(msg.Content)}</div>\n";
-            }
-            else
-            {
-                html += $"    <div class=\"message\">\n";
-                html += $"        <span class=\"sender\">{EscapeHtml(msg.Sender)}</span> ";
-                html += $"<span class=\"timestamp\">({msg.Timestamp:HH:mm})</span>\n";
-                html += $"        <div>{RenderMarkdown(msg.Content)}</div>\n";
-                html += "    </div>\n";
-            }
-        }
-
-        html += "</body>\n</html>";
-        return html;
-    }
-
-    private string GenerateJsonExport()
-    {
-        var json = "{\n";
-        var startedAt = UI.ConversationStartedAt?.ToString("o") ?? "";
-        var topic = EscapeJson(UI.ConversationTopic ?? "");
-        json += $"  \"topic\": \"{topic}\",\n";
-        json += $"  \"startedAt\": \"{startedAt}\",\n";
-        
-        var participants = "[" + string.Join(", ", UI.ConversationParticipants.Select(p => $"\"{EscapeJson(p)}\"")) + "]";
-        json += $"  \"participants\": {participants},\n";
-        json += "  \"messages\": [\n";
-
-        for (int i = 0; i < UI.Messages.Count; i++)
-        {
-            var msg = UI.Messages[i];
-            json += "    {\n";
-            json += $"      \"sender\": \"{EscapeJson(msg.Sender)}\",\n";
-            json += $"      \"content\": \"{EscapeJson(msg.Content)}\",\n";
-            var ts = msg.Timestamp.ToString("o");
-            json += $"      \"timestamp\": \"{ts}\",\n";
-            json += $"      \"isSystem\": {msg.IsSystem.ToString().ToLower()},\n";
-            json += $"      \"isError\": {msg.IsError.ToString().ToLower()},\n";
-            json += $"      \"isDivider\": {msg.IsDivider.ToString().ToLower()}\n";
-            json += "    }";
-            json += i < UI.Messages.Count - 1 ? "," : "";
-            json += "\n";
-        }
-
-        json += "  ]\n";
-        json += "}";
-        return json;
-    }
-
-    private static string EscapeHtml(string text) => System.Net.WebUtility.HtmlEncode(text);
-
-    private static string EscapeJson(string text) => text.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r").Replace("\t", "\\t");
 
     private static string MakeSafeFileNamePart(string value)
     {
@@ -416,6 +331,6 @@
     {
         if (string.IsNullOrWhiteSpace(markdown))
             return "";
-        return Markdig.Markdown.ToHtml(markdown.Trim(), _markdownPipeline);
+        return ConversationExportService.RenderMarkdown(markdown);
     }
 }
