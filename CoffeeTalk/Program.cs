@@ -4,6 +4,7 @@ using CoffeeTalk.Services;
 using CoffeeTalk.Core.Interfaces;
 using CoffeeTalk.Helpers;
 using Spectre.Console;
+using System.Text.Json;
 
 namespace CoffeeTalk;
 
@@ -19,6 +20,7 @@ class Program
                 return;
 
             var persistence = new ConversationPersistenceService(dataPaths);
+            await MigrateLegacyHistoryAsync(dataPaths, persistence);
             if (await HandleAnalyticsCommandAsync(args, persistence))
                 return;
             if (await HandleHistoryCommandAsync(args, persistence))
@@ -72,6 +74,7 @@ class Program
                 });
                 AnsiConsole.MarkupLine($"[green]Saved conversation {Markup.Escape(saveId)}[/]");
             }
+
             var exportFormat = GetOption(args, "--export-format");
             if (exportFormat is not null)
             {
@@ -95,6 +98,22 @@ class Program
             AnsiConsole.MarkupLine("\n[bold red]Please check your configuration and try again.[/]");
             Environment.Exit(1);
         }
+    }
+
+    private static async Task MigrateLegacyHistoryAsync(
+        IApplicationDataPathResolver paths,
+        ConversationPersistenceService persistence)
+    {
+        var legacyPath = paths.ResolveDataPath("conversation-history.json", "conversation-history.json");
+        if (!File.Exists(legacyPath))
+            return;
+
+        var records = JsonSerializer.Deserialize<List<ConversationState>>(
+            await File.ReadAllTextAsync(legacyPath),
+            new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? [];
+        foreach (var state in records)
+            await persistence.SaveAsync(state);
+        File.Delete(legacyPath);
     }
 
     private static async Task<bool> HandleHistoryCommandAsync(string[] args, ConversationPersistenceService persistence)

@@ -41,7 +41,13 @@ public class ConfigurationService
         {
             if (string.IsNullOrWhiteSpace(settings.LlmProvider.Endpoint))
                 settings.LlmProvider.Endpoint = Environment.GetEnvironmentVariable("AZURE_OPENAI_ENDPOINT") ?? string.Empty;
-            settings.LlmProvider.DeploymentName ??= Environment.GetEnvironmentVariable("AZURE_OPENAI_DEPLOYMENT");
+            if (string.IsNullOrWhiteSpace(settings.LlmProvider.DeploymentName))
+            {
+                settings.LlmProvider.DeploymentName =
+                    Environment.GetEnvironmentVariable("AZURE_OPENAI_CHAT_DEPLOYMENT_NAME") ??
+                    Environment.GetEnvironmentVariable("AZURE_OPENAI_DEPLOYMENT_NAME") ??
+                    Environment.GetEnvironmentVariable("AZURE_OPENAI_DEPLOYMENT");
+            }
         }
 
         return settings;
