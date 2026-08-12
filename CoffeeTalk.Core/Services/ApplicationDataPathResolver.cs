@@ -8,21 +8,43 @@ public interface IApplicationDataPathResolver
     string ResolveExportPath(string? path, string defaultFileName);
 }
 
-public sealed class ApplicationDataPathResolver : IApplicationDataPathResolver
+public interface IWorkspacePathResolver : IApplicationDataPathResolver
 {
-    private readonly string _exportDirectory;
+    string BaseRootDirectory { get; }
+    string? WorkspaceName { get; }
+    void SwitchWorkspace(string? workspaceName);
+}
 
-    public ApplicationDataPathResolver(string? rootDirectory = null)
+public sealed class ApplicationDataPathResolver : IWorkspacePathResolver
+{
+    private readonly string _baseRootDirectory;
+    private string _exportDirectory = string.Empty;
+
+    public ApplicationDataPathResolver(string? rootDirectory = null, string? workspaceName = null)
     {
-        RootDirectory = Path.GetFullPath(rootDirectory ?? Path.Combine(
+        _baseRootDirectory = Path.GetFullPath(rootDirectory ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "CoffeeTalk"));
+        SwitchWorkspace(workspaceName);
+    }
+
+    public string BaseRootDirectory => _baseRootDirectory;
+    public string RootDirectory { get; private set; } = string.Empty;
+    public string? WorkspaceName { get; private set; }
+    public string ConfigurationFilePath { get; private set; } = string.Empty;
+
+    public void SwitchWorkspace(string? workspaceName)
+    {
+        if (!string.IsNullOrWhiteSpace(workspaceName))
+            WorkspaceNameValidator.Validate(workspaceName);
+
+        WorkspaceName = string.IsNullOrWhiteSpace(workspaceName) ? null : workspaceName;
+        RootDirectory = WorkspaceName is null
+            ? _baseRootDirectory
+            : Path.Combine(_baseRootDirectory, "workspaces", WorkspaceName);
         _exportDirectory = Path.Combine(RootDirectory, "exports");
         ConfigurationFilePath = Path.Combine(RootDirectory, "appsettings.json");
     }
-
-    public string RootDirectory { get; }
-    public string ConfigurationFilePath { get; }
 
     public string ResolveDataPath(string? path, string defaultFileName) =>
         ResolveWithin(RootDirectory, path, defaultFileName);
@@ -47,6 +69,16 @@ public sealed class ApplicationDataPathResolver : IApplicationDataPathResolver
             throw new UnauthorizedAccessException("Path escapes the CoffeeTalk data directory.");
         }
 
+        var current = fullRoot;
+        if (Directory.Exists(current) && File.GetAttributes(current).HasFlag(FileAttributes.ReparsePoint))
+            throw new UnauthorizedAccessException("Reparse points are not allowed in the data directory.");
+        foreach (var segment in Path.GetRelativePath(fullRoot, fullPath)
+                     .Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
+        {
+            current = Path.Combine(current, segment);
+            if (Directory.Exists(current) && File.GetAttributes(current).HasFlag(FileAttributes.ReparsePoint))
+                throw new UnauthorizedAccessException("Reparse points are not allowed in the data directory.");
+        }
         return fullPath;
     }
 }

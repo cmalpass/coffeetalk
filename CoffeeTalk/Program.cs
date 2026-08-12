@@ -14,6 +14,10 @@ class Program
         try
         {
             var dataPaths = new ApplicationDataPathResolver();
+            var workspaces = new WorkspaceService(dataPaths);
+            if (await HandleWorkspaceCommandAsync(args, workspaces))
+                return;
+
             var persistence = new ConversationPersistenceService(dataPaths);
             if (await HandleHistoryCommandAsync(args, persistence))
                 return;
@@ -121,6 +125,46 @@ class Program
         }
 
         return false;
+    }
+
+    private static async Task<bool> HandleWorkspaceCommandAsync(string[] args, WorkspaceService workspaces)
+    {
+        var command = args.FirstOrDefault();
+        if (command is null || command.StartsWith("-", StringComparison.Ordinal))
+            return false;
+
+        switch (command.ToLowerInvariant())
+        {
+            case "list":
+                foreach (var workspace in await workspaces.ListAsync())
+                    AnsiConsole.MarkupLine($"{(workspace.Id == workspaces.Active.Id ? "[green]*[/]" : " ")} {Markup.Escape(workspace.Name)} ({Markup.Escape(workspace.Id)})");
+                return true;
+            case "new":
+                var name = GetOption(args, "--name")
+                    ?? throw new ArgumentException("The new command requires --name.");
+                var created = await workspaces.CreateAsync(name);
+                await workspaces.SwitchAsync(created.Id);
+                AnsiConsole.MarkupLine($"[green]Created and switched to workspace {Markup.Escape(created.Name)}[/]");
+                return true;
+            case "switch":
+                var switchName = args.Length > 1 && !args[1].StartsWith("-", StringComparison.Ordinal) ? args[1] : null;
+                if (string.IsNullOrWhiteSpace(switchName))
+                    throw new ArgumentException("The switch command requires a workspace name or id.");
+                var selected = await workspaces.SwitchAsync(switchName);
+                AnsiConsole.MarkupLine($"[green]Switched to workspace {Markup.Escape(selected.Name)}[/]");
+                return true;
+            case "delete":
+                var deleteName = args.Length > 1 && !args[1].StartsWith("-", StringComparison.Ordinal) ? args[1] : null;
+                if (string.IsNullOrWhiteSpace(deleteName))
+                    throw new ArgumentException("The delete command requires a workspace name or id.");
+                if (!AnsiConsole.Confirm($"Delete workspace '{Markup.Escape(deleteName)}' and all its conversations?", false))
+                    return true;
+                await workspaces.DeleteAsync(deleteName);
+                AnsiConsole.MarkupLine($"[green]Deleted workspace {Markup.Escape(deleteName)}[/]");
+                return true;
+            default:
+                return false;
+        }
     }
 
     private static string? GetOption(string[] args, string option)

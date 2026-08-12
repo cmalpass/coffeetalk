@@ -6,6 +6,7 @@ namespace CoffeeTalk.Gui.Services;
 
 public interface IConversationSessionService
 {
+    bool IsRunning { get; }
     void Start(string topic, IReadOnlyCollection<PersonaConfig> personas);
     void Cancel();
     Task LoadConversationAsync(ConversationRecord record);

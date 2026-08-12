@@ -15,7 +15,10 @@ class Program
         var appBuilder = PhotinoBlazorAppBuilder.CreateDefault(args);
 
         appBuilder.Services.AddLogging();
-        appBuilder.Services.AddSingleton<IApplicationDataPathResolver, ApplicationDataPathResolver>();
+        appBuilder.Services.AddSingleton<ApplicationDataPathResolver>();
+        appBuilder.Services.AddSingleton<IApplicationDataPathResolver>(sp => sp.GetRequiredService<ApplicationDataPathResolver>());
+        appBuilder.Services.AddSingleton<IWorkspacePathResolver>(sp => sp.GetRequiredService<ApplicationDataPathResolver>());
+        appBuilder.Services.AddSingleton<WorkspaceService>();
         appBuilder.Services.AddSingleton<IPdfDocumentExporter, PdfDocumentExporter>();
         appBuilder.Services.AddSingleton<ConfigurationService>();
         appBuilder.Services.AddSingleton<AppState>();
