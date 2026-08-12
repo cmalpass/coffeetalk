@@ -1,6 +1,7 @@
 @using CoffeeTalk.Gui.Services
 @using MudBlazor
 @using Microsoft.JSInterop
+@using Markdig
 @namespace CoffeeTalk.Gui.Components
 @implements IDisposable
 @inject BlazorUserInterface UI
@@ -89,7 +90,7 @@
                                 <MudText Typo="Typo.caption" Color="Color.Secondary">@FormatTimestamp(msg.Timestamp)</MudText>
                             </div>
                             <MudPaper Class="message-bubble pa-3 rounded-lg" Style="@($"border-left: 4px solid {accent};")">
-                                <MudText Typo="Typo.body1" Style="white-space: pre-wrap;">@msg.Content</MudText>
+                                <div class="message-content" style="white-space: pre-wrap;">@((MarkupString)RenderMarkdown(msg.Content))</div>
                             </MudPaper>
                         </div>
                     }
@@ -207,4 +208,16 @@
         _ when sender.Contains("qa", StringComparison.OrdinalIgnoreCase) => Color.Secondary,
         _ => Color.Default
     };
+
+    private static readonly MarkdownPipeline _markdownPipeline = new MarkdownPipelineBuilder()
+        .UsePipeTables()
+        .UseGridTables()
+        .Build();
+
+    private static string RenderMarkdown(string? markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+            return "";
+        return Markdig.Markdown.ToHtml(markdown.Trim(), _markdownPipeline);
+    }
 }
