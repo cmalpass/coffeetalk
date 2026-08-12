@@ -19,6 +19,27 @@ public class AgentPersona
 
     public string Name => _config.Name;
     public string SystemPrompt => _config.SystemPrompt;
+    public IReadOnlyList<string> EffectiveToolNames { get; }
+
+    public AgentPersona(
+        AIAgent agent,
+        PersonaConfig config,
+        CollaborativeMarkdownDocument doc,
+        RateLimiter? rateLimiter,
+        int maxTurns,
+        int agentCount,
+        IRetryService retryService,
+        IReadOnlyCollection<string>? effectiveToolNames = null)
+    {
+        _agent = agent;
+        _config = config;
+        _doc = doc;
+        _rateLimiter = rateLimiter;
+        _maxTurns = maxTurns;
+        _agentCount = agentCount;
+        _retryService = retryService;
+        EffectiveToolNames = effectiveToolNames?.ToList() ?? [];
+    }
 
     public AgentPersona(
         AIAgent agent,
@@ -28,14 +49,8 @@ public class AgentPersona
         int maxTurns,
         int agentCount,
         IRetryService retryService)
+        : this(agent, config, doc, rateLimiter, maxTurns, agentCount, retryService, null)
     {
-        _agent = agent;
-        _config = config;
-        _doc = doc;
-        _rateLimiter = rateLimiter;
-        _maxTurns = maxTurns;
-        _agentCount = agentCount;
-        _retryService = retryService;
     }
 
     public AgentPersona(

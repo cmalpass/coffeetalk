@@ -56,6 +56,49 @@ public sealed class ConversationPipelineBuilderTests
         Assert.Equal(cli.ToolsConfig.RequireToolsVerification, gui.ToolsConfig.RequireToolsVerification);
     }
 
+    [Fact]
+    public async Task BuildAsync_FiltersPersonaToolsByAllowedTools()
+    {
+        var factory = new RecordingAgentFactory();
+        var settings = CreateSettings();
+        settings.Personas[0].AllowedTools = ["AddHeading", "InsertAfterHeading"];
+
+        var pipeline = await CreateBuilder(factory).BuildAsync(settings, "topic");
+
+        var tools = factory.Created.Single(agent => agent.Name == "Analyst").Tools!;
+        Assert.Equal(
+            new[] { "AddHeading", "InsertAfterHeading" },
+            tools.Select(tool => tool.Name));
+        Assert.Equal(
+            new[] { "AddHeading", "InsertAfterHeading" },
+            pipeline.Personas.Single(persona => persona.Name == "Analyst").EffectiveToolNames);
+    }
+
+    [Fact]
+    public async Task BuildAsync_RejectsUnknownPersonaTool()
+    {
+        var settings = CreateSettings();
+        settings.Personas[0].AllowedTools = ["NotARealTool"];
+
+        var exception = await Assert.ThrowsAsync<ArgumentException>(
+            () => CreateBuilder(new RecordingAgentFactory()).BuildAsync(settings, "topic"));
+
+        Assert.Contains("NotARealTool", exception.Message);
+    }
+
+    [Fact]
+    public async Task BuildAsync_DoesNotExposeFallbackDispatcherToRestrictedPersona()
+    {
+        var factory = new RecordingAgentFactory();
+        var settings = CreateSettings();
+        settings.Personas[0].AllowedTools = ["SetTitle"];
+
+        await CreateBuilder(factory).BuildAsync(settings, "topic");
+
+        var tools = factory.Created.Single(agent => agent.Name == "Analyst").Tools!;
+        Assert.DoesNotContain(tools, tool => tool.Name == "ExecuteJsonTool");
+    }
+
     private static ConversationPipelineBuilder CreateBuilder(RecordingAgentFactory factory)
         => new(
             new ApplicationDataPathResolver(Path.Combine(Path.GetTempPath(), "coffeetalk-tests", Guid.NewGuid().ToString("N"))),

@@ -55,7 +55,12 @@ public partial class AgentOrchestrator
             
             // Extract key characteristics from system prompt
             var description = ExtractPersonaDescription(persona.SystemPrompt);
-            sb.AppendLine(description);
+            sb.Append(description);
+            sb.Append(" (Capabilities: ");
+            sb.Append(persona.EffectiveToolNames.Count == 0
+                ? "no document tools"
+                : string.Join(", ", persona.EffectiveToolNames));
+            sb.AppendLine(")");
         }
         sb.AppendLine();
 
@@ -209,7 +214,7 @@ Reason: Document complete, all personas contributed, clear consensus reached");
         sb.AppendLine("Available personas:");
         foreach (var persona in _availablePersonas)
         {
-            sb.AppendLine($"- {persona.Name}");
+            sb.AppendLine($"- {persona.Name} (Capabilities: {(persona.EffectiveToolNames.Count == 0 ? "no document tools" : string.Join(", ", persona.EffectiveToolNames))})");
         }
         sb.AppendLine();
 
