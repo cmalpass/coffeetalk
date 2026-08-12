@@ -118,7 +118,7 @@ public class AgentConversationOrchestrator
                     if (selectedPersona != null)
                     {
                         await _ui.SetStatusAsync($"{Escape(selectedPersona.Name)} is thinking...");
-                        response = await selectedPersona.RespondAsync(currentMessage, conversationHistory, cancellationToken);
+                        response = await StreamResponseAsync(selectedPersona, currentMessage, conversationHistory, cancellationToken);
                     }
                 });
 
@@ -129,7 +129,6 @@ public class AgentConversationOrchestrator
                 }
 
                 await _ui.ShowAgentResponseAsync(selectedPersona.Name, response);
-                
                 conversationHistory.Add($"{selectedPersona.Name}: {response}");
                 currentMessage = response;
                 totalTurns++;
@@ -236,16 +235,15 @@ public class AgentConversationOrchestrator
                     {
                         await _ui.RunWithStatusAsync($"{Escape(persona.Name)} is thinking...", async () =>
                         {
-                            response = await persona.RespondAsync(currentMessage, conversationHistory, cancellationToken);
+                            response = await StreamResponseAsync(persona, currentMessage, conversationHistory, cancellationToken);
                         });
                     }
                     else
                     {
-                        response = await persona.RespondAsync(currentMessage, conversationHistory, cancellationToken);
+                        response = await StreamResponseAsync(persona, currentMessage, conversationHistory, cancellationToken);
                     }
 
                     await _ui.ShowAgentResponseAsync(persona.Name, response);
-                    
                     conversationHistory.Add($"{persona.Name}: {response}");
                     currentMessage = response;
                     totalTurns++;
@@ -351,6 +349,35 @@ public class AgentConversationOrchestrator
         }
 
         await TryAutoSaveAsync(cancellationToken);
+    }
+
+    private async Task<string> StreamResponseAsync(
+        AgentPersona persona,
+        string currentMessage,
+        List<string> conversationHistory,
+        CancellationToken cancellationToken)
+    {
+        var response = new StringBuilder();
+        try
+        {
+            await foreach (var chunk in persona.RespondStreamingAsync(
+                currentMessage,
+                conversationHistory,
+                cancellationToken))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                response.Append(chunk);
+                await _ui.ShowAgentResponseChunkAsync(persona.Name, chunk);
+            }
+        }
+        catch
+        {
+            if (response.Length > 0)
+                await _ui.ShowAgentResponseAsync(persona.Name, response.ToString());
+            throw;
+        }
+
+        return response.ToString();
     }
 
     private async Task RunEditorIntervention(List<string> conversationHistory, CancellationToken cancellationToken)

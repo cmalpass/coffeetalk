@@ -65,7 +65,10 @@ public class ConfigurationService
                 Type = settings.LlmProvider.Type,
                 Endpoint = settings.LlmProvider.Endpoint,
                 ModelId = settings.LlmProvider.ModelId,
-                DeploymentName = settings.LlmProvider.DeploymentName ?? string.Empty
+                DeploymentName = settings.LlmProvider.DeploymentName ?? string.Empty,
+                StreamingEnabled = settings.LlmProvider.StreamingEnabled,
+                StreamingSupported = settings.LlmProvider.StreamingSupported,
+                StreamingFallback = settings.LlmProvider.StreamingFallback
                 // ApiKey is intentionally omitted
             },
             Personas = settings.Personas,

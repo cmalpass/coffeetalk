@@ -287,7 +287,8 @@ public sealed class ConversationPipelineBuilder
             settings.MaxConversationTurns,
             totalPersonaCount ?? agentCount,
             retryService,
-            personaTools.Select(tool => tool.Name).ToList());
+            personaTools.Select(tool => tool.Name).ToList(),
+            settings.LlmProvider);
     }
 
     private static void ValidateAllowedTools(IEnumerable<PersonaConfig> configs, AIFunction[] tools)

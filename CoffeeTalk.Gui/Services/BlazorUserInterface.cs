@@ -11,6 +11,7 @@ namespace CoffeeTalk.Gui.Services
 
         // Chat History
         private readonly object _messagesLock = new();
+        private ChatMessage? _streamingMessage;
         public List<ChatMessage> Messages { get; } = new();
         public IReadOnlyList<ChatMessage> GetMessagesSnapshot()
         {
@@ -66,7 +67,37 @@ namespace CoffeeTalk.Gui.Services
         {
             CurrentThinkingPersona = null;
             lock (_messagesLock)
-                Messages.Add(new ChatMessage { Sender = agentName, Content = response });
+            {
+                if (_streamingMessage is not null && _streamingMessage.Sender == agentName)
+                {
+                    _streamingMessage.Content = response;
+                    _streamingMessage = null;
+                }
+                else
+                {
+                    Messages.Add(new ChatMessage { Sender = agentName, Content = response });
+                }
+            }
+            NotifyStateChanged();
+            return Task.CompletedTask;
+        }
+
+        public Task ShowAgentResponseChunkAsync(string agentName, string chunk)
+        {
+            CurrentThinkingPersona = null;
+            lock (_messagesLock)
+            {
+                _streamingMessage ??= new ChatMessage { Sender = agentName };
+                if (_streamingMessage.Sender != agentName)
+                {
+                    _streamingMessage = new ChatMessage { Sender = agentName };
+                    Messages.Add(_streamingMessage);
+                }
+
+                if (!Messages.Contains(_streamingMessage))
+                    Messages.Add(_streamingMessage);
+                _streamingMessage.Content += chunk;
+            }
             NotifyStateChanged();
             return Task.CompletedTask;
         }
@@ -186,7 +217,10 @@ namespace CoffeeTalk.Gui.Services
         {
             CancelIntervention();
             lock (_messagesLock)
+            {
                 Messages.Clear();
+                _streamingMessage = null;
+            }
             StopRequested = false;
             ConversationTopic = null;
             ConversationParticipants = Array.Empty<string>();
@@ -206,6 +240,7 @@ namespace CoffeeTalk.Gui.Services
             lock (_messagesLock)
             {
                 Messages.Clear();
+                _streamingMessage = null;
                 Messages.AddRange(record.Messages.Select(message => new ChatMessage
                 {
                     Sender = message.Sender,

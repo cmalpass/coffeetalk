@@ -14,6 +14,7 @@ namespace CoffeeTalk.Services
         public DateTimeOffset? ConversationStartedAt { get; private set; }
         public string DocumentContent { get; private set; } = string.Empty;
         public List<ConsoleMessage> Messages { get; } = new();
+        private int? _streamingMessageIndex;
 
         public Task ShowMessageAsync(string message)
         {
@@ -31,12 +32,36 @@ namespace CoffeeTalk.Services
 
         public Task ShowAgentResponseAsync(string agentName, string response)
         {
+            if (_streamingMessageIndex is int index)
+            {
+                Messages[index] = Messages[index] with { Content = response };
+                AnsiConsole.WriteLine();
+                _streamingMessageIndex = null;
+                return Task.CompletedTask;
+            }
+
             Messages.Add(new ConsoleMessage(agentName, response, false, false, false));
             var panel = new Panel(new Text(response))
                 .Header($"[bold]{Markup.Escape(agentName)}[/]")
                 .Border(BoxBorder.Rounded);
 
             AnsiConsole.Write(panel);
+            return Task.CompletedTask;
+        }
+
+        public Task ShowAgentResponseChunkAsync(string agentName, string chunk)
+        {
+            if (_streamingMessageIndex is not int index)
+            {
+                Messages.Add(new ConsoleMessage(agentName, string.Empty, false, false, false));
+                AnsiConsole.Markup($"[bold]{Markup.Escape(agentName)}[/] ");
+                index = Messages.Count - 1;
+                _streamingMessageIndex = index;
+            }
+
+            var message = Messages[index];
+            Messages[index] = message with { Content = message.Content + chunk };
+            AnsiConsole.Write(new Text(chunk));
             return Task.CompletedTask;
         }
 
