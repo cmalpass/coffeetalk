@@ -7,11 +7,12 @@ namespace CoffeeTalk.Services;
 public class ConfigurationService
 {
     private const string SettingsFile = "appsettings.json";
+    private static readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
 
     public AppSettings LoadConfiguration()
     {
         var configuration = new ConfigurationBuilder()
-            .SetBasePath(Directory.GetCurrentDirectory())
+            .SetBasePath(AppContext.BaseDirectory)
             .AddJsonFile(SettingsFile, optional: true, reloadOnChange: false)
             .Build();
 
@@ -28,7 +29,7 @@ public class ConfigurationService
     public async Task SaveSettingsAsync(AppSettings settings)
     {
         var persistedSettings = MapToPersistedAppSettings(settings);
-        var json = JsonSerializer.Serialize(persistedSettings, new JsonSerializerOptions { WriteIndented = true });
+        var json = JsonSerializer.Serialize(persistedSettings, _jsonOptions);
 
         await File.WriteAllTextAsync(SettingsFile, json);
     }

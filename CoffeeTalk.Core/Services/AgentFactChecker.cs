@@ -31,7 +31,7 @@ Output Format:
 - If issues found: Return 'FLAG: <Description of the error and correction>'";
     }
 
-    public async Task CheckAsync(string recentMessage)
+    public async Task CheckAsync(string recentMessage, CancellationToken cancellationToken = default)
     {
         // Don't check empty messages or short acknowledgments
         if (recentMessage.Length < 20) return;
@@ -47,7 +47,8 @@ Output Format:
 
             var response = await RetryHandler.ExecuteWithRetryAsync(
                 async () => await _agent.RunAsync(prompt),
-                "Fact Check");
+                "Fact Check",
+                cancellationToken);
 
             var result = response.ToString().Trim();
 

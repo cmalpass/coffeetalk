@@ -34,7 +34,7 @@ public class AgentPersona
         _agentCount = agentCount;
     }
 
-    public async Task<string> RespondAsync(string currentMessage, List<string> conversationHistory)
+    public async Task<string> RespondAsync(string currentMessage, List<string> conversationHistory, CancellationToken cancellationToken = default)
     {
         // Build context from recent conversation history (last 3 messages to reduce tokens)
         var recentHistory = conversationHistory.TakeLast(3).ToList();
@@ -73,7 +73,8 @@ public class AgentPersona
         {
             var response = await RetryHandler.ExecuteWithRetryAsync(
                 async () => await _agent.RunAsync(contextMessage),
-                $"{Name} response");
+                $"{Name} response",
+                cancellationToken);
             responseText = response.ToString();
         }
         catch (OperationCanceledException)

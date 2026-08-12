@@ -53,7 +53,7 @@ Editing priorities:
         return basePrompt + guidelines;
     }
 
-    public async Task<string> ReviewAndEditAsync(string conversationContext)
+    public async Task<string> ReviewAndEditAsync(string conversationContext, CancellationToken cancellationToken = default)
     {
         // Get current document content
         var currentContent = _doc.GetContent();
@@ -93,7 +93,8 @@ Prefer replacing existing sections over appending new content. Use ReplaceSectio
         // Execute with retry logic
         var response = await RetryHandler.ExecuteWithRetryAsync(
             async () => await _agent.RunAsync(prompt),
-            "Editor review");
+            "Editor review",
+            cancellationToken);
         var responseText = response.ToString();
 
         // Account response tokens
