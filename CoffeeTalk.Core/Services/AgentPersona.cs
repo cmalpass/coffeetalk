@@ -76,21 +76,21 @@ public class AgentPersona
                 $"{Name} response");
             responseText = response.ToString();
         }
-        catch (OperationCanceledException ex)
+        catch (OperationCanceledException)
         {
-            responseText = $"Error: Operation was canceled: {ex.Message}";
+            responseText = $"Error: Operation was canceled.";
         }
-        catch (TimeoutException ex)
+        catch (TimeoutException)
         {
-            responseText = $"Error: Operation timed out: {ex.Message}";
+            responseText = $"Error: Operation timed out.";
         }
-        catch (HttpRequestException ex)
+        catch (HttpRequestException)
         {
-            responseText = $"Error: Network error: {ex.Message}";
+            responseText = $"Error: Network error occurred.";
         }
         catch (Exception ex) when (ex is not OutOfMemoryException && ex is not StackOverflowException)
         {
-            responseText = $"Unexpected error: {ex.Message}";
+            responseText = $"Error: An unexpected error occurred.";
         }
 
         // Account response tokens approximately

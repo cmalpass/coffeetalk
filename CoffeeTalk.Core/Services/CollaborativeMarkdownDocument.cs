@@ -63,6 +63,7 @@ public class CollaborativeMarkdownDocument
 
     public void AddHeading(string text, int level = 2)
     {
+        ArgumentNullException.ThrowIfNull(text);
         if (level < 1) level = 1;
         if (level > 6) level = 6;
         lock (_lock)
@@ -74,6 +75,7 @@ public class CollaborativeMarkdownDocument
 
     public void AppendParagraph(string text)
     {
+        ArgumentNullException.ThrowIfNull(text);
         lock (_lock)
         {
             _content.AppendLine(text.Trim());
@@ -83,6 +85,8 @@ public class CollaborativeMarkdownDocument
 
     public void InsertAfterHeading(string headingText, string content)
     {
+        ArgumentNullException.ThrowIfNull(headingText);
+        ArgumentNullException.ThrowIfNull(content);
         lock (_lock)
         {
             var doc = _content.ToString();
@@ -253,13 +257,14 @@ public class CollaborativeMarkdownDocument
             contentToWrite = _content.ToString();
         }
 
-        var fullPath = Path.GetFullPath(string.IsNullOrWhiteSpace(path) ? "conversation.md" : path);
-        // Ensure directory exists
-        var dir = Path.GetDirectoryName(fullPath);
-        if (!string.IsNullOrEmpty(dir))
-        {
-            Directory.CreateDirectory(dir);
-        }
+        var safeFileName = string.IsNullOrWhiteSpace(path) ? "conversation.md" : Path.GetFileName(path);
+        var safeBase = Path.GetFullPath(Directory.GetCurrentDirectory());
+        var fullPath = Path.GetFullPath(Path.Combine(safeBase, safeFileName));
+
+        // Ensure the resolved path stays within the working directory
+        if (!fullPath.StartsWith(safeBase + Path.DirectorySeparatorChar, StringComparison.Ordinal) && fullPath != safeBase)
+            throw new UnauthorizedAccessException("Path escapes the working directory.");
+
         await File.WriteAllTextAsync(fullPath, contentToWrite);
         return fullPath;
     }

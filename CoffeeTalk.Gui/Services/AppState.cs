@@ -29,5 +29,5 @@ public class AppState
         NotifyStateChanged();
     }
 
-    private void NotifyStateChanged() => OnChange?.Invoke();
+    public void NotifyStateChanged() => OnChange?.Invoke();
 }

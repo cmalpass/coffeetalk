@@ -56,9 +56,9 @@ Output Format:
                 OnFactCheckAlert?.Invoke(result);
             }
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Fail silently to not disrupt flow
+            System.Diagnostics.Trace.WriteLine($"[AgentFactChecker] Fact check failed: {ex.Message}", "Warning");
         }
     }
 }
