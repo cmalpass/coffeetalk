@@ -61,6 +61,7 @@ Output Format:
                 cancellationToken);
 
             var result = response.ToString().Trim();
+            _rateLimiter?.AccountAdditionalTokens(_rateLimiter.EstimateTokens(result));
 
             if (!result.StartsWith("PASS", StringComparison.OrdinalIgnoreCase))
             {
