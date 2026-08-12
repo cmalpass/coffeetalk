@@ -109,4 +109,16 @@ public class BlazorUserInterfaceTests
         Assert.Equal("saved", ui.Messages[0].Content);
         await Task.CompletedTask;
     }
+
+    [Fact]
+    public async Task EndConversation_CancelsPendingIntervention()
+    {
+        var ui = new BlazorUserInterface();
+        var intervention = ui.GetUserInterventionAsync();
+
+        ui.EndConversation();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => intervention);
+        Assert.False(ui.IsConversationRunning);
+    }
 }

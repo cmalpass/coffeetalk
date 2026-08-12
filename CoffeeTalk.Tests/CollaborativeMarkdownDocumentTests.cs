@@ -6,6 +6,38 @@ namespace CoffeeTalk.Tests;
 
 public class CollaborativeMarkdownDocumentTests
 {
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void InsertAfterHeading_InvalidContentDoesNotMutateDocument(string? content)
+    {
+        var document = new CollaborativeMarkdownDocument();
+        document.AddHeading("Position");
+        document.AppendParagraph("Keep this content.");
+        var before = document.Snapshot();
+
+        document.InsertAfterHeading("Position", content);
+
+        Assert.Equal(before, document.Snapshot());
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void ReplaceSection_InvalidContentDoesNotMutateDocument(string? content)
+    {
+        var document = new CollaborativeMarkdownDocument();
+        document.AddHeading("Position");
+        document.AppendParagraph("Keep this content.");
+        var before = document.Snapshot();
+
+        document.ReplaceSection("Position", content);
+
+        Assert.Equal(before, document.Snapshot());
+    }
+
     [Fact]
     public void SetTitle_ShouldAddTitle_WhenDocumentIsEmpty()
     {

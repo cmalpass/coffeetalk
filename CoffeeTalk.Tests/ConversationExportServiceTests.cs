@@ -74,6 +74,29 @@ public sealed class ConversationExportServiceTests
     }
 
     [Fact]
+    public void GenerateMarkdown_PreservesSpeakerOrderingForSystemAndDividerMessages()
+    {
+        var markdown = ConversationExportService.GenerateMarkdown(
+            "Topic",
+            null,
+            new[] { "A", "B" },
+            new[]
+            {
+                new ChatMessage { Sender = "System", Content = "started", IsSystem = true },
+                new ChatMessage { Sender = "A", Content = "first" },
+                new ChatMessage { Sender = "System", Content = "round", IsDivider = true },
+                new ChatMessage { Sender = "B", Content = "second" }
+            });
+
+        Assert.True(markdown.IndexOf("started", StringComparison.Ordinal) < markdown.IndexOf("first", StringComparison.Ordinal));
+        Assert.True(markdown.IndexOf("---", StringComparison.Ordinal) > markdown.IndexOf("first", StringComparison.Ordinal));
+        Assert.True(markdown.IndexOf("---", StringComparison.Ordinal) < markdown.IndexOf("second", StringComparison.Ordinal));
+        Assert.True(markdown.IndexOf("first", StringComparison.Ordinal) < markdown.IndexOf("second", StringComparison.Ordinal));
+        Assert.Contains("**System**", markdown);
+        Assert.Contains("---", markdown);
+    }
+
+    [Fact]
     public void GenerateJson_ProducesValidJsonWithAllMessages()
     {
         var messages = new[]
