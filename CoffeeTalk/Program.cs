@@ -19,6 +19,13 @@ class Program
             if (await HandleWorkspaceCommandAsync(args, workspaces))
                 return;
 
+            if (args.FirstOrDefault()?.Equals("memory", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                var memorySettings = new ConfigurationService(dataPaths).LoadConfiguration().Memory;
+                if (await HandleMemoryCommandAsync(args, dataPaths, memorySettings))
+                    return;
+            }
+
             var persistence = new ConversationPersistenceService(dataPaths);
             await MigrateLegacyHistoryAsync(dataPaths, persistence);
             if (await HandleAnalyticsCommandAsync(args, persistence))
@@ -179,6 +186,183 @@ class Program
         }
 
         return false;
+    }
+
+    private static async Task<bool> HandleMemoryCommandAsync(
+        string[] args,
+        IApplicationDataPathResolver dataPaths,
+        MemoryConfig config)
+    {
+        var action = args.Length > 1 ? args[1].ToLowerInvariant() : "help";
+
+        try
+        {
+            using var memoryStore = new LocalMemoryStore(dataPaths, config);
+            IMemoryStore memory = memoryStore;
+            switch (action)
+            {
+                case "list":
+                    var entries = await memory.ListAsync();
+                    foreach (var entry in entries)
+                        PrintMemory(entry);
+                    if (entries.Count == 0)
+                        AnsiConsole.MarkupLine("[yellow]No memories found in the active workspace.[/]");
+                    return true;
+
+                case "search":
+                    var query = GetOption(args, "--query")
+                        ?? GetPositionalArgument(args, 2)
+                        ?? throw new ArgumentException("The memory search command requires a query.");
+                    var limit = ParsePositiveInt(GetOption(args, "--limit"), "--limit");
+                    var matches = await memory.SearchAsync(
+                        query,
+                        new MemorySearchOptions { Limit = limit });
+                    foreach (var entry in matches)
+                        PrintMemory(entry);
+                    if (matches.Count == 0)
+                        AnsiConsole.MarkupLine("[yellow]No matching memories found.[/]");
+                    return true;
+
+                case "show":
+                    var showId = GetPositionalArgument(args, 2)
+                        ?? throw new ArgumentException("The memory show command requires an id.");
+                    var shown = await memory.GetAsync(showId);
+                    if (shown is null)
+                    {
+                        AnsiConsole.MarkupLine($"[yellow]Memory '{Markup.Escape(showId)}' was not found.[/]");
+                        return true;
+                    }
+                    PrintMemory(shown, includeContent: true);
+                    return true;
+
+                case "add":
+                    var content = GetOption(args, "--text")
+                        ?? GetPositionalArgument(args, 2)
+                        ?? throw new ArgumentException("The memory add command requires --text <content>.");
+                    var added = await memory.AddAsync(new MemoryDto
+                    {
+                        Content = content,
+                        Source = GetOption(args, "--source")
+                    });
+                    AnsiConsole.MarkupLine($"[green]Added memory {Markup.Escape(added.Id)}[/]");
+                    return true;
+
+                case "edit":
+                    var editId = GetPositionalArgument(args, 2)
+                        ?? throw new ArgumentException("The memory edit command requires an id.");
+                    var replacement = GetOption(args, "--text")
+                        ?? throw new ArgumentException("The memory edit command requires --text <content>.");
+                    var existing = await memory.GetAsync(editId)
+                        ?? throw new KeyNotFoundException($"Memory '{editId}' was not found.");
+                    existing.Content = replacement;
+                    if (GetOption(args, "--source") is { } source)
+                        existing.Source = source;
+                    var edited = await memory.UpsertAsync(existing);
+                    AnsiConsole.MarkupLine($"[green]Updated memory {Markup.Escape(edited.Id)}[/]");
+                    return true;
+
+                case "delete":
+                    var deleteId = GetPositionalArgument(args, 2)
+                        ?? throw new ArgumentException("The memory delete command requires an id.");
+                    if (await memory.GetAsync(deleteId) is null)
+                    {
+                        AnsiConsole.MarkupLine($"[yellow]Memory '{Markup.Escape(deleteId)}' was not found.[/]");
+                        return true;
+                    }
+                    if (!AnsiConsole.Confirm(
+                        $"Delete memory '{Markup.Escape(deleteId)}'? This cannot be undone.", false))
+                        return true;
+                    await memory.DeleteAsync(deleteId);
+                    AnsiConsole.MarkupLine($"[green]Deleted memory {Markup.Escape(deleteId)}[/]");
+                    return true;
+
+                case "purge":
+                    if (!AnsiConsole.Confirm(
+                        "Purge all expired memories in the active workspace? This cannot be undone.", false))
+                        return true;
+                    var purged = await memory.PurgeExpiredAsync();
+                    AnsiConsole.MarkupLine($"[green]Purged {purged} expired memor{(purged == 1 ? "y" : "ies")}.[/]");
+                    return true;
+
+                case "help":
+                    PrintMemoryHelp();
+                    return true;
+
+                default:
+                    throw new ArgumentException($"Unknown memory command '{action}'. Use 'memory help'.");
+            }
+        }
+        catch (MemoryDisabledException)
+        {
+            AnsiConsole.MarkupLine("[yellow]Workspace memory is disabled. Set Memory.Enabled to true in the active workspace's appsettings.json.[/]");
+            return true;
+        }
+        catch (MemoryStoreCorruptException ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Memory store is corrupt or uses an unsupported version: {Markup.Escape(ex.Message)}[/]");
+            return true;
+        }
+        catch (MemoryStoreLimitException ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Memory limit exceeded: {Markup.Escape(ex.Message)}[/]");
+            return true;
+        }
+        catch (KeyNotFoundException ex)
+        {
+            AnsiConsole.MarkupLine($"[red]{Markup.Escape(ex.Message)}[/]");
+            return true;
+        }
+        catch (ArgumentException ex)
+        {
+            AnsiConsole.MarkupLine($"[red]{Markup.Escape(ex.Message)}[/]");
+            return true;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Memory path or identifier is not allowed: {Markup.Escape(ex.Message)}[/]");
+            return true;
+        }
+        catch (IOException ex)
+        {
+            AnsiConsole.MarkupLine($"[red]Unable to read or write the workspace memory store: {Markup.Escape(ex.Message)}[/]");
+            return true;
+        }
+    }
+
+    private static void PrintMemory(MemoryDto entry, bool includeContent = false)
+    {
+        AnsiConsole.MarkupLine(
+            $"{Markup.Escape(entry.Id)}  {entry.CreatedAt:O}  {Markup.Escape(entry.Source ?? "manual")}");
+        if (includeContent)
+            AnsiConsole.MarkupLine(Markup.Escape(entry.Content));
+        else
+            AnsiConsole.MarkupLine($"  {Markup.Escape(entry.Content.ReplaceLineEndings(" "))}");
+    }
+
+    private static void PrintMemoryHelp()
+    {
+        AnsiConsole.MarkupLine("[bold]Workspace-local memory commands:[/]");
+        AnsiConsole.MarkupLine("  memory list");
+        AnsiConsole.MarkupLine($"  {Markup.Escape("memory search <query> [--limit <n>]")}");
+        AnsiConsole.MarkupLine("  memory show <id>");
+        AnsiConsole.MarkupLine($"  {Markup.Escape("memory add --text <content> [--source <source>]")}");
+        AnsiConsole.MarkupLine($"  {Markup.Escape("memory edit <id> --text <content> [--source <source>]")}");
+        AnsiConsole.MarkupLine("  memory delete <id>");
+        AnsiConsole.MarkupLine("  memory purge");
+    }
+
+    private static string? GetPositionalArgument(string[] args, int index) =>
+        index < args.Length && !args[index].StartsWith("-", StringComparison.Ordinal)
+            ? args[index]
+            : null;
+
+    private static int? ParsePositiveInt(string? value, string option)
+    {
+        if (value is null)
+            return null;
+        if (!int.TryParse(value, out var parsed) || parsed <= 0)
+            throw new ArgumentException($"{option} must be a positive integer.");
+        return parsed;
     }
 
     private static async Task<bool> HandleAnalyticsCommandAsync(

@@ -12,6 +12,7 @@
 @inject IJSRuntime JSRuntime
 @inject IApplicationDataPathResolver DataPaths
 @inject IPdfDocumentExporter PdfExporter
+@inject IMemoryStoreService Memories
 
 @if (UI.IsConversationRunning || !string.IsNullOrEmpty(UI.ConversationTopic))
 {
@@ -39,6 +40,10 @@
             <div class="d-flex gap-2">
                 <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download"
                            OnClick="ShowExportDialog">Export</MudButton>
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.BookmarkAdd"
+                           OnClick="SaveAsMemory" Disabled="@string.IsNullOrWhiteSpace(UI.DocumentMarkdown)">
+                    Save memory
+                </MudButton>
                 @if (UI.IsConversationRunning)
                 {
                     <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Stop"
@@ -238,6 +243,22 @@
         catch (UnauthorizedAccessException ex)
         {
             Snackbar.Add($"Failed to save: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task SaveAsMemory()
+    {
+        if (string.IsNullOrWhiteSpace(UI.DocumentMarkdown))
+            return;
+
+        try
+        {
+            await Memories.AddAsync(UI.ConversationTopic ?? "Conversation memory", UI.DocumentMarkdown);
+            Snackbar.Add("Conversation saved as a memory.", Severity.Success);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            Snackbar.Add($"Failed to save memory: {ex.Message}", Severity.Error);
         }
     }
 

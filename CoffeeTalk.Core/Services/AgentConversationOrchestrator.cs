@@ -23,6 +23,9 @@ public class AgentConversationOrchestrator
     private readonly AppSettings _settings;
     private readonly AgentDataExtractor? _dataExtractor;
     private readonly AgentFactChecker? _factChecker;
+    private readonly AgentMemoryExtractor? _memoryExtractor;
+    private readonly IMemoryStore? _memoryStore;
+    private string _currentTopic = string.Empty;
     private readonly IUserInterface _ui;
 
     public AgentConversationOrchestrator(
@@ -33,7 +36,9 @@ public class AgentConversationOrchestrator
         AgentOrchestrator? orchestrator = null,
         AgentEditor? editor = null,
         AgentDataExtractor? dataExtractor = null,
-        AgentFactChecker? factChecker = null)
+        AgentFactChecker? factChecker = null,
+        AgentMemoryExtractor? memoryExtractor = null,
+        IMemoryStore? memoryStore = null)
     {
         _ui = ui;
         _personas = personas;
@@ -49,11 +54,14 @@ public class AgentConversationOrchestrator
         _contextSummarization = settings.ContextSummarization;
         _dataExtractor = dataExtractor;
         _factChecker = factChecker;
+        _memoryExtractor = memoryExtractor;
+        _memoryStore = memoryStore;
     }
 
     public async Task StartConversationAsync(string topic, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        _currentTopic = topic;
         if (_personas.Count == 0)
         {
             await _ui.ShowErrorAsync("[red]No personas configured. Please add personas to appsettings.json[/]");
@@ -71,6 +79,29 @@ public class AgentConversationOrchestrator
 
         var conversationHistory = new List<string>();
         var currentMessage = $"Let's discuss: {topic}";
+        if (_memoryStore is not null)
+        {
+            try
+            {
+                var query = topic.Length > (_settings.Memory?.MaxQueryLength ?? topic.Length)
+                    ? topic[.._settings.Memory!.MaxQueryLength]
+                    : topic;
+                var recalled = await _memoryStore.SearchAsync(
+                    query,
+                    new MemorySearchOptions { Limit = _settings.Memory?.RecallLimit },
+                    cancellationToken);
+                if (recalled.Count > 0)
+                    conversationHistory.Add(MemoryRecallFormatter.Format(recalled));
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException && ex is not StackOverflowException)
+            {
+                await _ui.ShowMessageAsync($"[yellow]Memory recall unavailable: {Escape(ex.Message)}[/]");
+            }
+        }
         
         try
         {
@@ -217,6 +248,7 @@ public class AgentConversationOrchestrator
             await _dataExtractor.ExtractAndSaveAsync(conversationHistory, cancellationToken);
         }
 
+        await TryExtractMemoryAsync(topic, conversationHistory, cancellationToken);
         await TryAutoSaveAsync(cancellationToken);
     }
 
@@ -313,6 +345,7 @@ public class AgentConversationOrchestrator
                             await _dataExtractor.ExtractAndSaveAsync(conversationHistory, cancellationToken);
                         }
 
+                        await TryExtractMemoryAsync(_currentTopic, conversationHistory, cancellationToken);
                         await TryAutoSaveAsync(cancellationToken);
                         return;
                     }
@@ -353,7 +386,42 @@ public class AgentConversationOrchestrator
             await _dataExtractor.ExtractAndSaveAsync(conversationHistory, cancellationToken);
         }
 
+        await TryExtractMemoryAsync(_currentTopic, conversationHistory, cancellationToken);
         await TryAutoSaveAsync(cancellationToken);
+    }
+
+    private async Task TryExtractMemoryAsync(
+        string topic,
+        List<string> conversationHistory,
+        CancellationToken cancellationToken)
+    {
+        if (_memoryExtractor is null || _memoryStore is null || string.IsNullOrWhiteSpace(topic))
+            return;
+
+        try
+        {
+            var content = await _memoryExtractor.ExtractAsync(topic, conversationHistory, cancellationToken);
+            if (string.IsNullOrWhiteSpace(content))
+                return;
+
+            await _memoryStore.AddAsync(new MemoryDto
+            {
+                Content = content,
+                Source = $"conversation:{topic}",
+                Metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+                {
+                    ["source"] = "successful-conversation"
+                }
+            }, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException && ex is not StackOverflowException)
+        {
+            await _ui.ShowMessageAsync($"[yellow]Memory extraction unavailable: {Escape(ex.Message)}[/]");
+        }
     }
 
     private async Task<string> StreamResponseAsync(

@@ -23,6 +23,8 @@ class Program
         appBuilder.Services.AddSingleton<ConfigurationService>();
         appBuilder.Services.AddSingleton<AppState>();
         appBuilder.Services.AddSingleton<ConversationHistoryService>();
+        appBuilder.Services.AddSingleton<MemoryStoreService>();
+        appBuilder.Services.AddSingleton<IMemoryStoreService>(sp => sp.GetRequiredService<MemoryStoreService>());
         appBuilder.Services.AddSingleton<BlazorOperationalEventSink>();
         appBuilder.Services.AddSingleton<IOperationalEventSink>(sp => sp.GetRequiredService<BlazorOperationalEventSink>());
         appBuilder.Services.AddSingleton<ConversationPipelineBuilder>();

@@ -26,6 +26,8 @@ public sealed class ConversationPipeline
         AgentEditor? editor,
         AgentDataExtractor? dataExtractor,
         AgentFactChecker? factChecker,
+        AgentMemoryExtractor? memoryExtractor,
+        IMemoryStore? memoryStore,
         AppSettings settings)
     {
         SharedDocument = sharedDocument;
@@ -35,6 +37,8 @@ public sealed class ConversationPipeline
         Editor = editor;
         DataExtractor = dataExtractor;
         FactChecker = factChecker;
+        MemoryExtractor = memoryExtractor;
+        MemoryStore = memoryStore;
         Settings = settings;
     }
 
@@ -45,6 +49,8 @@ public sealed class ConversationPipeline
     public AgentEditor? Editor { get; }
     public AgentDataExtractor? DataExtractor { get; }
     public AgentFactChecker? FactChecker { get; }
+    public AgentMemoryExtractor? MemoryExtractor { get; }
+    public IMemoryStore? MemoryStore { get; }
     public AppSettings Settings { get; }
 
     public AgentConversationOrchestrator CreateConversation(IUserInterface ui)
@@ -56,7 +62,7 @@ public sealed class ConversationPipeline
                 ui.ShowMessageAsync($"[bold red]Fact Checker Alert:[/] {alert}");
         }
 
-        return new(ui, Personas, SharedDocument, Settings, Orchestrator, Editor, DataExtractor, FactChecker);
+        return new(ui, Personas, SharedDocument, Settings, Orchestrator, Editor, DataExtractor, FactChecker, MemoryExtractor, MemoryStore);
     }
 }
 
@@ -172,6 +178,18 @@ public sealed class ConversationPipelineBuilder
             dataExtractor = new AgentDataExtractor(agent, config, sharedDocument, retryService, _eventSink, _dataPaths, rateLimiter);
         }
 
+        AgentMemoryExtractor? memoryExtractor = null;
+        IMemoryStore? memoryStore = null;
+        if (settings.Memory?.Enabled == true)
+        {
+            memoryStore = new LocalMemoryStore(_dataPaths, settings.Memory);
+            var agent = _agentFactory.Create(
+                settings.LlmProvider,
+                "MemoryExtractor",
+                "You extract one concise durable memory from completed conversations. Return only the requested JSON.");
+            memoryExtractor = new AgentMemoryExtractor(agent, settings.Memory, retryService, rateLimiter);
+        }
+
         return new ConversationPipeline(
             sharedDocument,
             toolsConfig,
@@ -180,6 +198,8 @@ public sealed class ConversationPipelineBuilder
             editor,
             dataExtractor,
             factChecker,
+            memoryExtractor,
+            memoryStore,
             settings);
     }
 

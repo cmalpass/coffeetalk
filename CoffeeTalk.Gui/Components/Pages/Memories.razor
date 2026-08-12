@@ -1,0 +1,318 @@
+@page "/memories"
+@using CoffeeTalk.Gui.Services
+@using MudBlazor
+@inject IMemoryStoreService MemoryStore
+@inject ISnackbar Snackbar
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="mt-4 mb-8">
+    <div class="d-flex align-center flex-wrap gap-2 mb-1">
+        <MudText Typo="Typo.h4">Memories</MudText>
+        @if (_status is not null)
+        {
+            <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
+                @_status.WorkspaceName
+            </MudChip>
+        }
+    </div>
+    <MudText Color="Color.Secondary" Class="mb-4">
+        Keep useful insights available to future conversations in this workspace. Memories stay local and are never sent unless memory is enabled.
+    </MudText>
+
+    <MudGrid>
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-4 mb-4" Outlined="true">
+                <MudText Typo="Typo.subtitle1" GutterBottom="true">Memory use</MudText>
+                <MudSwitch @bind-Value="_settings.Enabled"
+                           Color="Color.Primary"
+                           Label="Use memories in conversations" />
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mb-3">
+                    Opt in to memory recall. You can still browse and delete saved memories while this is off; enable it to add or edit.
+                </MudText>
+                <MudButton Variant="Variant.Outlined"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Save"
+                           OnClick="SaveSettingsAsync"
+                           Disabled="@_busy">
+                    Save preference
+                </MudButton>
+                @if (_status is not null)
+                {
+                    <MudDivider Class="my-4" />
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Status</MudText>
+                    <MudText Typo="Typo.body2">
+                        @_status.MemoryCount @( _status.MemoryCount == 1 ? "memory" : "memories" ) stored
+                    </MudText>
+                    <MudText Typo="Typo.body2" Color="@(_status.Enabled ? Color.Success : Color.Default)">
+                        @(_status.Enabled ? "Recall enabled" : "Recall disabled")
+                    </MudText>
+                }
+            </MudPaper>
+
+            <MudPaper Class="pa-4" Outlined="true">
+                <MudText Typo="Typo.subtitle1" GutterBottom="true">Add a memory</MudText>
+                <MudTextField @bind-Value="_newTitle"
+                              Label="Title"
+                              Placeholder="e.g. Product launch decision"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Class="mb-3" />
+                <MudTextField @bind-Value="_newContent"
+                              Label="What should CoffeeTalk remember?"
+                              Placeholder="Capture a fact, decision, or conclusion..."
+                              Variant="Variant.Outlined"
+                              Lines="5"
+                              FullWidth="true"
+                              Class="mb-3" />
+                <MudButton Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.Add"
+                           OnClick="AddMemoryAsync"
+                           Disabled="@(_busy || !_settings.Enabled || string.IsNullOrWhiteSpace(_newContent))">
+                    Add memory
+                </MudButton>
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="8">
+            <MudPaper Class="pa-4" Outlined="true">
+                <div class="d-flex align-center flex-wrap gap-2">
+                    <MudTextField @bind-Value="_query"
+                                  Label="Search memories"
+                                  Placeholder="Search title or content"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense"
+                                  Adornment="Adornment.Start"
+                                  AdornmentIcon="@Icons.Material.Filled.Search"
+                                  Class="flex-grow-1"
+                                  OnKeyDown="HandleSearchKeyDown" />
+                    <MudButton Variant="Variant.Outlined"
+                               Color="Color.Primary"
+                               OnClick="LoadAsync"
+                               Disabled="@_busy">
+                        Search
+                    </MudButton>
+                    <MudButton Variant="Variant.Text"
+                               Color="Color.Error"
+                               StartIcon="@Icons.Material.Filled.DeleteSweep"
+                               OnClick="BeginPurge"
+                               Disabled="@(_busy || _memories.Count == 0)">
+                        Purge all
+                    </MudButton>
+                </div>
+                @if (_confirmPurge)
+                {
+                    <MudAlert Severity="Severity.Warning" Class="mt-3" Dense="true">
+                        <div class="d-flex align-center justify-space-between gap-2 flex-wrap">
+                            <span>This permanently removes every memory in this workspace.</span>
+                            <div class="d-flex gap-2">
+                                <MudButton Variant="Variant.Text" OnClick="@(() => _confirmPurge = false)">Cancel</MudButton>
+                                <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="PurgeAsync">Purge memories</MudButton>
+                            </div>
+                        </div>
+                    </MudAlert>
+                }
+
+                @if (_loading)
+                {
+                    <div class="d-flex justify-center pa-8">
+                        <MudProgressCircular Indeterminate="true" Color="Color.Primary" />
+                    </div>
+                }
+                else if (!string.IsNullOrWhiteSpace(_error))
+                {
+                    <MudAlert Severity="Severity.Error" Class="mt-4">@_error</MudAlert>
+                }
+                else if (_memories.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-4">
+                        No memories match this search. Add one when a conversation produces a useful fact or decision.
+                    </MudAlert>
+                }
+                else
+                {
+                    <MudTable Items="_memories" Hover="true" Breakpoint="Breakpoint.Sm" Class="mt-3">
+                        <HeaderContent>
+                            <MudTh>Memory</MudTh>
+                            <MudTh>Updated</MudTh>
+                            <MudTh>Actions</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            @if (_editingId == context.Id)
+                            {
+                                <MudTd ColSpan="3">
+                                    <MudTextField @bind-Value="_editingTitle" Label="Title" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2" />
+                                    <MudTextField @bind-Value="_editingContent" Label="Content" Variant="Variant.Outlined" Lines="4" FullWidth="true" Class="mb-2" />
+                                    <div class="d-flex gap-2">
+                                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => SaveEditAsync(context))" Disabled="@(_busy || !_settings.Enabled || string.IsNullOrWhiteSpace(_editingContent))">Save changes</MudButton>
+                                        <MudButton Variant="Variant.Text" OnClick="CancelEdit">Cancel</MudButton>
+                                    </div>
+                                </MudTd>
+                            }
+                            else
+                            {
+                                <MudTd DataLabel="Memory">
+                                    <MudText Typo="Typo.subtitle2">@context.Title</MudText>
+                                    <MudText Typo="Typo.body2" Color="Color.Secondary">@context.Preview</MudText>
+                                </MudTd>
+                                <MudTd DataLabel="Updated">
+                                    <MudText Typo="Typo.caption">@context.UpdatedAt.ToLocalTime().ToString("MMM d, yyyy")</MudText>
+                                </MudTd>
+                                <MudTd DataLabel="Actions">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" Title="Edit memory" OnClick="@(() => BeginEdit(context))" Disabled="@(!_settings.Enabled || _busy)" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" Title="Delete memory" OnClick="@(() => DeleteAsync(context))" />
+                                </MudTd>
+                            }
+                        </RowTemplate>
+                    </MudTable>
+                }
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+</MudContainer>
+
+@code {
+    private IReadOnlyList<MemoryRecord> _memories = Array.Empty<MemoryRecord>();
+    private MemoryStoreStatus? _status;
+    private MemorySettings _settings = new();
+    private string _query = string.Empty;
+    private string _newTitle = string.Empty;
+    private string _newContent = string.Empty;
+    private string? _editingId;
+    private string _editingTitle = string.Empty;
+    private string _editingContent = string.Empty;
+    private string? _error;
+    private bool _loading = true;
+    private bool _busy;
+    private bool _confirmPurge;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _settings = await MemoryStore.GetSettingsAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _memories = await MemoryStore.SearchAsync(_query);
+            _status = await MemoryStore.GetStatusAsync();
+        }
+        catch (MemoryStoreCorruptException ex)
+        {
+            _error = $"Unable to load memories: {ex.Message}. The store must be repaired or removed manually.";
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _error = $"Unable to load memories: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task AddMemoryAsync()
+    {
+        await RunBusyAsync(async () =>
+        {
+            await MemoryStore.AddAsync(_newTitle, _newContent);
+            _newTitle = string.Empty;
+            _newContent = string.Empty;
+            Snackbar.Add("Memory added.", Severity.Success);
+            await LoadAsync();
+        });
+    }
+
+    private void BeginEdit(MemoryRecord memory)
+    {
+        _editingId = memory.Id;
+        _editingTitle = memory.Title;
+        _editingContent = memory.Content;
+    }
+
+    private void CancelEdit()
+    {
+        _editingId = null;
+        _editingTitle = string.Empty;
+        _editingContent = string.Empty;
+    }
+
+    private async Task SaveEditAsync(MemoryRecord memory)
+    {
+        await RunBusyAsync(async () =>
+        {
+            memory.Title = _editingTitle;
+            memory.Content = _editingContent;
+            await MemoryStore.UpdateAsync(memory);
+            CancelEdit();
+            Snackbar.Add("Memory updated.", Severity.Success);
+            await LoadAsync();
+        });
+    }
+
+    private async Task DeleteAsync(MemoryRecord memory)
+    {
+        await RunBusyAsync(async () =>
+        {
+            await MemoryStore.DeleteAsync(memory.Id);
+            Snackbar.Add("Memory deleted.", Severity.Success);
+            await LoadAsync();
+        });
+    }
+
+    private void BeginPurge() => _confirmPurge = true;
+
+    private async Task PurgeAsync()
+    {
+        await RunBusyAsync(async () =>
+        {
+            await MemoryStore.PurgeAsync();
+            _confirmPurge = false;
+            Snackbar.Add("All memories purged.", Severity.Success);
+            await LoadAsync();
+        });
+    }
+
+    private async Task SaveSettingsAsync()
+    {
+        await RunBusyAsync(async () =>
+        {
+            await MemoryStore.SaveSettingsAsync(_settings);
+            Snackbar.Add(_settings.Enabled ? "Memory recall enabled." : "Memory recall disabled.", Severity.Success);
+            await LoadAsync();
+        });
+    }
+
+    private async Task HandleSearchKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key.Equals("Enter", StringComparison.OrdinalIgnoreCase))
+            await LoadAsync();
+    }
+
+    private async Task RunBusyAsync(Func<Task> operation)
+    {
+        if (_busy)
+            return;
+        _busy = true;
+        _error = null;
+        try
+        {
+            await operation();
+        }
+        catch (MemoryStoreCorruptException ex)
+        {
+            _error = $"Memory operation failed: {ex.Message}. The store must be repaired or removed manually.";
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or InvalidOperationException or KeyNotFoundException)
+        {
+            _error = $"Memory operation failed: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

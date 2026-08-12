@@ -23,6 +23,7 @@ public class ConversationComponentTests : TestContext
             new ApplicationDataPathResolver(Path.Combine(Path.GetTempPath(), "coffeetalk-tests", Guid.NewGuid().ToString("N"))));
         context.Services.AddSingleton<MudBlazor.ISnackbar, MudBlazor.SnackbarService>();
         context.Services.AddSingleton<IPdfDocumentExporter, PdfDocumentExporter>();
+        context.Services.AddSingleton<IMemoryStoreService>(new Mock<IMemoryStoreService>().Object);
 
         var ui = new BlazorUserInterface();
         context.Services.AddSingleton(ui);

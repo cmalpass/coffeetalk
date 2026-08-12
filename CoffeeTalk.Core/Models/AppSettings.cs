@@ -19,6 +19,7 @@ public class AppSettings
     public bool ContextSummarization { get; set; }
     public StructuredDataConfig? StructuredData { get; set; }
     public bool FactChecking { get; set; }
+    public MemoryConfig Memory { get; set; } = new();
 }
 
 // PersistedAppSettings mirrors AppSettings but omits sensitive fields like ApiKey
@@ -42,6 +43,7 @@ public class PersistedAppSettings
     public EditorConfig? Editor { get; set; }
     public DynamicPersonasConfig? DynamicPersonas { get; set; }
     public ToolsConfig? Tools { get; set; }
+    public MemoryConfig Memory { get; set; } = new();
 }
 
 public class PersistedLlmProviderConfig
