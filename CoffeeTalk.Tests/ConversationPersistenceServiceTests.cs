@@ -101,5 +101,30 @@ public sealed class ConversationPersistenceServiceTests
         Assert.Equal(2, restored.Metrics.WordCount);
     }
 
+    [Fact]
+    public async Task ResumeRejectsSymlinkedConversationFile()
+    {
+        var root = NewRoot();
+        var resolver = new ApplicationDataPathResolver(root);
+        var service = new ConversationPersistenceService(resolver);
+        var outside = Path.Combine(Path.GetTempPath(), $"coffeetalk-outside-{Guid.NewGuid():N}.json");
+        var link = resolver.ResolveDataPath("conversations/linked.json", "conversation.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(link)!);
+        try
+        {
+            await File.WriteAllTextAsync(outside, "{}");
+            File.CreateSymbolicLink(link, outside);
+
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => service.ResumeAsync("linked"));
+        }
+        finally
+        {
+            if (File.Exists(link))
+                File.Delete(link);
+            if (File.Exists(outside))
+                File.Delete(outside);
+        }
+    }
+
     private static string NewRoot() => Path.Combine(Path.GetTempPath(), "coffeetalk-tests", Guid.NewGuid().ToString("N"));
 }
