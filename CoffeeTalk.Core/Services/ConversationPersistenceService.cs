@@ -98,6 +98,10 @@ public sealed class ConversationPersistenceService : IConversationPersistenceSer
             {
                 // A damaged entry must not hide healthy conversations from list consumers.
             }
+            catch (UnauthorizedAccessException)
+            {
+                // An unsafe entry must not hide healthy conversations from list consumers.
+            }
         }
         return results.OrderByDescending(x => x.StartedAt).ToList();
     }
