@@ -1,18 +1,18 @@
 using System.Text.Json;
+using CoffeeTalk.Services;
 
 namespace CoffeeTalk.Gui.Services;
 
 public sealed class ConversationHistoryService
 {
-    private readonly string _historyPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "CoffeeTalk",
-        "conversation-history.json");
+    private readonly string _historyPath;
     private readonly object _sync = new();
     private readonly List<ConversationRecord> _records;
 
-    public ConversationHistoryService()
+    public ConversationHistoryService(IApplicationDataPathResolver? paths = null)
     {
+        var resolver = paths ?? new ApplicationDataPathResolver();
+        _historyPath = resolver.ResolveDataPath("conversation-history.json", "conversation-history.json");
         _records = Load();
     }
 

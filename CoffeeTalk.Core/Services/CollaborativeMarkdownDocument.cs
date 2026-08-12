@@ -7,10 +7,11 @@ public class CollaborativeMarkdownDocument
 {
     private readonly StringBuilder _content = new();
     private readonly object _lock = new();
+    private readonly IApplicationDataPathResolver _paths;
 
-    public CollaborativeMarkdownDocument()
+    public CollaborativeMarkdownDocument(IApplicationDataPathResolver? paths = null)
     {
-        // Start empty
+        _paths = paths ?? new ApplicationDataPathResolver();
     }
 
     public string GetContent()
@@ -258,16 +259,8 @@ public class CollaborativeMarkdownDocument
             contentToWrite = _content.ToString();
         }
 
-        var safeFileName = string.IsNullOrWhiteSpace(path) ? "conversation.md" : Path.GetFileName(path);
-        if (string.IsNullOrEmpty(safeFileName))
-            safeFileName = "conversation.md";
-        var safeBase = Path.GetFullPath(Directory.GetCurrentDirectory());
-        var fullPath = Path.GetFullPath(Path.Combine(safeBase, safeFileName));
-
-        // Ensure the resolved path stays within the working directory
-        if (!fullPath.StartsWith(safeBase + Path.DirectorySeparatorChar, StringComparison.Ordinal) && fullPath != safeBase)
-            throw new UnauthorizedAccessException("Path escapes the working directory.");
-
+        var fullPath = _paths.ResolveExportPath(path, "conversation.md");
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
         await File.WriteAllTextAsync(fullPath, contentToWrite);
         return fullPath;
     }

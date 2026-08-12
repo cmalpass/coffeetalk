@@ -15,6 +15,7 @@ class Program
         var appBuilder = PhotinoBlazorAppBuilder.CreateDefault(args);
 
         appBuilder.Services.AddLogging();
+        appBuilder.Services.AddSingleton<IApplicationDataPathResolver, ApplicationDataPathResolver>();
         appBuilder.Services.AddSingleton<ConfigurationService>();
         appBuilder.Services.AddSingleton<AppState>();
         appBuilder.Services.AddSingleton<ConversationHistoryService>();
