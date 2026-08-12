@@ -11,6 +11,7 @@
 @inject NavigationManager Navigation
 @inject ConversationHistoryService History
 @inject IConversationSessionService Session
+@inject ISnackbar Snackbar
 
 
 <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8">
@@ -47,6 +48,18 @@
                     </MudItem>
                 </MudGrid>
             </MudPaper>
+            @if (AppState.CurrentWorkspace is not null)
+            {
+                <MudPaper Class="pa-4 mb-4" Outlined="true">
+                    <MudSelect T="string" Label="Workspace" Value="@AppState.CurrentWorkspace.Id"
+                               ValueChanged="SwitchWorkspace" Dense="true" Disabled="@Session.IsRunning">
+                        @foreach (var workspace in _workspaces)
+                        {
+                            <MudSelectItem Value="@workspace.Id">@workspace.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudPaper>
+            }
             <MudCard Elevation="4" Class="pa-4">
                 <MudCardHeader>
                     <CardHeaderContent>
@@ -110,12 +123,14 @@
 
     private IReadOnlyCollection<object> SelectedPersonas { get; set; } = new List<object>();
     private IReadOnlyList<ConversationRecord> _recentConversations = Array.Empty<ConversationRecord>();
+    private IReadOnlyList<WorkspaceMetadata> _workspaces = Array.Empty<WorkspaceMetadata>();
 
     protected override void OnInitialized()
     {
         // Select all by default
         SelectedPersonas = AppState.Settings.Personas.Cast<object>().ToList();
         _recentConversations = History.Recent();
+        _workspaces = AppState.ListWorkspacesAsync().GetAwaiter().GetResult();
     }
 
     private void StartConversation()
@@ -131,5 +146,20 @@
     {
         await Session.LoadConversationAsync(conversation);
         Navigation.NavigateTo("/conversation");
+    }
+
+    private async Task SwitchWorkspace(string id)
+    {
+        if (id == AppState.CurrentWorkspace?.Id)
+            return;
+        if (Session.IsRunning)
+        {
+            Snackbar.Add("Stop the active conversation before switching workspaces.", Severity.Warning);
+            return;
+        }
+        await AppState.SwitchWorkspaceAsync(id);
+        _workspaces = await AppState.ListWorkspacesAsync();
+        SelectedPersonas = AppState.Settings.Personas.Cast<object>().ToList();
+        _recentConversations = await History.RecentAsync();
     }
 }

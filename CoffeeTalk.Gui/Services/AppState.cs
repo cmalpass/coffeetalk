@@ -6,14 +6,31 @@ namespace CoffeeTalk.Gui.Services;
 public class AppState
 {
     private readonly ConfigurationService _configService;
+    private readonly WorkspaceService? _workspaceService;
+    private readonly ApplicationDataPathResolver? _dataPaths;
 
     public AppSettings Settings { get; private set; } = new();
+    public WorkspaceMetadata? CurrentWorkspace => _workspaceService?.Active;
 
     public event Action? OnChange;
 
-    public AppState(ConfigurationService configService)
+    public AppState(ConfigurationService configService, WorkspaceService? workspaceService = null,
+        ApplicationDataPathResolver? dataPaths = null)
     {
         _configService = configService;
+        _workspaceService = workspaceService;
+        _dataPaths = dataPaths;
+        LoadSettings();
+    }
+
+    public Task<IReadOnlyList<WorkspaceMetadata>> ListWorkspacesAsync()
+        => _workspaceService?.ListAsync() ?? Task.FromResult<IReadOnlyList<WorkspaceMetadata>>(Array.Empty<WorkspaceMetadata>());
+
+    public async Task SwitchWorkspaceAsync(string id)
+    {
+        if (_workspaceService is null || _dataPaths is null)
+            throw new InvalidOperationException("Workspace management is unavailable.");
+        await _workspaceService.SwitchAsync(id);
         LoadSettings();
     }
 
