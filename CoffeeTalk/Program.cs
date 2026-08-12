@@ -19,6 +19,8 @@ class Program
                 return;
 
             var persistence = new ConversationPersistenceService(dataPaths);
+            if (await HandleAnalyticsCommandAsync(args, persistence))
+                return;
             if (await HandleHistoryCommandAsync(args, persistence))
                 return;
 
@@ -126,6 +128,52 @@ class Program
 
         return false;
     }
+
+    private static async Task<bool> HandleAnalyticsCommandAsync(
+        string[] args, ConversationPersistenceService persistence)
+    {
+        if (!string.Equals(args.FirstOrDefault(), "stats", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var sessionId = GetOption(args, "--session");
+        if (sessionId is not null)
+        {
+            var state = await persistence.ResumeAsync(sessionId);
+            PrintMetrics(state.Topic, state.Metrics);
+            return true;
+        }
+
+        var summary = ConversationMetricsAggregator.Summarize(await persistence.ListAsync());
+        AnsiConsole.MarkupLine($"[bold]Conversations:[/] {summary.ConversationCount}");
+        AnsiConsole.MarkupLine($"[bold]Messages:[/] {summary.MessageCount}");
+        AnsiConsole.MarkupLine($"[bold]Words:[/] {summary.WordCount}");
+        AnsiConsole.MarkupLine($"[bold]Estimated tokens:[/] {summary.EstimatedTokenCount} (local approximation)");
+        AnsiConsole.MarkupLine($"[bold]Average duration:[/] {FormatDuration(summary.AverageDuration)}");
+        if (summary.MessagesByParticipant.Count > 0)
+        {
+            AnsiConsole.MarkupLine("[bold]Messages by participant:[/]");
+            foreach (var participant in summary.MessagesByParticipant.OrderByDescending(pair => pair.Value))
+                AnsiConsole.MarkupLine($"  {Markup.Escape(participant.Key)}: {participant.Value}");
+        }
+        return true;
+    }
+
+    private static void PrintMetrics(string topic, ConversationMetrics metrics)
+    {
+        AnsiConsole.MarkupLine($"[bold]Topic:[/] {Markup.Escape(topic)}");
+        AnsiConsole.MarkupLine($"[bold]Messages:[/] {metrics.MessageCount}");
+        AnsiConsole.MarkupLine($"[bold]Words:[/] {metrics.WordCount}");
+        AnsiConsole.MarkupLine($"[bold]Estimated tokens:[/] {metrics.EstimatedTokenCount} (local approximation)");
+        AnsiConsole.MarkupLine($"[bold]Duration:[/] {FormatDuration(metrics.Duration)}");
+        AnsiConsole.MarkupLine($"[bold]Document:[/] {metrics.DocumentWordCount} words, {metrics.DocumentHeadingCount} headings");
+        foreach (var participant in metrics.MessagesByParticipant.OrderByDescending(pair => pair.Value))
+            AnsiConsole.MarkupLine($"  {Markup.Escape(participant.Key)}: {participant.Value} messages, {metrics.WordsByParticipant.GetValueOrDefault(participant.Key)} words");
+    }
+
+    private static string FormatDuration(TimeSpan duration) =>
+        duration.TotalHours >= 1
+            ? $"{(int)duration.TotalHours}h {duration.Minutes}m"
+            : $"{(int)duration.TotalMinutes}m {duration.Seconds}s";
 
     private static async Task<bool> HandleWorkspaceCommandAsync(string[] args, WorkspaceService workspaces)
     {

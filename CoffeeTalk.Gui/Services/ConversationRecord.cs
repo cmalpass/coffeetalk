@@ -1,3 +1,5 @@
+using CoffeeTalk.Models;
+
 namespace CoffeeTalk.Gui.Services;
 
 public sealed class ConversationRecord
@@ -12,4 +14,5 @@ public sealed class ConversationRecord
     public List<ChatMessage> Messages { get; set; } = new();
     public string DocumentContent { get; set; } = string.Empty;
     public Dictionary<string, string> Metadata { get; set; } = new(StringComparer.Ordinal);
+    public ConversationMetrics Metrics { get; set; } = new();
 }

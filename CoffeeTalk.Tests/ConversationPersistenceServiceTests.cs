@@ -29,6 +29,8 @@ public sealed class ConversationPersistenceServiceTests
         Assert.Equal(state.DocumentContent, restored.DocumentContent);
         Assert.Equal("Engineer", restored.Participants[0].Name);
         Assert.Equal("test", restored.Metadata["source"]);
+        Assert.Equal(1, restored.Metrics.MessageCount);
+        Assert.Equal(1, restored.Metrics.WordCount);
     }
 
     [Fact]
@@ -69,6 +71,34 @@ public sealed class ConversationPersistenceServiceTests
         await service.DeleteAsync("one");
         Assert.Single(await service.ListAsync());
         await Assert.ThrowsAsync<FileNotFoundException>(() => service.ResumeAsync("one"));
+    }
+
+    [Fact]
+    public async Task ResumeCalculatesMetricsForOlderStatesWithoutMetrics()
+    {
+        var root = NewRoot();
+        var resolver = new ApplicationDataPathResolver(root);
+        var service = new ConversationPersistenceService(resolver);
+        var path = resolver.ResolveDataPath("conversations/legacy.json", "conversation.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        await File.WriteAllTextAsync(path, """
+            {
+              "schemaVersion": 1,
+              "id": "legacy",
+              "topic": "Legacy",
+              "startedAt": "2026-01-01T00:00:00Z",
+              "messages": [
+                { "sender": "Alice", "content": "Hello there", "timestamp": "2026-01-01T00:00:01Z" }
+              ],
+              "participants": [],
+              "metadata": {}
+            }
+            """);
+
+        var restored = await service.ResumeAsync("legacy");
+
+        Assert.Equal(1, restored.Metrics.MessageCount);
+        Assert.Equal(2, restored.Metrics.WordCount);
     }
 
     private static string NewRoot() => Path.Combine(Path.GetTempPath(), "coffeetalk-tests", Guid.NewGuid().ToString("N"));

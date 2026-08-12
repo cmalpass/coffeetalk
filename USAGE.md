@@ -314,3 +314,13 @@ Thank you for using CoffeeTalk! ☕
 - Integrate with your workflow or tools
 
 For more information, see the main [README.md](README.md).
+# Analytics
+
+Conversation statistics are stored with each conversation inside the active workspace. The GUI exposes them at **Analytics**, and the CLI can print aggregate or per-conversation summaries:
+
+```bash
+dotnet run --project CoffeeTalk -- stats
+dotnet run --project CoffeeTalk -- stats --session <conversation-id>
+```
+
+Metrics are derived locally from saved message metadata: conversation/message/word counts, approximate character-based token estimates, duration, participant message and word counts, and document word/heading counts. CoffeeTalk does not calculate provider costs or collect additional prompt telemetry for analytics.
