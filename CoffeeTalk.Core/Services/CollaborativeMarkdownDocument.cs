@@ -40,6 +40,7 @@ public class CollaborativeMarkdownDocument
 
     public void SetTitle(string title)
     {
+        if (string.IsNullOrWhiteSpace(title)) return;
         lock (_lock)
         {
             var current = _content.ToString();
@@ -61,9 +62,9 @@ public class CollaborativeMarkdownDocument
         }
     }
 
-    public void AddHeading(string text, int level = 2)
+    public void AddHeading(string? text, int level = 2)
     {
-        ArgumentNullException.ThrowIfNull(text);
+        if (string.IsNullOrWhiteSpace(text)) return;
         if (level < 1) level = 1;
         if (level > 6) level = 6;
         lock (_lock)
@@ -73,9 +74,9 @@ public class CollaborativeMarkdownDocument
         }
     }
 
-    public void AppendParagraph(string text)
+    public void AppendParagraph(string? text)
     {
-        ArgumentNullException.ThrowIfNull(text);
+        if (string.IsNullOrWhiteSpace(text)) return;
         lock (_lock)
         {
             _content.AppendLine(text.Trim());
@@ -83,10 +84,10 @@ public class CollaborativeMarkdownDocument
         }
     }
 
-    public void InsertAfterHeading(string headingText, string content)
+    public void InsertAfterHeading(string? headingText, string? content)
     {
-        ArgumentNullException.ThrowIfNull(headingText);
-        ArgumentNullException.ThrowIfNull(content);
+        if (string.IsNullOrWhiteSpace(headingText)) return;
+        content ??= "";
         lock (_lock)
         {
             var doc = _content.ToString();
@@ -110,8 +111,10 @@ public class CollaborativeMarkdownDocument
     }
 
     // Replace the entire content under a heading until the next heading, or append if not exists
-    public void ReplaceSection(string headingText, string content)
+    public void ReplaceSection(string? headingText, string? content)
     {
+        if (string.IsNullOrWhiteSpace(headingText)) return;
+        content ??= "";
         lock (_lock)
         {
             var doc = _content.ToString();
@@ -249,7 +252,7 @@ public class CollaborativeMarkdownDocument
         }
     }
 
-    public async Task<string> SaveToFileAsync(string path)
+    public async Task<string> SaveToFileAsync(string? path)
     {
         string contentToWrite;
         lock (_lock)
@@ -258,6 +261,8 @@ public class CollaborativeMarkdownDocument
         }
 
         var safeFileName = string.IsNullOrWhiteSpace(path) ? "conversation.md" : Path.GetFileName(path);
+        if (string.IsNullOrEmpty(safeFileName))
+            safeFileName = "conversation.md";
         var safeBase = Path.GetFullPath(Directory.GetCurrentDirectory());
         var fullPath = Path.GetFullPath(Path.Combine(safeBase, safeFileName));
 
