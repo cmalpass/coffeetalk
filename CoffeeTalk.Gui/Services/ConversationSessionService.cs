@@ -107,6 +107,7 @@ public sealed class ConversationSessionService : IConversationSessionService, ID
         if (previousTask is not null)
             await previousTask.ConfigureAwait(false);
 
+        cts.Token.ThrowIfCancellationRequested();
         _ui.ResetForNewConversation();
         await RunAsync(topic, personas, cts);
     }

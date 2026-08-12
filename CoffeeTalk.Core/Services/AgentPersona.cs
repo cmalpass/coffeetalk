@@ -139,38 +139,59 @@ public class AgentPersona
 
         var emitted = false;
         Exception? failure = null;
-        await using var updates = await _retryService.ExecuteAsync(
-            token => Task.FromResult(_agent.RunStreamingAsync(contextMessage, cancellationToken: token)
-                .GetAsyncEnumerator(token)),
-            $"{Name} streaming response",
-            cancellationToken);
-        while (true)
+        IAsyncEnumerator<AgentRunResponseUpdate>? updates = null;
+        try
         {
-            bool hasUpdate;
-            try
+            var initialUpdate = await _retryService.ExecuteAsync(
+                async token =>
+                {
+                    var enumerator = _agent
+                        .RunStreamingAsync(contextMessage, cancellationToken: token)
+                        .GetAsyncEnumerator(token);
+                    try
+                    {
+                        return (enumerator: enumerator, hasUpdate: await enumerator.MoveNextAsync());
+                    }
+                    catch
+                    {
+                        await enumerator.DisposeAsync();
+                        throw;
+                    }
+                },
+                $"{Name} streaming response",
+                cancellationToken);
+            updates = initialUpdate.enumerator;
+            var hasUpdate = initialUpdate.hasUpdate;
+
+            while (hasUpdate)
             {
-                hasUpdate = await _retryService.ExecuteAsync(
-                    _ => updates.MoveNextAsync().AsTask(),
-                    $"{Name} streaming response chunk",
-                    cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
+                var text = updates.Current.Text;
+                if (!string.IsNullOrEmpty(text))
+                {
+                    emitted = true;
+                    _rateLimiter?.AccountAdditionalTokens(_rateLimiter.EstimateTokens(text));
+                    yield return text;
+                }
+
+                try
+                {
+                    hasUpdate = await _retryService.ExecuteAsync(
+                        _ => updates.MoveNextAsync().AsTask(),
+                        $"{Name} streaming response chunk",
+                        cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    failure = ex;
+                    break;
+                }
             }
-            catch (Exception ex)
-            {
-                failure = ex;
-                break;
-            }
-
-            if (!hasUpdate)
-                break;
-
-            cancellationToken.ThrowIfCancellationRequested();
-            var text = updates.Current.Text;
-            if (string.IsNullOrEmpty(text))
-                continue;
-
-            emitted = true;
-            _rateLimiter?.AccountAdditionalTokens(_rateLimiter.EstimateTokens(text));
-            yield return text;
+        }
+        finally
+        {
+            if (updates is not null)
+                await updates.DisposeAsync();
         }
 
         if (failure is OperationCanceledException)
