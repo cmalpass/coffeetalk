@@ -108,6 +108,7 @@ public sealed class ConversationPipelineBuilder
                 topic,
                 personaConfigs,
                 retryService,
+                rateLimiter,
                 cancellationToken,
                 notify);
         }
@@ -135,7 +136,7 @@ public sealed class ConversationPipelineBuilder
                 settings.LlmProvider,
                 "Orchestrator",
                 AgentOrchestrator.BuildSystemPrompt(config, personas));
-            orchestrator = new AgentOrchestrator(agent, config, sharedDocument, personas, retryService, _eventSink);
+            orchestrator = new AgentOrchestrator(agent, config, sharedDocument, personas, retryService, _eventSink, rateLimiter);
         }
 
         AgentEditor? editor = null;
@@ -168,7 +169,7 @@ public sealed class ConversationPipelineBuilder
                 settings.LlmProvider,
                 "DataExtractor",
                 AgentDataExtractor.BuildSystemPrompt(config));
-            dataExtractor = new AgentDataExtractor(agent, config, sharedDocument, retryService, _eventSink, _dataPaths);
+            dataExtractor = new AgentDataExtractor(agent, config, sharedDocument, retryService, _eventSink, _dataPaths, rateLimiter);
         }
 
         return new ConversationPipeline(
@@ -187,6 +188,7 @@ public sealed class ConversationPipelineBuilder
         string topic,
         List<PersonaConfig> configured,
         IRetryService retryService,
+        RateLimiter rateLimiter,
         CancellationToken cancellationToken,
         Action<string>? notify)
     {
@@ -195,7 +197,7 @@ public sealed class ConversationPipelineBuilder
             settings.LlmProvider,
             "PersonaGenerator",
             AgentPersonaGenerator.BuildSystemPrompt());
-        var generator = new AgentPersonaGenerator(generatorAgent, retryService);
+        var generator = new AgentPersonaGenerator(generatorAgent, retryService, rateLimiter);
         var requested = Math.Clamp(dynamicConfig.Count, 2, 10);
         var replace = dynamicConfig.Mode?.Equals("replace", StringComparison.OrdinalIgnoreCase) == true;
         var reserved = replace ? Array.Empty<string>() : configured.Select(persona => persona.Name);

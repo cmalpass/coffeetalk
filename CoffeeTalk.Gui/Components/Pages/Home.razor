@@ -125,12 +125,12 @@
     private IReadOnlyList<ConversationRecord> _recentConversations = Array.Empty<ConversationRecord>();
     private IReadOnlyList<WorkspaceMetadata> _workspaces = Array.Empty<WorkspaceMetadata>();
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         // Select all by default
         SelectedPersonas = AppState.Settings.Personas.Cast<object>().ToList();
-        _recentConversations = History.Recent();
-        _workspaces = AppState.ListWorkspacesAsync().GetAwaiter().GetResult();
+        _recentConversations = await History.RecentAsync();
+        _workspaces = await AppState.ListWorkspacesAsync();
     }
 
     private void StartConversation()

@@ -15,6 +15,7 @@ public class AgentDataExtractor
     private readonly IApplicationDataPathResolver _paths;
  private readonly IRetryService _retryService;
  private readonly IOperationalEventSink _eventSink;
+ private readonly RateLimiter? _rateLimiter;
 
  public AgentDataExtractor(
      AIAgent agent,
@@ -22,7 +23,8 @@ public class AgentDataExtractor
      CollaborativeMarkdownDocument doc,
      IRetryService retryService,
      IOperationalEventSink? eventSink = null,
-     IApplicationDataPathResolver? paths = null)
+     IApplicationDataPathResolver? paths = null,
+     RateLimiter? rateLimiter = null)
  {
      _agent = agent;
      _config = config;
@@ -30,6 +32,7 @@ public class AgentDataExtractor
      _paths = paths ?? new ApplicationDataPathResolver();
      _retryService = retryService;
      _eventSink = eventSink ?? NullOperationalEventSink.Instance;
+     _rateLimiter = rateLimiter;
  }
 
  public AgentDataExtractor(AIAgent agent, StructuredDataConfig config, CollaborativeMarkdownDocument doc, IApplicationDataPathResolver? paths = null)
@@ -74,12 +77,15 @@ Based on the schema description '{_config.SchemaDescription}', extract the data 
 
         try
         {
+            if (_rateLimiter != null)
+                await _rateLimiter.ThrottleAsync(_rateLimiter.EstimateTokens(prompt), cancellationToken);
             var response = await _retryService.ExecuteAsync(
                 async cancellationToken => await _agent.RunAsync(prompt, cancellationToken: cancellationToken),
                 "Data extraction",
                 cancellationToken);
 
             var json = CleanJson(response.ToString());
+            _rateLimiter?.AccountAdditionalTokens(_rateLimiter.EstimateTokens(json));
 
             var outputPath = _paths.ResolveDataPath(_config.OutputFile, "data.json");
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
