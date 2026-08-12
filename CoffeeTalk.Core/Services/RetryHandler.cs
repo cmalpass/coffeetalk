@@ -14,13 +14,15 @@ public static class RetryHandler
 
     public static async Task<T> ExecuteWithRetryAsync<T>(
         Func<Task<T>> operation,
-        string operationName = "Operation")
+        string operationName = "Operation",
+        CancellationToken cancellationToken = default)
     {
         int retryCount = 0;
         int delaySeconds = _config.InitialDelaySeconds;
 
         while (true)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             try
             {
                 return await operation();
@@ -37,7 +39,7 @@ public static class RetryHandler
 
                 System.Diagnostics.Trace.WriteLine($"[{operationName}] Rate limit hit (HTTP 429). Retry {retryCount}/{_config.MaxRetries} - waiting {delaySeconds}s...", "Warning");
 
-                await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
 
                 // Exponential backoff
                 delaySeconds = (int)(delaySeconds * _config.BackoffMultiplier);
@@ -54,7 +56,7 @@ public static class RetryHandler
 
                 System.Diagnostics.Trace.WriteLine($"[{operationName}] Rate limit hit. Retry {retryCount}/{_config.MaxRetries} - waiting {delaySeconds}s...", "Warning");
 
-                await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+                await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
 
                 // Exponential backoff
                 delaySeconds = (int)(delaySeconds * _config.BackoffMultiplier);

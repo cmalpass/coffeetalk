@@ -106,19 +106,21 @@ Reason: Document complete, all personas contributed, clear consensus reached");
         return fallback;
     }
 
-    public async Task<string> SummarizeAsync(string historyText)
+    public async Task<string> SummarizeAsync(string historyText, CancellationToken cancellationToken = default)
     {
         var prompt = $"Summarize the following conversation history into a single concise paragraph. Capture key points, decisions, and arguments. Do not lose critical context.\n\nHistory:\n{historyText}";
         var response = await RetryHandler.ExecuteWithRetryAsync(
             async () => await _agent.RunAsync(prompt),
-            "Orchestrator summarization");
+            "Orchestrator summarization",
+            cancellationToken);
         return response.ToString();
     }
 
     public async Task<AgentPersona?> SelectNextSpeakerAsync(
         string currentMessage,
         List<string> conversationHistory,
-        int turnsRemaining)
+        int turnsRemaining,
+        CancellationToken cancellationToken = default)
     {
         // Build context for orchestrator
         var context = BuildOrchestratorContext(currentMessage, conversationHistory, turnsRemaining);
@@ -126,7 +128,8 @@ Reason: Document complete, all personas contributed, clear consensus reached");
         // Execute with retry logic for rate limiting (HTTP 429)
         var response = await RetryHandler.ExecuteWithRetryAsync(
             async () => await _agent.RunAsync(context),
-            "Orchestrator selection");
+            "Orchestrator selection",
+            cancellationToken);
         var responseText = response.ToString();
 
         // Check if orchestrator signals conclusion

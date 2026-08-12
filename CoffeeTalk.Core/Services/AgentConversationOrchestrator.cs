@@ -51,7 +51,7 @@ public class AgentConversationOrchestrator
         _factChecker = factChecker;
     }
 
-    public async Task StartConversationAsync(string topic)
+    public async Task StartConversationAsync(string topic, CancellationToken cancellationToken = default)
     {
         if (_personas.Count == 0)
         {
@@ -73,15 +73,15 @@ public class AgentConversationOrchestrator
         
         if (_useOrchestrator)
         {
-            await RunOrchestratedConversationAsync(topic, conversationHistory, currentMessage);
+            await RunOrchestratedConversationAsync(topic, conversationHistory, currentMessage, cancellationToken);
         }
         else
         {
-            await RunRoundRobinConversationAsync(conversationHistory, currentMessage);
+            await RunRoundRobinConversationAsync(conversationHistory, currentMessage, cancellationToken);
         }
     }
 
-    private async Task RunOrchestratedConversationAsync(string topic, List<string> conversationHistory, string currentMessage)
+    private async Task RunOrchestratedConversationAsync(string topic, List<string> conversationHistory, string currentMessage, CancellationToken cancellationToken)
     {
         int totalTurns = 0;
         int maxTotalTurns = _maxTurns * _personas.Count; // Total individual turns allowed
@@ -99,12 +99,12 @@ public class AgentConversationOrchestrator
                     var turnsRemaining = maxTotalTurns - totalTurns;
                     await _ui.SetStatusAsync($"Orchestrator selecting next speaker (Turns remaining: {turnsRemaining})...");
 
-                    selectedPersona = await _orchestrator!.SelectNextSpeakerAsync(currentMessage, conversationHistory, turnsRemaining);
+                    selectedPersona = await _orchestrator!.SelectNextSpeakerAsync(currentMessage, conversationHistory, turnsRemaining, cancellationToken);
 
                     if (selectedPersona != null)
                     {
                         await _ui.SetStatusAsync($"{Escape(selectedPersona.Name)} is thinking...");
-                        response = await selectedPersona.RespondAsync(currentMessage, conversationHistory);
+                        response = await selectedPersona.RespondAsync(currentMessage, conversationHistory, cancellationToken);
                     }
                 });
 
@@ -130,20 +130,20 @@ public class AgentConversationOrchestrator
                 // Editor intervention - review and refine document periodically
                 if (_editor != null && totalTurns % _editorInterventionFrequency == 0)
                 {
-                    await RunEditorIntervention(conversationHistory);
+                    await RunEditorIntervention(conversationHistory, cancellationToken);
                 }
 
                 // Fact Checker
                 if (_factChecker != null)
                 {
                     // Check the last message
-                    await _factChecker.CheckAsync(response);
+                    await _factChecker.CheckAsync(response, cancellationToken);
                 }
 
                 // Context Summarization
                 if (_contextSummarization && conversationHistory.Count > 15)
                 {
-                    await SummarizeHistoryAsync(conversationHistory);
+                    await SummarizeHistoryAsync(conversationHistory, cancellationToken);
                 }
 
                 // Interactive Mode Check
@@ -161,12 +161,14 @@ public class AgentConversationOrchestrator
 
                 // Orchestrator decides completion (already handled in SelectNextSpeakerAsync returning null)
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException ex)
             {
+                System.Diagnostics.Trace.WriteLine($"[Orchestrator] Operation canceled: {ex.Message}", "Info");
                 await _ui.ShowErrorAsync("[red]❌ Operation canceled.[/]");
             }
-            catch (TimeoutException)
+            catch (TimeoutException ex)
             {
+                System.Diagnostics.Trace.WriteLine($"[Orchestrator] Operation timed out: {ex.Message}", "Warning");
                 await _ui.ShowErrorAsync("[red]❌ Operation timed out.[/]");
             }
             catch (Exception ex) when (
@@ -174,14 +176,18 @@ public class AgentConversationOrchestrator
                 ex is OutOfMemoryException
             )
             {
+                System.Diagnostics.Trace.WriteLine($"[Orchestrator] Critical error: {ex.GetType().Name} - {ex.Message}", "Error");
                 throw;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                System.Diagnostics.Trace.WriteLine($"[Orchestrator] Unexpected error: {ex.GetType().Name} - {ex.Message}", "Error");
                 await _ui.ShowErrorAsync("[red]❌ An unexpected error occurred.[/]");
             }
 
             await _ui.ShowRuleAsync();
+
+            cancellationToken.ThrowIfCancellationRequested();
         }
 
         await _ui.ShowRuleAsync("Conversation Ended");
@@ -195,7 +201,7 @@ public class AgentConversationOrchestrator
         await TryAutoSaveAsync();
     }
 
-    private async Task RunRoundRobinConversationAsync(List<string> conversationHistory, string currentMessage)
+    private async Task RunRoundRobinConversationAsync(List<string> conversationHistory, string currentMessage, CancellationToken cancellationToken)
     {
         int totalTurns = 0;
         for (int turn = 0; turn < _maxTurns; turn++)
@@ -210,12 +216,12 @@ public class AgentConversationOrchestrator
                     {
                         await _ui.RunWithStatusAsync($"{Escape(persona.Name)} is thinking...", async () =>
                         {
-                            response = await persona.RespondAsync(currentMessage, conversationHistory);
+                            response = await persona.RespondAsync(currentMessage, conversationHistory, cancellationToken);
                         });
                     }
                     else
                     {
-                        response = await persona.RespondAsync(currentMessage, conversationHistory);
+                        response = await persona.RespondAsync(currentMessage, conversationHistory, cancellationToken);
                     }
 
                     await _ui.ShowAgentResponseAsync(persona.Name, response);
@@ -234,19 +240,19 @@ public class AgentConversationOrchestrator
                     // Editor intervention - review and refine document periodically
                     if (_editor != null && totalTurns % _editorInterventionFrequency == 0)
                     {
-                        await RunEditorIntervention(conversationHistory);
+                        await RunEditorIntervention(conversationHistory, cancellationToken);
                     }
 
                     // Fact Checker
                     if (_factChecker != null)
                     {
-                        await _factChecker.CheckAsync(response);
+                        await _factChecker.CheckAsync(response, cancellationToken);
                     }
 
                     // Context Summarization
                     if (_contextSummarization && conversationHistory.Count > 15)
                     {
-                        await SummarizeHistoryAsync(conversationHistory);
+                        await SummarizeHistoryAsync(conversationHistory, cancellationToken);
                     }
 
                     // Interactive Mode Check
@@ -287,25 +293,29 @@ public class AgentConversationOrchestrator
                         return;
                     }
                 }
-                catch (OperationCanceledException)
-                {
-                    await _ui.ShowErrorAsync("[red]❌ Operation canceled.[/]");
-                }
-                catch (TimeoutException)
-                {
-                    await _ui.ShowErrorAsync("[red]❌ Operation timed out.[/]");
-                }
-                catch (Exception ex) when (
-                    ex is StackOverflowException ||
-                    ex is OutOfMemoryException
-                )
-                {
-                    throw;
-                }
-                catch (Exception)
-                {
-                    await _ui.ShowErrorAsync("[red]❌ An unexpected error occurred.[/]");
-                }
+                catch (OperationCanceledException ex)
+                    {
+                        System.Diagnostics.Trace.WriteLine($"[RoundRobin] Operation canceled: {ex.Message}", "Info");
+                        await _ui.ShowErrorAsync("[red]❌ Operation canceled.[/]");
+                    }
+                    catch (TimeoutException ex)
+                    {
+                        System.Diagnostics.Trace.WriteLine($"[RoundRobin] Operation timed out: {ex.Message}", "Warning");
+                        await _ui.ShowErrorAsync("[red]❌ Operation timed out.[/]");
+                    }
+                    catch (Exception ex) when (
+                        ex is StackOverflowException ||
+                        ex is OutOfMemoryException
+                    )
+                    {
+                        System.Diagnostics.Trace.WriteLine($"[RoundRobin] Critical error: {ex.GetType().Name} - {ex.Message}", "Error");
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Trace.WriteLine($"[RoundRobin] Unexpected error: {ex.GetType().Name} - {ex.Message}", "Error");
+                        await _ui.ShowErrorAsync("[red]❌ An unexpected error occurred.[/]");
+                    }
             }
 
             await _ui.ShowRuleAsync();
@@ -322,7 +332,7 @@ public class AgentConversationOrchestrator
         await TryAutoSaveAsync();
     }
 
-    private async Task RunEditorIntervention(List<string> conversationHistory)
+    private async Task RunEditorIntervention(List<string> conversationHistory, CancellationToken cancellationToken)
     {
         await _ui.ShowRuleAsync("Editor Review");
         await _ui.ShowMessageAsync("\n[magenta]✂️  Refining document for clarity and conciseness...[/]");
@@ -345,7 +355,7 @@ public class AgentConversationOrchestrator
             string editorResponse = string.Empty;
             await _ui.RunWithStatusAsync("Editor is reviewing...", async () =>
             {
-                editorResponse = await _editor!.ReviewAndEditAsync(contextSummary);
+                editorResponse = await _editor!.ReviewAndEditAsync(contextSummary, cancellationToken);
             });
             
             await _ui.ShowAgentResponseAsync("Editor", editorResponse);
@@ -410,7 +420,7 @@ public class AgentConversationOrchestrator
         }
     }
 
-    private async Task SummarizeHistoryAsync(List<string> conversationHistory)
+    private async Task SummarizeHistoryAsync(List<string> conversationHistory, CancellationToken cancellationToken)
     {
         if (_personas.Count == 0) return;
 
@@ -431,7 +441,7 @@ public class AgentConversationOrchestrator
 
                 if (_orchestrator != null)
                 {
-                    summary = await _orchestrator.SummarizeAsync(historyText);
+                    summary = await _orchestrator.SummarizeAsync(historyText, cancellationToken);
                 }
                 else
                 {
