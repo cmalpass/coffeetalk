@@ -80,7 +80,7 @@
                 <MudAlert Severity="Severity.Info" Dense="true" Class="rounded-0">@UI.StatusMessage</MudAlert>
             }
             <div class="flex-grow-1 overflow-y-auto pa-4" id="chat-container">
-                @foreach (var msg in UI.Messages)
+                @foreach (var msg in UI.GetMessagesSnapshot())
                 {
                     if (msg.IsDivider)
                     {
@@ -269,7 +269,7 @@
                         UI.ConversationTopic,
                         UI.ConversationStartedAt,
                         UI.ConversationParticipants,
-                        UI.Messages);
+                        UI.GetMessagesSnapshot());
                     extension = "html";
                     mimeType = "text/html";
                     break;
@@ -278,7 +278,7 @@
                         UI.ConversationTopic,
                         UI.ConversationStartedAt,
                         UI.ConversationParticipants,
-                        UI.Messages);
+                        UI.GetMessagesSnapshot());
                     extension = "json";
                     mimeType = "application/json";
                     break;
@@ -287,7 +287,7 @@
                         UI.ConversationTopic,
                         UI.ConversationStartedAt,
                         UI.ConversationParticipants,
-                        UI.Messages);
+                        UI.GetMessagesSnapshot());
                     extension = "md";
                     mimeType = "text/markdown";
                     break;
@@ -324,7 +324,7 @@
 
     private int GetMessageCount()
     {
-        return UI.Messages.Count(m => !m.IsDivider && !m.IsSystem);
+        return UI.GetMessagesSnapshot().Count(m => !m.IsDivider && !m.IsSystem);
     }
 
     private string GetElapsedTime(DateTime startedAt)

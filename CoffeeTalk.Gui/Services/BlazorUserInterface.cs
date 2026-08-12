@@ -12,6 +12,11 @@ namespace CoffeeTalk.Gui.Services
         // Chat History
         private readonly object _messagesLock = new();
         public List<ChatMessage> Messages { get; } = new();
+        public IReadOnlyList<ChatMessage> GetMessagesSnapshot()
+        {
+            lock (_messagesLock)
+                return Messages.ToList();
+        }
         public bool StopRequested { get; private set; }
         public string? ConversationTopic { get; private set; }
         public IReadOnlyList<string> ConversationParticipants { get; private set; } = Array.Empty<string>();

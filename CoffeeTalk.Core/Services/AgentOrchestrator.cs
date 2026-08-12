@@ -163,14 +163,11 @@ Reason: Document complete, all personas contributed, clear consensus reached");
             _speakerCount[selectedPersona.Name]++;
 
             var reasonMatch = Regex.Match(responseText, @"Reason:\s*(.+)", RegexOptions.IgnoreCase);
-            if (reasonMatch.Success)
-            {
-                _eventSink.Publish(new OperationalEvent(
-                    OperationalEventKind.OrchestratorDecision,
-                    "Orchestrator selection",
-                    Decision: selectedPersona.Name,
-                    Reason: LimitReason(reasonMatch.Groups[1].Value)));
-            }
+            _eventSink.Publish(new OperationalEvent(
+                OperationalEventKind.OrchestratorDecision,
+                "Orchestrator selection",
+                Decision: selectedPersona.Name,
+                Reason: reasonMatch.Success ? LimitReason(reasonMatch.Groups[1].Value) : null));
         }
 
         return selectedPersona;

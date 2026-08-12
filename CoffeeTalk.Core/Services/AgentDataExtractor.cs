@@ -89,11 +89,14 @@ Based on the schema description '{_config.SchemaDescription}', extract the data 
         {
             throw;
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             _eventSink.Publish(new OperationalEvent(
                 OperationalEventKind.OperationFailure,
-                "Data extraction"));
+                "Data extraction")
+            {
+                Exception = ex
+            });
         }
     }
 
