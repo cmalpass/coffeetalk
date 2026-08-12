@@ -29,5 +29,31 @@ public class AppState
         NotifyStateChanged();
     }
 
+    public void AddPersona(PersonaConfig persona)
+    {
+        Settings.Personas.Add(persona);
+        NotifyStateChanged();
+    }
+
+    public void UpdatePersona(PersonaConfig existingPersona, PersonaConfig updatedPersona)
+    {
+        var index = Settings.Personas.IndexOf(existingPersona);
+        if (index < 0)
+        {
+            return;
+        }
+
+        Settings.Personas[index] = updatedPersona;
+        NotifyStateChanged();
+    }
+
+    public void RemovePersona(PersonaConfig persona)
+    {
+        if (Settings.Personas.Remove(persona))
+        {
+            NotifyStateChanged();
+        }
+    }
+
     public void NotifyStateChanged() => OnChange?.Invoke();
 }
