@@ -1,4 +1,5 @@
 using Microsoft.Agents.AI;
+using CoffeeTalk.Core.Interfaces;
 using CoffeeTalk.Models;
 using System.Text.Json;
 
@@ -10,10 +11,12 @@ namespace CoffeeTalk.Services;
 public class AgentPersonaGenerator
 {
     private readonly AIAgent _agent;
+    private readonly IRetryService _retryService;
 
-    public AgentPersonaGenerator(AIAgent agent)
+    public AgentPersonaGenerator(AIAgent agent, IRetryService retryService)
     {
         _agent = agent;
+        _retryService = retryService;
     }
 
     public static string BuildSystemPrompt()
@@ -37,7 +40,7 @@ REQUIREMENTS:
 
         var prompt = $"Topic: {topic}\nGenerate {count} personas for this conversation. JSON array only, in this shape:\n[\n  {{\"name\":\"<ShortUniqueName>\",\"systemPrompt\":\"You are <ShortUniqueName>, <1-2 sentence role and perspective>. Collaborate concisely, avoid redundancy, and use tools effectively when available.\"}},\n  ...\n]";
 
-        var response = await RetryHandler.ExecuteWithRetryAsync(
+        var response = await _retryService.ExecuteAsync(
             async () => await _agent.RunAsync(prompt),
             "Generate personas");
         var responseText = response.ToString();

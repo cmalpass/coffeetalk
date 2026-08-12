@@ -1,4 +1,5 @@
 using Microsoft.Agents.AI;
+using CoffeeTalk.Core.Interfaces;
 using CoffeeTalk.Models;
 
 namespace CoffeeTalk.Services;
@@ -14,6 +15,7 @@ public class AgentPersona
     private readonly RateLimiter? _rateLimiter;
     private readonly int _maxTurns;
     private readonly int _agentCount;
+    private readonly IRetryService _retryService;
 
     public string Name => _config.Name;
     public string SystemPrompt => _config.SystemPrompt;
@@ -24,7 +26,8 @@ public class AgentPersona
         CollaborativeMarkdownDocument doc,
         RateLimiter? rateLimiter,
         int maxTurns,
-        int agentCount)
+        int agentCount,
+        IRetryService retryService)
     {
         _agent = agent;
         _config = config;
@@ -32,6 +35,7 @@ public class AgentPersona
         _rateLimiter = rateLimiter;
         _maxTurns = maxTurns;
         _agentCount = agentCount;
+        _retryService = retryService;
     }
 
     public async Task<string> RespondAsync(string currentMessage, List<string> conversationHistory, CancellationToken cancellationToken = default)
@@ -71,7 +75,7 @@ public class AgentPersona
         string responseText;
         try
         {
-            var response = await RetryHandler.ExecuteWithRetryAsync(
+            var response = await _retryService.ExecuteAsync(
                 async () => await _agent.RunAsync(contextMessage),
                 $"{Name} response",
                 cancellationToken);
