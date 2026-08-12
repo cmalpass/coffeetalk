@@ -200,7 +200,7 @@ public class AgentConversationOrchestrator
 
         if (_dataExtractor != null)
         {
-            await _dataExtractor.ExtractAndSaveAsync(conversationHistory);
+            await _dataExtractor.ExtractAndSaveAsync(conversationHistory, cancellationToken);
         }
 
         await TryAutoSaveAsync();
@@ -380,13 +380,13 @@ public class AgentConversationOrchestrator
                 }
             }
         }
-        catch (InvalidOperationException ex)
+        catch (InvalidOperationException)
         {
-            await _ui.ShowMessageAsync($"[yellow]⚠️  Editor review skipped (invalid operation): {Escape(ex.Message)}[/]");
+            await _ui.ShowMessageAsync("[yellow]⚠️  Editor review skipped (invalid operation).[/]");
         }
-        catch (TimeoutException ex)
+        catch (TimeoutException)
         {
-            await _ui.ShowMessageAsync($"[yellow]⚠️  Editor review skipped (timeout): {Escape(ex.Message)}[/]");
+            await _ui.ShowMessageAsync("[yellow]⚠️  Editor review skipped (timeout).[/]");
         }
 
         await _ui.ShowMessageAsync("");
@@ -420,13 +420,13 @@ public class AgentConversationOrchestrator
 
             await _ui.ShowMessageAsync($"[green]✓ Auto-saved collaborative document ({Escape(path)})[/]");
         }
-        catch (System.IO.IOException ex)
+        catch (System.IO.IOException)
         {
-            await _ui.ShowErrorAsync($"[yellow]⚠️  Auto-save failed (IO error): {Escape(ex.Message)}[/]");
+            await _ui.ShowErrorAsync("[yellow]⚠️  Auto-save failed (IO error).[/]");
         }
-        catch (UnauthorizedAccessException ex)
+        catch (UnauthorizedAccessException)
         {
-            await _ui.ShowErrorAsync($"[yellow]⚠️  Auto-save failed (access denied): {Escape(ex.Message)}[/]");
+            await _ui.ShowErrorAsync("[yellow]⚠️  Auto-save failed (access denied).[/]");
         }
     }
 
@@ -475,9 +475,9 @@ public class AgentConversationOrchestrator
                 }
             });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            await _ui.ShowErrorAsync($"[dim red]Summarization failed: {ex.Message}[/]");
+            await _ui.ShowErrorAsync("[dim red]Summarization failed.[/]");
         }
     }
 

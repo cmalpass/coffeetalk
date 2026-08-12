@@ -1,4 +1,5 @@
 using Microsoft.Agents.AI;
+using CoffeeTalk.Core.Interfaces;
 using CoffeeTalk.Models;
 
 namespace CoffeeTalk.Services;
@@ -13,16 +14,31 @@ public class AgentDataExtractor
     private readonly CollaborativeMarkdownDocument _doc;
     private readonly IApplicationDataPathResolver _paths;
  private readonly System.Diagnostics.TextWriterTraceListener? _tracer;
+ private readonly IRetryService _retryService;
+ private readonly IOperationalEventSink _eventSink;
 
- public AgentDataExtractor(AIAgent agent, StructuredDataConfig config, CollaborativeMarkdownDocument doc, IApplicationDataPathResolver? paths = null)
+ public AgentDataExtractor(
+     AIAgent agent,
+     StructuredDataConfig config,
+     CollaborativeMarkdownDocument doc,
+     IRetryService retryService,
+     IOperationalEventSink? eventSink = null,
+     IApplicationDataPathResolver? paths = null)
  {
      _agent = agent;
      _config = config;
      _doc = doc;
      _paths = paths ?? new ApplicationDataPathResolver();
+     _retryService = retryService;
+     _eventSink = eventSink ?? NullOperationalEventSink.Instance;
      // Use Trace for logging without external dependencies
      _tracer = new System.Diagnostics.TextWriterTraceListener(System.Console.Error);
      System.Diagnostics.Trace.Listeners.Add(_tracer);
+ }
+
+ public AgentDataExtractor(AIAgent agent, StructuredDataConfig config, CollaborativeMarkdownDocument doc, IApplicationDataPathResolver? paths = null)
+     : this(agent, config, doc, new RetryService(null), null, paths)
+ {
  }
 
     public static string BuildSystemPrompt(StructuredDataConfig config)
@@ -38,7 +54,7 @@ Output Requirement:
 - If data is missing, use null or empty strings.";
     }
 
-    public async Task ExtractAndSaveAsync(List<string> conversationHistory)
+    public async Task ExtractAndSaveAsync(List<string> conversationHistory, CancellationToken cancellationToken = default)
     {
         // UI notification should be handled by the caller or injected UI, but for now we just process.
         // Since we are moving this to Core, we remove AnsiConsole calls.
@@ -62,9 +78,10 @@ Based on the schema description '{_config.SchemaDescription}', extract the data 
 
         try
         {
-            var response = await RetryHandler.ExecuteWithRetryAsync(
-                async () => await _agent.RunAsync(prompt),
-                "Data extraction");
+            var response = await _retryService.ExecuteAsync(
+                async cancellationToken => await _agent.RunAsync(prompt, cancellationToken: cancellationToken),
+                "Data extraction",
+                cancellationToken);
 
             var json = CleanJson(response.ToString());
 
@@ -72,9 +89,15 @@ Based on the schema description '{_config.SchemaDescription}', extract the data 
             Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
             await File.WriteAllTextAsync(outputPath, json);
         }
-        catch (Exception ex)
+        catch (OperationCanceledException)
         {
-            System.Diagnostics.Trace.WriteLine($"[AgentDataExtractor] Data extraction failed: {ex.Message}", "Error");
+            throw;
+        }
+        catch (Exception)
+        {
+            _eventSink.Publish(new OperationalEvent(
+                OperationalEventKind.OperationFailure,
+                "Data extraction"));
         }
     }
 

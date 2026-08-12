@@ -20,8 +20,8 @@ class Program
             // Validate and interactively configure if needed using the CLI Helper
             settings = await ConfigurationHelper.ValidateAndConfigureAsync(configService, settings);
 
-            // Configure retry handler
-            RetryHandler.Configure(settings.Retry);
+            var eventSink = new CliOperationalEventSink();
+            var retryService = new RetryService(settings.Retry, eventSink);
 
             // Display configuration summary
             AnsiConsole.MarkupLine($"[bold]Provider:[/] [cyan]{Markup.Escape(settings.LlmProvider.Type)}[/]");
@@ -59,7 +59,7 @@ class Program
                                 settings.LlmProvider,
                                 "PersonaGenerator",
                                 generatorPrompt);
-                            var generator = new AgentPersonaGenerator(generatorAgent);
+                            var generator = new AgentPersonaGenerator(generatorAgent, retryService);
 
                             var requested = Math.Clamp(settings.DynamicPersonas.Count, 2, 10);
                             var reserved = (settings.DynamicPersonas.Mode?.Equals("replace", StringComparison.OrdinalIgnoreCase) ?? false)
@@ -127,7 +127,8 @@ class Program
                     sharedDoc,
                     rateLimiter,
                     settings.MaxConversationTurns,
-                    settings.Personas.Count);
+                    settings.Personas.Count,
+                    retryService);
                 
                 agentPersonas.Add(agentPersona);
             }
@@ -156,7 +157,8 @@ class Program
                         sharedDoc,
                         rateLimiter,
                         settings.MaxConversationTurns,
-                        agentPersonas.Count + 1); // +1 because we are adding it now
+                        agentPersonas.Count + 1,
+                        retryService); // +1 because we are adding it now
 
                     agentPersonas.Add(daPersona);
                     AnsiConsole.MarkupLine("[magenta]😈 Devil's Advocate injected![/]");
@@ -178,7 +180,9 @@ class Program
                     orchestratorAgent,
                     orchestratorConfig,
                     sharedDoc,
-                    agentPersonas);
+                    agentPersonas,
+                    retryService,
+                    eventSink);
             }
 
             // Create editor if enabled
@@ -196,7 +200,8 @@ class Program
                     editorAgent,
                     settings.Editor,
                     sharedDoc,
-                    rateLimiter);
+                    rateLimiter,
+                    retryService);
             }
 
             // Create Fact Checker if enabled
@@ -205,7 +210,7 @@ class Program
             {
                 var factPrompt = AgentFactChecker.BuildSystemPrompt();
                 var factAgent = AgentBuilder.CreateAgent(settings.LlmProvider, "FactChecker", factPrompt);
-                factChecker = new AgentFactChecker(factAgent, rateLimiter);
+                factChecker = new AgentFactChecker(factAgent, rateLimiter, retryService, eventSink);
                 // Subscribe to alerts
                 factChecker.OnFactCheckAlert += (alert) =>
                 {
@@ -220,7 +225,7 @@ class Program
             {
                 var prompt = AgentDataExtractor.BuildSystemPrompt(settings.StructuredData);
                 var agent = AgentBuilder.CreateAgent(settings.LlmProvider, "DataExtractor", prompt);
-                dataExtractor = new AgentDataExtractor(agent, settings.StructuredData, sharedDoc, dataPaths);
+                dataExtractor = new AgentDataExtractor(agent, settings.StructuredData, sharedDoc, retryService, eventSink, dataPaths);
             }
 
             // Instantiate UI

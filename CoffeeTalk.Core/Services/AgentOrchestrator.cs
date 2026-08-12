@@ -1,4 +1,5 @@
 using Microsoft.Agents.AI;
+using CoffeeTalk.Core.Interfaces;
 using CoffeeTalk.Models;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -15,19 +16,28 @@ public partial class AgentOrchestrator
     private readonly CollaborativeMarkdownDocument _doc;
     private readonly Dictionary<string, int> _speakerCount = new();
     private readonly List<AgentPersona> _availablePersonas;
+    private readonly IRetryService _retryService;
+    private readonly IOperationalEventSink _eventSink;
 
-    public AgentOrchestrator(AIAgent agent, OrchestratorConfig config, CollaborativeMarkdownDocument doc, List<AgentPersona> personas)
+    public AgentOrchestrator(AIAgent agent, OrchestratorConfig config, CollaborativeMarkdownDocument doc, List<AgentPersona> personas, IRetryService retryService, IOperationalEventSink? eventSink = null)
     {
         _agent = agent;
         _config = config;
         _doc = doc;
         _availablePersonas = personas;
+        _retryService = retryService;
+        _eventSink = eventSink ?? NullOperationalEventSink.Instance;
 
         // Initialize speaker count
         foreach (var persona in personas)
         {
             _speakerCount[persona.Name] = 0;
         }
+    }
+
+    public AgentOrchestrator(AIAgent agent, OrchestratorConfig config, CollaborativeMarkdownDocument doc, List<AgentPersona> personas)
+        : this(agent, config, doc, personas, new RetryService(null))
+    {
     }
 
     public static string BuildSystemPrompt(OrchestratorConfig config, List<AgentPersona> personas)
@@ -109,8 +119,8 @@ Reason: Document complete, all personas contributed, clear consensus reached");
     public async Task<string> SummarizeAsync(string historyText, CancellationToken cancellationToken = default)
     {
         var prompt = $"Summarize the following conversation history into a single concise paragraph. Capture key points, decisions, and arguments. Do not lose critical context.\n\nHistory:\n{historyText}";
-        var response = await RetryHandler.ExecuteWithRetryAsync(
-            async () => await _agent.RunAsync(prompt),
+        var response = await _retryService.ExecuteAsync(
+            async cancellationToken => await _agent.RunAsync(prompt, cancellationToken: cancellationToken),
             "Orchestrator summarization",
             cancellationToken);
         return response.ToString();
@@ -126,8 +136,8 @@ Reason: Document complete, all personas contributed, clear consensus reached");
         var context = BuildOrchestratorContext(currentMessage, conversationHistory, turnsRemaining);
 
         // Execute with retry logic for rate limiting (HTTP 429)
-        var response = await RetryHandler.ExecuteWithRetryAsync(
-            async () => await _agent.RunAsync(context),
+        var response = await _retryService.ExecuteAsync(
+            async cancellationToken => await _agent.RunAsync(context, cancellationToken: cancellationToken),
             "Orchestrator selection",
             cancellationToken);
         var responseText = response.ToString();
@@ -137,7 +147,11 @@ Reason: Document complete, all personas contributed, clear consensus reached");
         {
             var reasonMatch = Regex.Match(responseText, @"Reason:\s*(.+)", RegexOptions.IgnoreCase);
             var reason = reasonMatch.Success ? reasonMatch.Groups[1].Value.Trim() : "Conversation complete";
-            System.Diagnostics.Trace.WriteLine($"[Orchestrator] {reason}", "Info");
+            _eventSink.Publish(new OperationalEvent(
+                OperationalEventKind.OrchestratorDecision,
+                "Orchestrator selection",
+                Decision: "Conclude",
+                Reason: LimitReason(reason)));
             return null; // Signal conversation end
         }
 
@@ -151,12 +165,19 @@ Reason: Document complete, all personas contributed, clear consensus reached");
             var reasonMatch = Regex.Match(responseText, @"Reason:\s*(.+)", RegexOptions.IgnoreCase);
             if (reasonMatch.Success)
             {
-                System.Diagnostics.Trace.WriteLine($"[Orchestrator] {reasonMatch.Groups[1].Value.Trim()}", "Info");
+                _eventSink.Publish(new OperationalEvent(
+                    OperationalEventKind.OrchestratorDecision,
+                    "Orchestrator selection",
+                    Decision: selectedPersona.Name,
+                    Reason: LimitReason(reasonMatch.Groups[1].Value)));
             }
         }
 
         return selectedPersona;
     }
+
+    private static string LimitReason(string reason) =>
+        reason.Length > 200 ? reason[..200] : reason;
 
     private string BuildOrchestratorContext(string currentMessage, List<string> history, int turnsRemaining)
     {

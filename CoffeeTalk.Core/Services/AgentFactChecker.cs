@@ -1,4 +1,5 @@
 using Microsoft.Agents.AI;
+using CoffeeTalk.Core.Interfaces;
 using CoffeeTalk.Models;
 
 namespace CoffeeTalk.Services;
@@ -7,14 +8,23 @@ public class AgentFactChecker
 {
     private readonly AIAgent _agent;
     private readonly RateLimiter? _rateLimiter;
+    private readonly IRetryService _retryService;
+    private readonly IOperationalEventSink _eventSink;
 
     // Delegate for reporting alerts so we don't depend on UI directly
     public event Action<string>? OnFactCheckAlert;
 
-    public AgentFactChecker(AIAgent agent, RateLimiter? rateLimiter)
+    public AgentFactChecker(AIAgent agent, RateLimiter? rateLimiter, IRetryService retryService, IOperationalEventSink? eventSink = null)
     {
         _agent = agent;
         _rateLimiter = rateLimiter;
+        _retryService = retryService;
+        _eventSink = eventSink ?? NullOperationalEventSink.Instance;
+    }
+
+    public AgentFactChecker(AIAgent agent, RateLimiter? rateLimiter)
+        : this(agent, rateLimiter, new RetryService(null))
+    {
     }
 
     public static string BuildSystemPrompt()
@@ -45,8 +55,8 @@ Output Format:
                 await _rateLimiter.ThrottleAsync(_rateLimiter.EstimateTokens(prompt));
             }
 
-            var response = await RetryHandler.ExecuteWithRetryAsync(
-                async () => await _agent.RunAsync(prompt),
+            var response = await _retryService.ExecuteAsync(
+                async cancellationToken => await _agent.RunAsync(prompt, cancellationToken: cancellationToken),
                 "Fact Check",
                 cancellationToken);
 
@@ -57,9 +67,15 @@ Output Format:
                 OnFactCheckAlert?.Invoke(result);
             }
         }
-        catch (Exception ex)
+        catch (OperationCanceledException)
         {
-            System.Diagnostics.Trace.WriteLine($"[AgentFactChecker] Fact check failed: {ex.Message}", "Warning");
+            throw;
+        }
+        catch (Exception)
+        {
+            _eventSink.Publish(new OperationalEvent(
+                OperationalEventKind.OperationFailure,
+                "Fact check"));
         }
     }
 }

@@ -19,6 +19,8 @@ class Program
         appBuilder.Services.AddSingleton<ConfigurationService>();
         appBuilder.Services.AddSingleton<AppState>();
         appBuilder.Services.AddSingleton<ConversationHistoryService>();
+        appBuilder.Services.AddSingleton<BlazorOperationalEventSink>();
+        appBuilder.Services.AddSingleton<IOperationalEventSink>(sp => sp.GetRequiredService<BlazorOperationalEventSink>());
 
         // Register the UI as a singleton so it can be shared between the background task and the pages
         appBuilder.Services.AddSingleton<BlazorUserInterface>();

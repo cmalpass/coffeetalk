@@ -1,4 +1,5 @@
 using Microsoft.Agents.AI;
+using CoffeeTalk.Core.Interfaces;
 using CoffeeTalk.Models;
 
 namespace CoffeeTalk.Services;
@@ -12,13 +13,20 @@ public class AgentEditor
     private readonly EditorConfig _config;
     private readonly CollaborativeMarkdownDocument _doc;
     private readonly RateLimiter? _rateLimiter;
+    private readonly IRetryService _retryService;
 
-    public AgentEditor(AIAgent agent, EditorConfig config, CollaborativeMarkdownDocument doc, RateLimiter? rateLimiter)
+    public AgentEditor(AIAgent agent, EditorConfig config, CollaborativeMarkdownDocument doc, RateLimiter? rateLimiter, IRetryService retryService)
     {
         _agent = agent;
         _config = config;
         _doc = doc;
         _rateLimiter = rateLimiter;
+        _retryService = retryService;
+    }
+
+    public AgentEditor(AIAgent agent, EditorConfig config, CollaborativeMarkdownDocument doc, RateLimiter? rateLimiter)
+        : this(agent, config, doc, rateLimiter, new RetryService(null))
+    {
     }
 
     public static string BuildSystemPrompt(EditorConfig config)
@@ -91,8 +99,8 @@ Prefer replacing existing sections over appending new content. Use ReplaceSectio
         }
 
         // Execute with retry logic
-        var response = await RetryHandler.ExecuteWithRetryAsync(
-            async () => await _agent.RunAsync(prompt),
+        var response = await _retryService.ExecuteAsync(
+            async cancellationToken => await _agent.RunAsync(prompt, cancellationToken: cancellationToken),
             "Editor review",
             cancellationToken);
         var responseText = response.ToString();
