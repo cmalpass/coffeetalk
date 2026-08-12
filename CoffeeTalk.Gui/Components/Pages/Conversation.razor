@@ -5,6 +5,7 @@
 @namespace CoffeeTalk.Gui.Components
 @implements IDisposable
 @inject BlazorUserInterface UI
+@inject IConversationSessionService Session
 @inject AppState AppState
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
@@ -156,17 +157,26 @@
         UI.OnChange -= OnUiChanged;
     }
 
-    private void StopConversation() => UI.SubmitIntervention("quit", "");
+    private void StopConversation() => Session.Cancel();
     private void Submit(string action, string message)
     {
+        if (action == "quit")
+        {
+            Session.Cancel();
+            FeedbackMessage = "";
+            return;
+        }
         UI.SubmitIntervention(action, message);
         FeedbackMessage = "";
     }
 
     private void OnUiChanged()
     {
-        StateHasChanged();
-        _ = InvokeAsync(async () => { await ScrollToBottomAsync(); });
+        _ = InvokeAsync(async () =>
+        {
+            StateHasChanged();
+            await ScrollToBottomAsync();
+        });
     }
 
     private void OnChangeScrollToBottom() => _ = ScrollToBottomAsync();

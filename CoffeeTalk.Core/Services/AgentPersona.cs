@@ -79,7 +79,7 @@ public class AgentPersona
         var estimatedTokens = _rateLimiter?.EstimateTokens(contextMessage) ?? 0;
         if (_rateLimiter != null)
         {
-            await _rateLimiter.ThrottleAsync(estimatedTokens);
+            await _rateLimiter.ThrottleAsync(estimatedTokens, cancellationToken);
         }
 
         // Execute with retry logic for rate limiting (HTTP 429)
@@ -94,7 +94,7 @@ public class AgentPersona
         }
         catch (OperationCanceledException)
         {
-            responseText = $"Error: Operation was canceled.";
+            throw;
         }
         catch (TimeoutException)
         {
