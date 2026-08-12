@@ -126,6 +126,44 @@ The conversation is auto-saved to `conversation.md` in the CoffeeTalk directory.
 
 > **💡 Tip**: See [`CoffeeTalk/appsettings.example.json`](CoffeeTalk/appsettings.example.json) for a complete configuration example with all available options and detailed inline comments.
 
+### Workspace memory (MVP)
+
+CoffeeTalk's memory feature is **opt-in** and is disabled unless the workspace configuration explicitly enables it. Memories are plain-text notes stored locally inside the active workspace; they are not shared with other workspaces and are never uploaded by CoffeeTalk's memory store. Add the memory section to that workspace's `appsettings.json` to enable it:
+
+```json
+{
+  "Memory": {
+    "Enabled": true,
+    "MaxEntries": 1000,
+    "MaxEntrySizeBytes": 65536,
+    "MaxTotalSizeBytes": 10485760,
+    "MaxQueryLength": 512,
+    "MaxResults": 20,
+    "RetentionDays": 90
+  }
+}
+```
+
+The exact limits are deliberately conservative. Entries exceeding the configured byte, total-size, query, or workspace entry limit are rejected, and expired entries are removed by `memory purge`. Retention is not a legal or compliance guarantee: back up or delete the workspace data according to your own policy. Set `Enabled` back to `false` to stop memory recall and creation; existing entries remain available for explicit review or deletion until purged.
+
+Manage only the active workspace's memories with:
+
+```text
+dotnet run -- memory list
+dotnet run -- memory search "deployment decision"
+dotnet run -- memory show <id>
+dotnet run -- memory add --text "The release branch is cut on Tuesdays."
+dotnet run -- memory edit <id> --text "Updated note"
+dotnet run -- memory delete <id>
+dotnet run -- memory purge
+```
+
+`delete` and `purge` always ask for confirmation and do nothing when declined. Memory commands do not run an LLM setup wizard. If memory is disabled, commands that would create or recall context fail with a clear opt-in message; explicit management remains available so that you can inspect and remove local data. Use `memory purge` after changing retention settings or disabling the feature.
+
+Memory text is **untrusted reference context**, not instructions. It may contain prompt-injection text or stale claims. CoffeeTalk must never treat a memory as a system/developer instruction, and users should review entries before relying on them. The MVP intentionally does not provide embeddings, semantic/vector search, automatic global memory, automatic deletion of arbitrary conversation content, or cross-workspace recall. Memory is not a source of truth and is not a substitute for backups.
+
+Embeddings are a future upgrade only if measured textual-search quality is insufficient for real workspaces. Any upgrade must preserve the local/opt-in boundary, define an explicit provider and data-flow review, and pass a quality/latency/storage comparison against the current textual search before it is enabled by default.
+
 ### LLM Provider Options
 
 CoffeeTalk supports three LLM provider types, each with different configuration requirements.

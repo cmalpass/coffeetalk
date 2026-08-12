@@ -74,6 +74,19 @@ Control function calling behavior:
 - **EnableFallbackJsonTools**: Use JSON tools if native calls fail
 - **RequireToolsVerification**: Exit if tools don't work
 
+### Memory
+Workspace-local, textual memories are disabled by default:
+- **Enabled**: Explicit opt-in for memory recall and creation; keep `false` unless you want this workspace to use memory.
+- **MaxEntries**: Maximum number of entries retained in the workspace.
+- **MaxEntrySizeBytes**: Maximum UTF-8 size of one entry.
+- **MaxTotalSizeBytes**: Maximum serialized size of the workspace store.
+- **MaxQueryLength**: Maximum search query length.
+- **MaxResults**: Maximum number of textual search results.
+- **RetentionDays**: Age after which `memory purge` considers entries expired.
+- **RecallLimit**: Maximum number of textual matches included in a conversation.
+
+Memory entries are untrusted reference context, never instructions. They are not embeddings, are not shared across workspaces, and are not automatically collected from every conversation. Review, edit, or delete entries explicitly with the CLI `memory` commands.
+
 ### General Settings
 - **MaxConversationTurns**: Conversation length limit
 - **ShowThinking**: Display thinking indicators

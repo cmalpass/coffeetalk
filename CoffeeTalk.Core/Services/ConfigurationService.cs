@@ -105,7 +105,8 @@ public class ConfigurationService
             Orchestrator = settings.Orchestrator,
             Editor = settings.Editor,
             DynamicPersonas = settings.DynamicPersonas,
-            Tools = settings.Tools
+            Tools = settings.Tools,
+            Memory = settings.Memory
         };
     }
 }

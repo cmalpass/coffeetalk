@@ -14,7 +14,8 @@ public sealed class ConfigurationServiceTests
         var settings = new AppSettings
         {
             LlmProvider = new LlmProviderConfig { Type = "ollama", ModelId = "test-model" },
-            Tools = new ToolsConfig { EnableFallbackJsonTools = false, RequireToolsVerification = false }
+            Tools = new ToolsConfig { EnableFallbackJsonTools = false, RequireToolsVerification = false },
+            Memory = new MemoryConfig { Enabled = true, MaxEntries = 7 }
         };
 
         await service.SaveSettingsAsync(settings);
@@ -23,6 +24,8 @@ public sealed class ConfigurationServiceTests
         Assert.True(Path.IsPathFullyQualified(resolver.ConfigurationFilePath));
         Assert.Equal(false, loaded.Tools?.EnableFallbackJsonTools);
         Assert.Equal(false, loaded.Tools?.RequireToolsVerification);
+        Assert.True(loaded.Memory.Enabled);
+        Assert.Equal(7, loaded.Memory.MaxEntries);
     }
 
     [Fact]
