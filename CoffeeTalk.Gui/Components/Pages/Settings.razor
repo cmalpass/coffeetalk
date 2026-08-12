@@ -155,7 +155,10 @@
         var editablePersona = new PersonaConfig
         {
             Name = persona.Name,
-            SystemPrompt = persona.SystemPrompt
+            SystemPrompt = persona.SystemPrompt,
+            AllowedTools = persona.AllowedTools is null
+                ? null
+                : [.. persona.AllowedTools]
         };
         var parameters = new DialogParameters { ["Persona"] = editablePersona };
         var dialog = DialogService.Show<PersonaDialog>("Edit Persona", parameters);

@@ -20,26 +20,37 @@ public sealed class PdfDocumentExporter : IPdfDocumentExporter
         var headingFont = new XFont("Arial", 16, XFontStyle.Bold);
         var lines = markdown.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
         var lineIndex = 0;
-        while (lineIndex < lines.Length)
+        var pendingLines = new Queue<PendingLine>();
+        while (lineIndex < lines.Length || pendingLines.Count > 0)
         {
             var page = document.AddPage();
             using var graphics = XGraphics.FromPdfPage(page);
             var y = 40d;
-            while (lineIndex < lines.Length)
+            while (lineIndex < lines.Length || pendingLines.Count > 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var line = lines[lineIndex++];
-                var headingLength = GetHeadingLength(line);
-                var isHeading = headingLength > 0;
-                var text = isHeading ? line[(headingLength + 1)..] : line;
-                var lineHeight = isHeading ? 24d : 16d;
-                if (y + lineHeight > page.Height - 40)
+
+                if (pendingLines.Count == 0)
                 {
-                    lineIndex--;
+                    var line = lines[lineIndex++];
+                    var headingLength = GetHeadingLength(line);
+                    var isHeading = headingLength > 0;
+                    var text = isHeading ? line[(headingLength + 1)..] : line;
+                    var fontForLine = isHeading ? headingFont : font;
+                    var lineHeight = isHeading ? 24d : 16d;
+                    foreach (var wrappedText in WrapText(graphics, text, fontForLine, page.Width - 80))
+                        pendingLines.Enqueue(new PendingLine(wrappedText, fontForLine, lineHeight));
+                }
+
+                var pendingLine = pendingLines.Peek();
+                var lineHeightForPage = pendingLine.LineHeight;
+                if (y + lineHeightForPage > page.Height - 40)
+                {
                     break;
                 }
 
-                DrawLine(graphics, text, isHeading ? headingFont : font, ref y, lineHeight, page.Width);
+                pendingLines.Dequeue();
+                DrawLine(graphics, pendingLine.Text, pendingLine.Font, ref y, lineHeightForPage, page.Width);
             }
         }
 
@@ -99,4 +110,68 @@ public sealed class PdfDocumentExporter : IPdfDocumentExporter
             XStringFormats.TopLeft);
         y += lineHeight;
     }
+
+    private static IEnumerable<string> WrapText(XGraphics graphics, string text, XFont font, double maxWidth)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            yield return string.Empty;
+            yield break;
+        }
+
+        var currentLine = string.Empty;
+        foreach (var word in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (graphics.MeasureString(word, font).Width > maxWidth)
+            {
+                if (currentLine.Length > 0)
+                {
+                    yield return currentLine;
+                    currentLine = string.Empty;
+                }
+
+                foreach (var chunk in SplitLongWord(graphics, word, font, maxWidth))
+                    yield return chunk;
+
+                continue;
+            }
+
+            var candidate = currentLine.Length == 0 ? word : $"{currentLine} {word}";
+            if (graphics.MeasureString(candidate, font).Width <= maxWidth)
+            {
+                currentLine = candidate;
+            }
+            else
+            {
+                yield return currentLine;
+                currentLine = word;
+            }
+        }
+
+        if (currentLine.Length > 0)
+            yield return currentLine;
+    }
+
+    private static IEnumerable<string> SplitLongWord(XGraphics graphics, string word, XFont font, double maxWidth)
+    {
+        var chunk = string.Empty;
+        foreach (var character in word)
+        {
+            var candidate = chunk + character;
+            if (chunk.Length > 0 && graphics.MeasureString(candidate, font).Width > maxWidth)
+            {
+                yield return chunk;
+                chunk = character.ToString();
+            }
+            else
+            {
+                chunk = candidate;
+            }
+        }
+
+        if (chunk.Length > 0)
+            yield return chunk;
+    }
+
+    private readonly record struct PendingLine(string Text, XFont Font, double LineHeight);
 }
