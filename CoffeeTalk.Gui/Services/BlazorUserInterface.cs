@@ -1,6 +1,6 @@
 using CoffeeTalk.Core.Interfaces;
-using System.Text;
 using Microsoft.AspNetCore.Components;
+using Markdig;
 
 namespace CoffeeTalk.Gui.Services
 {
@@ -11,6 +11,13 @@ namespace CoffeeTalk.Gui.Services
 
         // Chat History
         public List<ChatMessage> Messages { get; } = new();
+        public bool StopRequested { get; private set; }
+        public string? ConversationTopic { get; private set; }
+        public IReadOnlyList<string> ConversationParticipants { get; private set; } = Array.Empty<string>();
+        public string? ConversationMode { get; private set; }
+        public bool IsConversationRunning { get; private set; }
+        public string? CurrentThinkingPersona { get; private set; }
+        public DateTime? ConversationStartedAt { get; private set; }
 
         // Current Status
         public string? StatusMessage { get; private set; }
@@ -18,6 +25,13 @@ namespace CoffeeTalk.Gui.Services
 
         // Document State
         public string DocumentContent { get; private set; } = "";
+        public string DocumentMarkdown { get; private set; } = "";
+        public string DocumentHtml => Markdown.ToHtml(DocumentMarkdown, MarkdownPipeline);
+
+        private static readonly MarkdownPipeline MarkdownPipeline = new MarkdownPipelineBuilder()
+            .DisableHtml()
+            .UseAdvancedExtensions()
+            .Build();
 
         // User Intervention
         private TaskCompletionSource<(string Action, string Message)>? _interventionTcs;
@@ -41,6 +55,7 @@ namespace CoffeeTalk.Gui.Services
 
         public Task ShowAgentResponseAsync(string agentName, string response)
         {
+            CurrentThinkingPersona = null;
             Messages.Add(new ChatMessage { Sender = agentName, Content = response });
             NotifyStateChanged();
             return Task.CompletedTask;
@@ -49,6 +64,7 @@ namespace CoffeeTalk.Gui.Services
         public Task ShowDocumentPreviewAsync(string content)
         {
             DocumentContent = content;
+            DocumentMarkdown = content;
             NotifyStateChanged();
             return Task.CompletedTask;
         }
@@ -65,6 +81,10 @@ namespace CoffeeTalk.Gui.Services
         // Called by UI component when user submits intervention
         public void SubmitIntervention(string action, string message)
         {
+            if (action == "quit")
+            {
+                StopRequested = true;
+            }
             IsInterventionRequired = false;
             NotifyStateChanged();
             _interventionTcs?.SetResult((action, message));
@@ -74,6 +94,9 @@ namespace CoffeeTalk.Gui.Services
         {
             StatusMessage = status;
             IsBusy = true;
+            CurrentThinkingPersona = status.EndsWith(" is thinking...", StringComparison.Ordinal)
+                ? status[..^" is thinking...".Length]
+                : null;
             NotifyStateChanged();
             return Task.CompletedTask;
         }
@@ -82,6 +105,7 @@ namespace CoffeeTalk.Gui.Services
         {
             StatusMessage = null;
             IsBusy = false;
+            CurrentThinkingPersona = null;
             NotifyStateChanged();
             return Task.CompletedTask;
         }
@@ -101,15 +125,42 @@ namespace CoffeeTalk.Gui.Services
 
         public Task ShowConversationHeaderAsync(string topic, IReadOnlyCollection<string> participants, string mode, bool interactive)
         {
-             var sb = new StringBuilder();
-             sb.AppendLine($"**Topic:** {topic}");
-             sb.AppendLine($"**Participants:** {string.Join(", ", participants)}");
-             sb.AppendLine($"**Mode:** {mode}");
-             if (interactive) sb.AppendLine("*Interactive Mode Enabled*");
-
-             Messages.Add(new ChatMessage { Sender = "System", Content = sb.ToString(), IsSystem = true });
+             ConversationTopic = topic;
+             ConversationParticipants = participants.ToList();
+             ConversationMode = interactive ? $"{mode} · Interactive" : mode;
+             ConversationStartedAt = DateTime.Now;
+             IsConversationRunning = true;
+             StopRequested = false;
              NotifyStateChanged();
              return Task.CompletedTask;
+        }
+
+        public void EndConversation()
+        {
+            IsConversationRunning = false;
+            CurrentThinkingPersona = null;
+            IsInterventionRequired = false;
+            NotifyStateChanged();
+        }
+
+        public void LoadConversation(ConversationRecord record)
+        {
+            Messages.Clear();
+            Messages.AddRange(record.Messages.Select(message => new ChatMessage
+            {
+                Sender = message.Sender,
+                Content = message.Content,
+                IsSystem = message.IsSystem,
+                IsError = message.IsError,
+                IsDivider = message.IsDivider,
+                Timestamp = message.Timestamp
+            }));
+            ConversationTopic = record.Topic;
+            ConversationParticipants = record.Personas;
+            ConversationMode = "History";
+            ConversationStartedAt = record.StartedAt;
+            IsConversationRunning = false;
+            NotifyStateChanged();
         }
 
         public Task ShowRuleAsync(string title = "")

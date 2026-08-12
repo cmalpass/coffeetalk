@@ -1,5 +1,4 @@
 @using CoffeeTalk.Gui.Services
-@using CoffeeTalk.Gui.Components.Pages
 @using MudBlazor
 @using Microsoft.JSInterop
 @namespace CoffeeTalk.Gui.Components
@@ -9,32 +8,57 @@
 @inject ISnackbar Snackbar
 @inject IJSRuntime JSRuntime
 
-<MudGrid Style="height: calc(100vh - 80px);">
-    <!-- Document Panel -->
+@if (UI.IsConversationRunning)
+{
+    <MudPaper Class="conversation-header pa-3 mb-3" Elevation="2">
+        <div class="d-flex align-center gap-3">
+            <div class="flex-grow-1">
+                <MudText Typo="Typo.h5">@UI.ConversationTopic</MudText>
+                <div class="d-flex align-center gap-1 flex-wrap mt-1">
+                    @foreach (var participant in UI.ConversationParticipants)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="@GetChipColor(participant)" Variant="Variant.Outlined">@participant</MudChip>
+                    }
+                    <MudChip T="string" Size="Size.Small" Color="Color.Default">@UI.ConversationMode</MudChip>
+                </div>
+            </div>
+            <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Stop"
+                       OnClick="StopConversation" Disabled="@UI.StopRequested">Stop</MudButton>
+        </div>
+    </MudPaper>
+}
+
+<MudGrid Style="height: calc(100vh - 145px);">
     <MudItem xs="12" md="4" Class="d-flex flex-column" Style="height: 100%;">
         <MudPaper Elevation="4" Class="d-flex flex-column flex-grow-1 overflow-hidden">
             <MudToolBar Dense="true" Class="mud-theme-primary">
                 <MudText Typo="Typo.h6" Color="Color.Inherit">Document State</MudText>
                 <MudSpacer />
+                <MudTabs Rounded="true" Class="document-tabs" @bind-ActivePanelIndex="_documentTab">
+                    <MudTabPanel Text="Rendered" />
+                    <MudTabPanel Text="Raw" />
+                </MudTabs>
                 <MudIconButton Icon="@Icons.Material.Filled.Save" Color="Color.Inherit" OnClick="SaveChat" Title="Save Chat" />
             </MudToolBar>
-            <MudPaper Class="pa-4 flex-grow-1 overflow-y-auto mud-background-gray">
-                <MudText Typo="Typo.body2" Style="white-space: pre-wrap; font-family: monospace;">
-                    @UI.DocumentContent
-                </MudText>
+            <MudPaper Class="document-content pa-4 flex-grow-1 overflow-y-auto">
+                @if (_documentTab == 0)
+                {
+                    @((MarkupString)UI.DocumentHtml)
+                }
+                else
+                {
+                    <MudText Typo="Typo.body2" Class="raw-markdown">@UI.DocumentMarkdown</MudText>
+                }
             </MudPaper>
         </MudPaper>
     </MudItem>
 
-    <!-- Chat Panel -->
     <MudItem xs="12" md="8" Class="d-flex flex-column" Style="height: 100%;">
         <MudPaper Elevation="4" Class="d-flex flex-column flex-grow-1 overflow-hidden">
-             @if (!string.IsNullOrEmpty(UI.StatusMessage))
+            @if (!string.IsNullOrEmpty(UI.StatusMessage))
             {
                 <MudAlert Severity="Severity.Info" Dense="true" Class="rounded-0">@UI.StatusMessage</MudAlert>
             }
-
-            <!-- Messages Area -->
             <div class="flex-grow-1 overflow-y-auto pa-4" id="chat-container">
                 @foreach (var msg in UI.Messages)
                 {
@@ -48,7 +72,7 @@
                     }
                     else if (msg.IsSystem)
                     {
-                         <div class="d-flex justify-center mb-2">
+                        <div class="d-flex justify-center mb-2">
                             <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Text">@msg.Content</MudChip>
                         </div>
                     }
@@ -58,38 +82,40 @@
                     }
                     else
                     {
-                        <!-- Agent/User Message Bubble -->
-                        <div class="d-flex flex-column mb-3 @(msg.Sender == "Director (User)" ? "align-end" : "align-start")">
-                            <MudText Typo="Typo.caption" Class="ml-2 mb-1" Color="Color.Secondary">@msg.Sender</MudText>
-                            <MudPaper Class="pa-3 rounded-lg" MaxWidth="80%"
-                                      Style="@(msg.Sender == "Director (User)" ? $"background-color:{Colors.Brown.Default}; color:white;" : $"background-color:{Colors.Gray.Lighten4};")">
-                                <MudText Typo="Typo.body1" Color="@(msg.Sender == "Director (User)" ? Color.Surface : Color.Default)" Style="white-space: pre-wrap;">
-                                    @msg.Content
-                                </MudText>
+                        var accent = GetPersonaColor(msg.Sender);
+                        <div class="message-row @(msg.Sender == "Director (User)" ? "align-end" : "align-start")">
+                            <div class="message-meta">
+                                <MudChip T="string" Size="Size.Small" Color="@GetChipColor(msg.Sender)" Variant="Variant.Text">@msg.Sender</MudChip>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@FormatTimestamp(msg.Timestamp)</MudText>
+                            </div>
+                            <MudPaper Class="message-bubble pa-3 rounded-lg" Style="@($"border-left: 4px solid {accent};")">
+                                <MudText Typo="Typo.body1" Style="white-space: pre-wrap;">@msg.Content</MudText>
                             </MudPaper>
                         </div>
                     }
                 }
+                @if (UI.IsBusy)
+                {
+                    <div class="thinking-indicator">
+                        <MudProgressCircular Indeterminate="true" Size="Size.Small" Color="Color.Primary" />
+                        <MudText Typo="Typo.body2">@($"{UI.CurrentThinkingPersona ?? "CoffeeTalk"} is thinking...")</MudText>
+                    </div>
+                }
             </div>
 
-            <!-- Interaction Area -->
             @if (UI.IsInterventionRequired)
             {
                 <MudPaper Class="pa-3 z-10" Elevation="8">
                     <MudText Typo="Typo.subtitle2" Color="Color.Primary" GutterBottom="true">Director's Chair</MudText>
-
-                    <MudGrid>
-                        <MudItem xs="12">
-                             <MudTextField @bind-Value="FeedbackMessage" Placeholder="Enter instructions or feedback..." Variant="Variant.Outlined" Margin="Margin.Dense" FullWidth="true"
-                                           Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Send" OnAdornmentClick='() => Submit("inject", FeedbackMessage)' />
-                        </MudItem>
-                        <MudItem xs="12" Class="d-flex gap-2">
-                            <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.PlayArrow" OnClick='() => Submit("continue", "")'>Continue</MudButton>
-                            <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick='() => Submit("inject", FeedbackMessage)'>Inject</MudButton>
-                            <MudSpacer />
-                            <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Filled.Stop" OnClick='() => Submit("quit", "")'>Stop</MudButton>
-                        </MudItem>
-                    </MudGrid>
+                    <MudTextField @bind-Value="FeedbackMessage" Placeholder="Enter instructions or feedback..." Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" FullWidth="true" Adornment="Adornment.End" AdornmentIcon="@Icons.Material.Filled.Send"
+                                  OnAdornmentClick='() => Submit("inject", FeedbackMessage)' />
+                    <div class="d-flex gap-2 mt-2">
+                        <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick='() => Submit("continue", "")'>Continue</MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick='() => Submit("inject", FeedbackMessage)'>Inject</MudButton>
+                        <MudSpacer />
+                        <MudButton Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Filled.Stop" OnClick='() => Submit("quit", "")'>Stop</MudButton>
+                    </div>
                 </MudPaper>
             }
         </MudPaper>
@@ -98,6 +124,7 @@
 
 @code {
     private string FeedbackMessage = "";
+    private int _documentTab;
 
     protected override void OnInitialized()
     {
@@ -111,10 +138,14 @@
         UI.OnChange -= OnChangeScrollToBottom;
     }
 
-    private void OnChangeScrollToBottom()
+    private void StopConversation() => UI.SubmitIntervention("quit", "");
+    private void Submit(string action, string message)
     {
-        _ = ScrollToBottomAsync();
+        UI.SubmitIntervention(action, message);
+        FeedbackMessage = "";
     }
+
+    private void OnChangeScrollToBottom() => _ = ScrollToBottomAsync();
 
     private async Task ScrollToBottomAsync()
     {
@@ -122,20 +153,8 @@
         {
             await JSRuntime.InvokeVoidAsync("scrollToBottom", "chat-container");
         }
-        catch (JSException)
-        {
-            // Silently ignore JS errors as scrolling is a nice-to-have feature
-        }
-        catch (TaskCanceledException)
-        {
-            // Silently ignore if the task was cancelled (e.g., component disposed)
-        }
-    }
-
-    private void Submit(string action, string message)
-    {
-        UI.SubmitIntervention(action, message);
-        FeedbackMessage = "";
+        catch (JSException) { }
+        catch (TaskCanceledException) { }
     }
 
     private async Task SaveChat()
@@ -143,12 +162,45 @@
         try
         {
             var fileName = $"conversation_{DateTime.Now:yyyyMMdd_HHmmss}.md";
-            await File.WriteAllTextAsync(fileName, UI.DocumentContent);
+            await File.WriteAllTextAsync(fileName, UI.DocumentMarkdown);
             Snackbar.Add($"Saved to {fileName}", Severity.Success);
         }
-        catch(Exception ex)
+        catch (IOException ex)
+        {
+            Snackbar.Add($"Failed to save: {ex.Message}", Severity.Error);
+        }
+        catch (UnauthorizedAccessException ex)
         {
             Snackbar.Add($"Failed to save: {ex.Message}", Severity.Error);
         }
     }
+
+    private static string FormatTimestamp(DateTime timestamp)
+    {
+        var diff = DateTime.Now - timestamp;
+        return diff.TotalMinutes < 1 ? "just now" :
+            diff.TotalHours < 1 ? $"{Math.Max(1, diff.Minutes)}m ago" :
+            diff.TotalDays < 1 ? $"{diff.Hours}h ago" :
+            timestamp.ToString("MMM d, HH:mm");
+    }
+
+    private static string GetPersonaColor(string sender) => sender switch
+    {
+        "Director (User)" => Colors.Brown.Default,
+        _ when sender.Contains("developer", StringComparison.OrdinalIgnoreCase) => Colors.Blue.Default,
+        _ when sender.Contains("lead", StringComparison.OrdinalIgnoreCase) => Colors.Green.Default,
+        _ when sender.Contains("product", StringComparison.OrdinalIgnoreCase) => Colors.Orange.Default,
+        _ when sender.Contains("qa", StringComparison.OrdinalIgnoreCase) => Colors.Purple.Default,
+        _ => Colors.Gray.Default
+    };
+
+    private static Color GetChipColor(string sender) => sender switch
+    {
+        "Director (User)" => Color.Primary,
+        _ when sender.Contains("developer", StringComparison.OrdinalIgnoreCase) => Color.Info,
+        _ when sender.Contains("lead", StringComparison.OrdinalIgnoreCase) => Color.Success,
+        _ when sender.Contains("product", StringComparison.OrdinalIgnoreCase) => Color.Warning,
+        _ when sender.Contains("qa", StringComparison.OrdinalIgnoreCase) => Color.Secondary,
+        _ => Color.Default
+    };
 }

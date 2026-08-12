@@ -3,6 +3,7 @@ namespace CoffeeTalk.Models;
 public class OrchestratorConfig
 {
     public bool Enabled { get; set; } = false;
+    public bool UseDynamicPersonaSelection { get; set; }
     public string? BaseSystemPrompt { get; set; }
 
     public const string DefaultBaseSystemPrompt = @"You are a conversation orchestrator managing a collaborative discussion between multiple personas.

@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Markdig" Version="0.38.0" />
     <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="8.0.12" />
     <PackageReference Include="MudBlazor" Version="8.15.0" />
     <PackageReference Include="Photino.Blazor" Version="4.0.13" />
