@@ -139,9 +139,11 @@ public class AgentPersona
 
         var emitted = false;
         Exception? failure = null;
-        await using var updates = _agent.RunStreamingAsync(
-            contextMessage,
-            cancellationToken: cancellationToken).GetAsyncEnumerator(cancellationToken);
+        await using var updates = await _retryService.ExecuteAsync(
+            token => Task.FromResult(_agent.RunStreamingAsync(contextMessage, cancellationToken: token)
+                .GetAsyncEnumerator(token)),
+            $"{Name} streaming response",
+            cancellationToken);
         while (true)
         {
             bool hasUpdate;
