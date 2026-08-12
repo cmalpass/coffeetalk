@@ -146,15 +146,21 @@
     private string FeedbackMessage = "";
     private int _documentTab;
     private string? _exportFormat;
+    private readonly CancellationTokenSource _scrollCancellation = new();
+    private CancellationToken _scrollCancellationToken;
+    private bool _disposed;
 
     protected override void OnInitialized()
     {
+        _scrollCancellationToken = _scrollCancellation.Token;
         UI.OnChange += OnUiChanged;
     }
 
     public void Dispose()
     {
+        _disposed = true;
         UI.OnChange -= OnUiChanged;
+        _scrollCancellation.Cancel();
     }
 
     private void StopConversation() => Session.Cancel();
@@ -172,23 +178,46 @@
 
     private void OnUiChanged()
     {
-        _ = InvokeAsync(async () =>
+        if (_disposed)
+            return;
+
+        var scrollCancellationToken = _scrollCancellationToken;
+        var renderTask = InvokeAsync(async () =>
         {
+            if (_disposed || scrollCancellationToken.IsCancellationRequested)
+                return;
+
             StateHasChanged();
-            await ScrollToBottomAsync();
+            await ScrollToBottomAsync(scrollCancellationToken);
         });
+        _ = ObserveRenderTaskAsync(renderTask, scrollCancellationToken);
     }
 
-    private void OnChangeScrollToBottom() => _ = ScrollToBottomAsync();
-
-    private async Task ScrollToBottomAsync()
+    private static async Task ObserveRenderTaskAsync(Task renderTask, CancellationToken cancellationToken)
     {
         try
         {
-            await JSRuntime.InvokeVoidAsync("scrollToBottom", "chat-container");
+            await renderTask;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        catch (InvalidOperationException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task ScrollToBottomAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("scrollToBottom", cancellationToken, "chat-container");
         }
         catch (JSException) { }
-        catch (TaskCanceledException) { }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
     }
 
     private async Task SaveChat()
