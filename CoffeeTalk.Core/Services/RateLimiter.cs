@@ -72,6 +72,8 @@ public class RateLimiter
                 }
                 if (_cfg.TokensPerMinute.HasValue && _tokensInWindow + estimatedTokens > _cfg.TokensPerMinute.Value)
                 {
+                    if (estimatedTokens > _cfg.TokensPerMinute.Value)
+                        throw new InvalidOperationException($"Request token estimate exceeds per-minute cap ({_cfg.TokensPerMinute})");
                     var secondsLeft = 60 - (int)(DateTime.UtcNow - _windowStart).TotalSeconds;
                     delayMs = Math.Max(delayMs, Math.Max(100, secondsLeft * 1000));
                 }

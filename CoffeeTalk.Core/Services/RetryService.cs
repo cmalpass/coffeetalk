@@ -18,7 +18,8 @@ public sealed class RetryService : IRetryService
     public async Task<T> ExecuteAsync<T>(
         Func<CancellationToken, Task<T>> operation,
         string operationName,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        Func<CancellationToken, Task>? beforeRetry = null)
     {
         int retryCount = 0;
         int delaySeconds = _config.InitialDelaySeconds;
@@ -37,6 +38,8 @@ public sealed class RetryService : IRetryService
                     throw;
                 }
 
+                if (beforeRetry is not null)
+                    await beforeRetry(cancellationToken);
                 await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
                 delaySeconds = (int)(delaySeconds * _config.BackoffMultiplier);
             }
@@ -47,6 +50,8 @@ public sealed class RetryService : IRetryService
                     throw;
                 }
 
+                if (beforeRetry is not null)
+                    await beforeRetry(cancellationToken);
                 await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
                 delaySeconds = (int)(delaySeconds * _config.BackoffMultiplier);
             }
