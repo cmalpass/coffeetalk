@@ -1,0 +1,38 @@
+@using MudBlazor
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.h6" GutterBottom="true">Export Format</MudText>
+        <MudRadioGroup @bind-Value="_format" Orientation="Orientation.Vertical">
+            <MudRadio Value="@("markdown")">Markdown (.md)</MudRadio>
+            <MudRadio Value="@("html")">HTML (.html)</MudRadio>
+            <MudRadio Value="@("json")">JSON (.json)</MudRadio>
+        </MudRadioGroup>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Confirm">Export</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public string? ExportFormat { get; set; }
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    private string _format = "markdown";
+
+    protected override void OnInitialized()
+    {
+        _format = ExportFormat ?? "markdown";
+    }
+
+    private void Cancel()
+    {
+        MudDialog.Cancel();
+    }
+
+    private void Confirm()
+    {
+        MudDialog.Close(DialogResult.Ok(_format));
+    }
+}

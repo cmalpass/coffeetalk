@@ -7,9 +7,10 @@
 @inject BlazorUserInterface UI
 @inject AppState AppState
 @inject ISnackbar Snackbar
+@inject IDialogService DialogService
 @inject IJSRuntime JSRuntime
 
-@if (UI.IsConversationRunning)
+@if (UI.IsConversationRunning || !string.IsNullOrEmpty(UI.ConversationTopic))
 {
     <MudPaper Class="conversation-header pa-3 mb-3" Elevation="2">
         <div class="d-flex align-center gap-3">
@@ -21,10 +22,26 @@
                         <MudChip T="string" Size="Size.Small" Color="@GetChipColor(participant)" Variant="Variant.Outlined">@participant</MudChip>
                     }
                     <MudChip T="string" Size="Size.Small" Color="Color.Default">@UI.ConversationMode</MudChip>
+                    @if (UI.ConversationStartedAt.HasValue)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Info" Variant="Variant.Outlined">
+                            @GetElapsedTime(UI.ConversationStartedAt.Value)
+                        </MudChip>
+                    }
+                    <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Variant="Variant.Outlined">
+                        @GetMessageCount() messages
+                    </MudChip>
                 </div>
             </div>
-            <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Stop"
-                       OnClick="StopConversation" Disabled="@UI.StopRequested">Stop</MudButton>
+            <div class="d-flex gap-2">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download"
+                           OnClick="ShowExportDialog">Export</MudButton>
+                @if (UI.IsConversationRunning)
+                {
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Stop"
+                               OnClick="StopConversation" Disabled="@UI.StopRequested">Stop</MudButton>
+                }
+            </div>
         </div>
     </MudPaper>
 }
@@ -126,6 +143,12 @@
 @code {
     private string FeedbackMessage = "";
     private int _documentTab;
+    private string? _exportFormat;
+
+    private static readonly MarkdownPipeline _markdownPipeline = new MarkdownPipelineBuilder()
+        .UsePipeTables()
+        .UseGridTables()
+        .Build();
 
     protected override void OnInitialized()
     {
@@ -209,10 +232,162 @@
         _ => Color.Default
     };
 
-    private static readonly MarkdownPipeline _markdownPipeline = new MarkdownPipelineBuilder()
-        .UsePipeTables()
-        .UseGridTables()
-        .Build();
+    private async Task ShowExportDialog()
+    {
+        var parameters = new DialogParameters
+        {
+            ["ExportFormat"] = _exportFormat ?? "markdown"
+        };
+        var dialog = DialogService.Show<ExportDialog>("Export Conversation", parameters);
+        var result = await dialog.Result;
+        if (!result.Canceled && result.Data is string format)
+        {
+            await ExportConversation(format);
+        }
+    }
+
+    private async Task ExportConversation(string format)
+    {
+        try
+        {
+            string content;
+            string extension;
+            string mimeType;
+
+            switch (format.ToLower())
+            {
+                case "html":
+                    content = GenerateHtmlExport();
+                    extension = "html";
+                    mimeType = "text/html";
+                    break;
+                case "json":
+                    content = GenerateJsonExport();
+                    extension = "json";
+                    mimeType = "application/json";
+                    break;
+                default:
+                    content = UI.DocumentMarkdown;
+                    extension = "md";
+                    mimeType = "text/markdown";
+                    break;
+            }
+
+            var fileName = $"{UI.ConversationTopic ?? "conversation"}_{DateTime.Now:yyyyMMdd_HHmmss}.{extension}";
+            await File.WriteAllTextAsync(fileName, content);
+            Snackbar.Add($"Exported to {fileName}", Severity.Success);
+        }
+        catch (IOException ex)
+        {
+            Snackbar.Add($"Export failed: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private string GenerateHtmlExport()
+    {
+        var html = @"<!DOCTYPE html>
+<html>
+<head>
+    <meta charset=""utf-8"">
+    <title>";
+        html += UI.ConversationTopic ?? "Conversation";
+        html += @"</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .message { margin: 10px 0; padding: 10px; border-left: 3px solid #ccc; }
+        .sender { font-weight: bold; color: #666; }
+        .timestamp { color: #999; font-size: 0.8em; }
+        .system { background: #f5f5f5; padding: 5px; border-radius: 3px; }
+        .error { background: #ffebee; padding: 5px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>";
+        html += UI.ConversationTopic ?? "Conversation";
+        html += @"</h1>
+    <p>Started: " + (UI.ConversationStartedAt?.ToString("yyyy-MM-dd HH:mm") ?? "Unknown") + @"</p>
+    <hr/>
+";
+
+        foreach (var msg in UI.Messages)
+        {
+            if (msg.IsDivider)
+            {
+                html += "    <hr/>\n";
+            }
+            else if (msg.IsSystem)
+            {
+                html += $"    <div class=\"system\">{EscapeHtml(msg.Content)}</div>\n";
+            }
+            else if (msg.IsError)
+            {
+                html += $"    <div class=\"error\">{EscapeHtml(msg.Content)}</div>\n";
+            }
+            else
+            {
+                html += $"    <div class=\"message\">\n";
+                html += $"        <span class=\"sender\">{EscapeHtml(msg.Sender)}</span> ";
+                html += $"<span class=\"timestamp\">({msg.Timestamp:HH:mm})</span>\n";
+                html += $"        <div>{RenderMarkdown(msg.Content)}</div>\n";
+                html += "    </div>\n";
+            }
+        }
+
+        html += "</body>\n</html>";
+        return html;
+    }
+
+    private string GenerateJsonExport()
+    {
+        var json = "{\n";
+        var startedAt = UI.ConversationStartedAt?.ToString("o") ?? "";
+        var topic = EscapeJson(UI.ConversationTopic ?? "");
+        json += $"  \"topic\": \"{topic}\",\n";
+        json += $"  \"startedAt\": \"{startedAt}\",\n";
+        
+        var participants = "[" + string.Join(", ", UI.ConversationParticipants.Select(p => $"\"{EscapeJson(p)}\"")) + "]";
+        json += $"  \"participants\": {participants},\n";
+        json += "  \"messages\": [\n";
+
+        for (int i = 0; i < UI.Messages.Count; i++)
+        {
+            var msg = UI.Messages[i];
+            json += "    {\n";
+            json += $"      \"sender\": \"{EscapeJson(msg.Sender)}\",\n";
+            json += $"      \"content\": \"{EscapeJson(msg.Content)}\",\n";
+            var ts = msg.Timestamp.ToString("o");
+            json += $"      \"timestamp\": \"{ts}\",\n";
+            json += $"      \"isSystem\": {msg.IsSystem.ToString().ToLower()},\n";
+            json += $"      \"isError\": {msg.IsError.ToString().ToLower()},\n";
+            json += $"      \"isDivider\": {msg.IsDivider.ToString().ToLower()}\n";
+            json += "    }";
+            json += i < UI.Messages.Count - 1 ? "," : "";
+            json += "\n";
+        }
+
+        json += "  ]\n";
+        json += "}";
+        return json;
+    }
+
+    private static string EscapeHtml(string text) => System.Net.WebUtility.HtmlEncode(text);
+
+    private static string EscapeJson(string text) => text.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r").Replace("\t", "\\t");
+
+    private int GetMessageCount()
+    {
+        return UI.Messages.Count(m => !m.IsDivider && !m.IsSystem);
+    }
+
+    private string GetElapsedTime(DateTime startedAt)
+    {
+        var diff = DateTime.Now - startedAt;
+        if (diff.TotalHours >= 1)
+            return $"{(int)diff.TotalHours}h {diff.Minutes}m";
+        if (diff.TotalMinutes >= 1)
+            return $"{diff.Minutes}m {diff.Seconds}s";
+        return $"{diff.Seconds}s";
+    }
 
     private static string RenderMarkdown(string? markdown)
     {
