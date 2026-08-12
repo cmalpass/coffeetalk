@@ -1,5 +1,6 @@
 using Microsoft.Extensions.AI;
 using System.ComponentModel;
+using System.Text.Json;
 using CoffeeTalk.Models;
 
 namespace CoffeeTalk.Services;
@@ -23,7 +24,7 @@ public class MarkdownToolFunctions
     /// </summary>
     public AIFunction[] CreateTools()
     {
-        return new[]
+        var tools = new List<AIFunction>
         {
             AIFunctionFactory.Create(SetTitle),
             AIFunctionFactory.Create(AddHeading),
@@ -33,6 +34,18 @@ public class MarkdownToolFunctions
             AIFunctionFactory.Create(ListHeadings),
             AIFunctionFactory.Create(SaveToFileAsync)
         };
+
+        if (Configuration.EnableFallbackJsonTools)
+        {
+            tools.Add(AIFunctionFactory.Create(ExecuteJsonTool));
+        }
+
+        return tools.ToArray();
+    }
+
+    public bool VerifyTools(AIFunction[] tools)
+    {
+        return tools.Length >= 7;
     }
 
     [Description("Set the title (H1) of the shared markdown document")]
@@ -86,5 +99,29 @@ public class MarkdownToolFunctions
     public Task<string> SaveToFileAsync([Description("Output path relative to the CoffeeTalk exports directory; defaults to conversation.md")] string? path = null)
     {
         return _doc.SaveToFileAsync(path ?? "conversation.md");
+    }
+
+    [Description("Fallback tool dispatcher for providers that return tool calls as JSON")]
+    public string ExecuteJsonTool(
+        [Description("Tool name, such as SetTitle or AppendParagraph")] string toolName,
+        [Description("JSON object containing the tool arguments")] string argumentsJson)
+    {
+        using var arguments = JsonDocument.Parse(argumentsJson);
+        return toolName switch
+        {
+            "SetTitle" => SetTitle(arguments.RootElement.GetProperty("title").GetString() ?? string.Empty),
+            "AddHeading" => AddHeading(
+                arguments.RootElement.GetProperty("text").GetString() ?? string.Empty,
+                arguments.RootElement.TryGetProperty("level", out var level) ? level.GetInt32() : 2),
+            "AppendParagraph" => AppendParagraph(arguments.RootElement.GetProperty("text").GetString() ?? string.Empty),
+            "InsertAfterHeading" => InsertAfterHeading(
+                arguments.RootElement.GetProperty("headingText").GetString() ?? string.Empty,
+                arguments.RootElement.GetProperty("content").GetString() ?? string.Empty),
+            "ReplaceSection" => ReplaceSection(
+                arguments.RootElement.GetProperty("headingText").GetString() ?? string.Empty,
+                arguments.RootElement.GetProperty("content").GetString() ?? string.Empty),
+            "ListHeadings" => ListHeadings(),
+            _ => throw new ArgumentException($"Unsupported markdown tool: {toolName}", nameof(toolName))
+        };
     }
 }

@@ -48,7 +48,16 @@ public sealed class ConversationPipeline
     public AppSettings Settings { get; }
 
     public AgentConversationOrchestrator CreateConversation(IUserInterface ui)
-        => new(ui, Personas, SharedDocument, Settings, Orchestrator, Editor, DataExtractor, FactChecker);
+    {
+        ArgumentNullException.ThrowIfNull(ui);
+        if (FactChecker != null)
+        {
+            FactChecker.OnFactCheckAlert += alert =>
+                ui.ShowMessageAsync($"[bold red]Fact Checker Alert:[/] {alert}");
+        }
+
+        return new(ui, Personas, SharedDocument, Settings, Orchestrator, Editor, DataExtractor, FactChecker);
+    }
 }
 
 public sealed class ConversationPipelineBuilder
@@ -83,6 +92,10 @@ public sealed class ConversationPipelineBuilder
         var toolsConfig = settings.Tools ?? new ToolsConfig();
         var markdownTools = new MarkdownToolFunctions(sharedDocument, toolsConfig);
         var tools = markdownTools.CreateTools();
+        if (toolsConfig.RequireToolsVerification && !markdownTools.VerifyTools(tools))
+        {
+            throw new InvalidOperationException("Markdown tools failed verification.");
+        }
         var retryService = new RetryService(settings.Retry, _eventSink);
         var rateLimiter = new RateLimiter(settings.RateLimit);
         var personaConfigs = (selectedPersonas ?? settings.Personas).ToList();

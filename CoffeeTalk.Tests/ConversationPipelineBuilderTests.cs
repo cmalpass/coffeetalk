@@ -29,6 +29,7 @@ public sealed class ConversationPipelineBuilderTests
         Assert.NotNull(pipeline.DataExtractor);
         Assert.Equal(settings.Tools!.RequireToolsVerification, pipeline.ToolsConfig.RequireToolsVerification);
         Assert.Contains(factory.Created, agent => agent.Name == "Editor" && agent.Tools?.Length > 0);
+        Assert.Contains(factory.Created, agent => agent.Name == "Analyst" && agent.Tools?.Length == 8);
     }
 
     [Fact]

@@ -12,7 +12,7 @@ public class AgentFactChecker
     private readonly IOperationalEventSink _eventSink;
 
     // Delegate for reporting alerts so we don't depend on UI directly
-    public event Action<string>? OnFactCheckAlert;
+    public event Func<string, Task>? OnFactCheckAlert;
 
     public AgentFactChecker(AIAgent agent, RateLimiter? rateLimiter, IRetryService retryService, IOperationalEventSink? eventSink = null)
     {
@@ -64,7 +64,10 @@ Output Format:
 
             if (!result.StartsWith("PASS", StringComparison.OrdinalIgnoreCase))
             {
-                OnFactCheckAlert?.Invoke(result);
+                if (OnFactCheckAlert != null)
+                {
+                    await OnFactCheckAlert.Invoke(result);
+                }
             }
         }
         catch (OperationCanceledException)
