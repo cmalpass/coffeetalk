@@ -94,6 +94,7 @@ public class AgentConversationOrchestrator
     {
         int totalTurns = 0;
         int maxTotalTurns = _maxTurns * _personas.Count; // Total individual turns allowed
+        int failedAttempts = 0;
 
         while (totalTurns < maxTotalTurns)
         {
@@ -184,6 +185,7 @@ public class AgentConversationOrchestrator
             {
                 System.Diagnostics.Trace.WriteLine($"[Orchestrator] Operation timed out: {ex.Message}", "Warning");
                 await _ui.ShowErrorAsync("[red]❌ Operation timed out.[/]");
+                totalTurns++;
             }
             catch (Exception ex) when (
                 ex is StackOverflowException ||
@@ -197,6 +199,9 @@ public class AgentConversationOrchestrator
             {
                 System.Diagnostics.Trace.WriteLine($"[Orchestrator] Unexpected error: {ex.GetType().Name} - {ex.Message}", "Error");
                 await _ui.ShowErrorAsync("[red]❌ An unexpected error occurred.[/]");
+                failedAttempts++;
+                if (failedAttempts >= maxTotalTurns)
+                    break;
             }
 
             await _ui.ShowRuleAsync();

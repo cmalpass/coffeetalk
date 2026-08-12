@@ -86,7 +86,8 @@ public class AgentPersona
             var response = await _retryService.ExecuteAsync(
                 async cancellationToken => await _agent.RunAsync(contextMessage, cancellationToken: cancellationToken),
                 $"{Name} response",
-                cancellationToken);
+                cancellationToken,
+                _rateLimiter is null ? null : token => _rateLimiter.ThrottleAsync(0, token));
             responseText = response.ToString();
         }
         catch (OperationCanceledException)
@@ -159,7 +160,8 @@ public class AgentPersona
                     }
                 },
                 $"{Name} streaming response",
-                cancellationToken);
+                cancellationToken,
+                _rateLimiter is null ? null : token => _rateLimiter.ThrottleAsync(0, token));
             updates = initialUpdate.enumerator;
             var hasUpdate = initialUpdate.hasUpdate;
 
@@ -213,7 +215,8 @@ public class AgentPersona
         var response = await _retryService.ExecuteAsync(
             async token => await _agent.RunAsync(contextMessage, cancellationToken: token),
             $"{Name} response",
-            cancellationToken);
+            cancellationToken,
+            _rateLimiter is null ? null : token => _rateLimiter.ThrottleAsync(0, token));
         var responseText = response.ToString();
         _rateLimiter?.AccountAdditionalTokens(_rateLimiter.EstimateTokens(responseText));
         yield return responseText;

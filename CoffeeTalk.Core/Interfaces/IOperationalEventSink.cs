@@ -43,5 +43,6 @@ public interface IRetryService
     Task<T> ExecuteAsync<T>(
         Func<CancellationToken, Task<T>> operation,
         string operationName,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        Func<CancellationToken, Task>? beforeRetry = null);
 }

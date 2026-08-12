@@ -85,7 +85,15 @@ public sealed class ConversationSessionService : IConversationSessionService, ID
             _ui.CancelIntervention();
 
             if (activeTask is not null)
-                await activeTask.ConfigureAwait(false);
+            {
+                try
+                {
+                    await activeTask.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (activeTask.IsCanceled)
+                {
+                }
+            }
 
             lock (_gate)
             {
