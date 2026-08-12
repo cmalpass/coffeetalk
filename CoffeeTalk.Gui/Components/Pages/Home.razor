@@ -15,6 +15,7 @@
 @inject ConversationHistoryService History
 @inject IApplicationDataPathResolver DataPaths
 @inject IOperationalEventSink OperationalEvents
+@inject ConversationPipelineBuilder PipelineBuilder
 
 
 <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8">
@@ -146,44 +147,10 @@
     {
         try
         {
-            var sharedDoc = new CollaborativeMarkdownDocument(DataPaths);
-            var markdownTools = new MarkdownToolFunctions(sharedDoc);
-            var tools = markdownTools.CreateTools();
             var settings = AppState.Settings;
-            var rateLimiter = new RateLimiter(settings.RateLimit);
-            var retryService = new RetryService(settings.Retry, OperationalEvents);
-
             var activePersonasConfig = SelectedPersonas.Cast<PersonaConfig>().ToList();
-
-            var activePersonas = new List<AgentPersona>();
-            foreach (var personaConfig in activePersonasConfig)
-            {
-                var agent = AgentBuilder.CreateAgent(
-                    settings.LlmProvider,
-                    personaConfig.Name,
-                    personaConfig.SystemPrompt,
-                    tools);
-
-                var agentPersona = new AgentPersona(
-                    agent,
-                    personaConfig,
-                    sharedDoc,
-                    rateLimiter,
-                    settings.MaxConversationTurns,
-                    activePersonasConfig.Count,
-                    retryService);
-
-                activePersonas.Add(agentPersona);
-            }
-
-            var conversationOrchestrator = new AgentConversationOrchestrator(
-                UI,
-                activePersonas,
-                sharedDoc,
-                settings
-            );
-
-            await conversationOrchestrator.StartConversationAsync(Topic, ct);
+            var pipeline = await PipelineBuilder.BuildAsync(settings, Topic, activePersonasConfig, ct);
+            await pipeline.CreateConversation(UI).StartConversationAsync(Topic, ct);
         }
         catch (OperationCanceledException)
         {
