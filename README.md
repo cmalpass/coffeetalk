@@ -6,6 +6,7 @@ A .NET CLI application that orchestrates multi-persona LLM conversations using M
 
 ### Core Capabilities
 - **Multiple LLM Providers**: Support for OpenAI, Azure OpenAI, and Ollama (local models)
+- **Streaming Responses**: OpenAI and Azure OpenAI responses stream by default, with configurable buffered fallback
 - **Configurable Personas**: Define multiple personas with unique system prompts and conversation styles
 - **Dynamic Persona Generation**: Automatically generate topic-specific personas at runtime using AI
 - **AI-Directed Orchestration**: Optional orchestrator agent intelligently selects which persona should speak next based on conversation needs
@@ -128,6 +129,15 @@ The conversation is auto-saved to `conversation.md` in the CoffeeTalk directory.
 ### LLM Provider Options
 
 CoffeeTalk supports three LLM provider types, each with different configuration requirements.
+
+### Streaming Responses
+
+Streaming is enabled by default for OpenAI and Azure OpenAI. Set `StreamingFallback` to
+`"error"` to fail instead of using the buffered `RunAsync` path when streaming is unavailable;
+the default `"buffered"` value preserves compatibility. Ollama streaming is conditional on
+the active model/server and is not assumed to be universally supported. To opt in after
+verifying a live Ollama setup, set `StreamingSupported` to `true`; otherwise CoffeeTalk uses
+the buffered path.
 
 #### OpenAI
 

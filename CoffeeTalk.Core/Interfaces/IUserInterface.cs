@@ -10,6 +10,7 @@ namespace CoffeeTalk.Core.Interfaces
         Task ShowMessageAsync(string message);
         Task ShowErrorAsync(string message);
         Task ShowAgentResponseAsync(string agentName, string response);
+        Task ShowAgentResponseChunkAsync(string agentName, string chunk);
         Task ShowDocumentPreviewAsync(string content);
         Task<(string Action, string Message)> GetUserInterventionAsync();
 

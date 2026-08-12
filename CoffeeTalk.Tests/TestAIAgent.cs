@@ -7,16 +7,27 @@ namespace CoffeeTalk.Tests;
 internal sealed class TestAIAgent : AIAgent
 {
     private readonly Func<AgentRunResponse> _response;
+    private readonly IReadOnlyList<string> _streamingChunks;
+    private readonly Exception? _streamingException;
     public int Calls { get; private set; }
+    public int StreamingCalls { get; private set; }
 
     public TestAIAgent(Func<AgentRunResponse> response)
     {
         _response = response;
+        _streamingChunks = [];
     }
 
     public TestAIAgent(string response)
         : this(() => new AgentRunResponse(new ChatMessage(ChatRole.Assistant, response)))
     {
+    }
+
+    public TestAIAgent(string response, IReadOnlyList<string> streamingChunks, Exception? streamingException = null)
+        : this(() => new AgentRunResponse(new ChatMessage(ChatRole.Assistant, response)))
+    {
+        _streamingChunks = streamingChunks;
+        _streamingException = streamingException;
     }
 
     public TestAIAgent(Exception exception)
@@ -48,7 +59,21 @@ internal sealed class TestAIAgent : AIAgent
         AgentRunOptions? options = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        await Task.CompletedTask;
-        yield break;
+        StreamingCalls++;
+        foreach (var chunk in _streamingChunks)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            yield return new AgentRunResponseUpdate(new ChatResponseUpdate(ChatRole.Assistant, chunk));
+            await Task.Yield();
+        }
+
+        if (_streamingChunks.Count == 0)
+        {
+            var response = _response();
+            yield return new AgentRunResponseUpdate(new ChatResponseUpdate(ChatRole.Assistant, response.ToString()));
+        }
+
+        if (_streamingException is not null)
+            throw _streamingException;
     }
 }

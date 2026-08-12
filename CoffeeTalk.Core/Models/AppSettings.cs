@@ -50,5 +50,8 @@ public class PersistedLlmProviderConfig
     public string Endpoint { get; set; } = string.Empty;
     public string ModelId { get; set; } = string.Empty;
     public string DeploymentName { get; set; } = string.Empty;
+    public bool StreamingEnabled { get; set; } = true;
+    public bool? StreamingSupported { get; set; }
+    public string StreamingFallback { get; set; } = "buffered";
     // ApiKey is intentionally omitted
 }
