@@ -6,6 +6,7 @@ namespace CoffeeTalk.Core.Interfaces
 {
     public interface IUserInterface
     {
+        bool StopRequested { get; }
         Task ShowMessageAsync(string message);
         Task ShowErrorAsync(string message);
         Task ShowAgentResponseAsync(string agentName, string response);

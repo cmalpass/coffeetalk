@@ -12,6 +12,7 @@
 @inject BlazorUserInterface UI
 @inject NavigationManager Navigation
 @inject ILogger<Home> Logger
+@inject ConversationHistoryService History
 
 
 <MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8">
@@ -20,6 +21,34 @@
 
     <MudGrid Justify="Justify.Center">
         <MudItem xs="12" md="10">
+            <MudPaper Class="pa-4 mb-4" Outlined="true">
+                <div class="d-flex align-center">
+                    <MudText Typo="Typo.subtitle1">Configuration</MudText>
+                    <MudSpacer />
+                    <MudButton Variant="Variant.Text" Href="/settings" StartIcon="@Icons.Material.Filled.Settings">Edit Settings</MudButton>
+                </div>
+                <MudGrid Class="mt-1">
+                    <MudItem xs="12" sm="4">
+                        <MudText Typo="Typo.caption">Provider / model</MudText>
+                        <MudText Typo="Typo.body2">@AppState.Settings.LlmProvider.Type / @AppState.Settings.LlmProvider.ModelId</MudText>
+                    </MudItem>
+                    <MudItem xs="6" sm="4">
+                        <MudText Typo="Typo.caption">Personas</MudText>
+                        <MudChip T="string" Size="Size.Small" Color="Color.Success">@AppState.Settings.Personas.Count configured</MudChip>
+                    </MudItem>
+                    <MudItem xs="6" sm="4">
+                        <MudText Typo="Typo.caption">Features</MudText>
+                        <div class="d-flex gap-1 flex-wrap">
+                            <MudChip T="string" Size="Size.Small" Color="@(AppState.Settings.FactChecking ? Color.Success : Color.Default)">@(AppState.Settings.FactChecking ? "✓" : "×") Fact-check</MudChip>
+                            <MudChip T="string" Size="Size.Small" Color="@(AppState.Settings.DevilsAdvocate ? Color.Success : Color.Default)">@(AppState.Settings.DevilsAdvocate ? "✓" : "×") Devil's advocate</MudChip>
+                            <MudChip T="string" Size="Size.Small" Color="@((AppState.Settings.DynamicPersonas?.Enabled ?? false) ? Color.Success : Color.Default)">@(AppState.Settings.DynamicPersonas?.Enabled == true ? "✓" : "×") Dynamic personas</MudChip>
+                            <MudChip T="string" Size="Size.Small" Color="@(AppState.Settings.Editor?.Enabled == true ? Color.Success : Color.Default)">@(AppState.Settings.Editor?.Enabled == true ? "✓" : "×") Editor</MudChip>
+                            <MudChip T="string" Size="Size.Small" Color="@(AppState.Settings.Orchestrator?.Enabled == true ? Color.Success : Color.Default)">@(AppState.Settings.Orchestrator?.Enabled == true ? "✓" : "×") Orchestrator</MudChip>
+                            <MudChip T="string" Size="Size.Small" Color="@(AppState.Settings.Tools is not null ? Color.Success : Color.Default)">@(AppState.Settings.Tools is not null ? "✓" : "×") Tools</MudChip>
+                        </div>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
             <MudCard Elevation="4" Class="pa-4">
                 <MudCardHeader>
                     <CardHeaderContent>
@@ -47,6 +76,29 @@
             </MudCard>
         </MudItem>
 
+        @if (_recentConversations.Count > 0)
+        {
+            <MudItem xs="12" md="10" Class="mt-4">
+                <MudPaper Class="pa-4" Outlined="true">
+                    <MudText Typo="Typo.subtitle1" GutterBottom="true">Recent Conversations</MudText>
+                    @foreach (var conversation in _recentConversations)
+                    {
+                        <MudCard Class="mb-2" Outlined="true" @onclick="() => ResumeConversation(conversation)">
+                            <MudCardContent Class="py-2">
+                                <div class="d-flex align-center">
+                                    <div class="flex-grow-1">
+                                        <MudText Typo="Typo.body1">@conversation.Topic</MudText>
+                                        <MudText Typo="Typo.caption">@conversation.StartedAt.ToLocalTime().ToString("MMM d, yyyy HH:mm") · @conversation.MessageCount messages</MudText>
+                                    </div>
+                                    <MudChip T="string" Size="Size.Small" Color="@(conversation.Status == "Completed" ? Color.Success : Color.Warning)">@conversation.Status</MudChip>
+                                </div>
+                            </MudCardContent>
+                        </MudCard>
+                    }
+                </MudPaper>
+            </MudItem>
+        }
+
         <MudItem xs="12" md="10" Class="mt-4">
              <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" ContentAlignment="HorizontalAlignment.Center">
                 Current Config: <strong>@AppState.Settings.LlmProvider.Type</strong> / <strong>@AppState.Settings.LlmProvider.ModelId</strong>
@@ -60,6 +112,7 @@
     private string Topic = "";
 
     private IReadOnlyCollection<object> SelectedPersonas { get; set; } = new List<object>();
+    private IReadOnlyList<ConversationRecord> _recentConversations = Array.Empty<ConversationRecord>();
     private Task? _conversationTask;
     private CancellationTokenSource? _cts;
 
@@ -67,6 +120,7 @@
     {
         // Select all by default
         SelectedPersonas = AppState.Settings.Personas.Cast<object>().ToList();
+        _recentConversations = History.Recent();
     }
 
     private async Task StartConversation()
@@ -136,11 +190,31 @@
             Logger.LogError(ex, "Error during conversation orchestration");
             await UI.ShowErrorAsync("An error occurred while starting the conversation. Please check your configuration and try again.");
         }
+        finally
+        {
+            History.Add(new ConversationRecord
+            {
+                Topic = Topic,
+                StartedAt = UI.ConversationStartedAt ?? DateTime.Now,
+                CompletedAt = DateTime.Now,
+                Status = UI.StopRequested ? "Stopped" : "Completed",
+                MessageCount = UI.Messages.Count,
+                Personas = UI.ConversationParticipants.ToList(),
+                Messages = UI.Messages.ToList()
+            });
+            UI.EndConversation();
+        }
     }
 
     public void Dispose()
     {
         _cts?.Cancel();
         _cts?.Dispose();
+    }
+
+    private void ResumeConversation(ConversationRecord conversation)
+    {
+        UI.LoadConversation(conversation);
+        Navigation.NavigateTo("/conversation");
     }
 }

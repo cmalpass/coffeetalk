@@ -8,6 +8,8 @@ namespace CoffeeTalk.Services
 {
     public class ConsoleUserInterface : IUserInterface
     {
+        public bool StopRequested => false;
+
         public Task ShowMessageAsync(string message)
         {
             AnsiConsole.MarkupLine(message);

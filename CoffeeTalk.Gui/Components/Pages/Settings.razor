@@ -81,6 +81,38 @@
                  <MudItem xs="12">
                     <MudSwitch @bind-Value="AppState.Settings.ShowThinking" Label="Show Thinking Process" Color="Color.Info" />
                 </MudItem>
+                 <MudItem xs="12"><MudDivider Class="my-3" /><MudText Typo="Typo.subtitle1">Orchestrator</MudText></MudItem>
+                 <MudItem xs="12" md="6">
+                     <MudSwitch @bind-Value="AppState.Settings.Orchestrator!.Enabled" Label="Enable Orchestrator" Color="Color.Primary" />
+                 </MudItem>
+                 <MudItem xs="12" md="6">
+                     <MudSwitch @bind-Value="AppState.Settings.Orchestrator!.UseDynamicPersonaSelection" Label="Dynamic persona selection" Color="Color.Primary" />
+                 </MudItem>
+                 <MudItem xs="12"><MudDivider Class="my-3" /><MudText Typo="Typo.subtitle1">Editor</MudText></MudItem>
+                 <MudItem xs="12" md="6">
+                     <MudSwitch @bind-Value="AppState.Settings.Editor!.Enabled" Label="Enable Editor" Color="Color.Primary" />
+                 </MudItem>
+                 <MudItem xs="12" md="6">
+                     <MudNumericField @bind-Value="AppState.Settings.Editor!.InterventionFrequency" Label="Review every N turns" Min="1" Max="100" />
+                 </MudItem>
+                 <MudItem xs="12"><MudDivider Class="my-3" /><MudText Typo="Typo.subtitle1">Dynamic Personas</MudText></MudItem>
+                 <MudItem xs="12" md="4">
+                     <MudSwitch @bind-Value="AppState.Settings.DynamicPersonas!.Enabled" Label="Enable Dynamic Personas" Color="Color.Primary" />
+                 </MudItem>
+                 <MudItem xs="12" md="4">
+                     <MudNumericField @bind-Value="AppState.Settings.DynamicPersonas!.Count" Label="Persona count" Min="2" Max="10" />
+                 </MudItem>
+                 <MudItem xs="12" md="4">
+                     <MudSelect T="string" @bind-Value="AppState.Settings.DynamicPersonas!.Mode" Label="Mode">
+                       <MudSelectItem Value="@("augment")">Augment configured</MudSelectItem>
+                       <MudSelectItem Value="@("replace")">Replace configured</MudSelectItem>
+                     </MudSelect>
+                 </MudItem>
+                 <MudItem xs="12"><MudDivider Class="my-3" /><MudText Typo="Typo.subtitle1">Tools</MudText></MudItem>
+                 <MudItem xs="12">
+                     <MudSwitch @bind-Value="AppState.Settings.Tools!.EnableFallbackJsonTools" Label="Enable fallback JSON tools" Color="Color.Primary" />
+                     <MudSwitch @bind-Value="AppState.Settings.Tools!.RequireToolsVerification" Label="Require tools verification" Color="Color.Primary" />
+                 </MudItem>
             </MudGrid>
         </MudTabPanel>
     </MudTabs>
@@ -95,6 +127,14 @@
     {
         await AppState.SaveSettingsAsync();
         Snackbar.Add("Configuration saved successfully!", Severity.Success);
+    }
+
+    protected override void OnInitialized()
+    {
+        AppState.Settings.Editor ??= new EditorConfig();
+        AppState.Settings.DynamicPersonas ??= new DynamicPersonasConfig();
+        AppState.Settings.Tools ??= new ToolsConfig();
+        AppState.Settings.Orchestrator ??= new OrchestratorConfig();
     }
 
     private async Task AddPersona()

@@ -74,6 +74,71 @@ html, body {
     white-space: pre-wrap;
 }
 
+.conversation-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+.message-row {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 1rem;
+    max-width: 86%;
+}
+
+.message-row.align-end {
+    margin-left: auto;
+    align-items: flex-end;
+}
+
+.message-row.align-start {
+    margin-right: auto;
+    align-items: flex-start;
+}
+
+.message-meta {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    margin-bottom: .2rem;
+}
+
+.message-bubble {
+    background-color: var(--mud-palette-surface);
+}
+
+.thinking-indicator {
+    display: flex;
+    align-items: center;
+    gap: .65rem;
+    padding: .75rem;
+    color: var(--mud-palette-text-secondary);
+    font-style: italic;
+}
+
+.document-content h1,
+.document-content h2,
+.document-content h3 {
+    margin-top: 1rem;
+}
+
+.document-content pre {
+    overflow-x: auto;
+    padding: .75rem;
+    border-radius: .35rem;
+    background-color: var(--mud-palette-background-gray);
+}
+
+.document-content code {
+    font-family: var(--mud-typography-body2-family);
+}
+
+.raw-markdown {
+    white-space: pre-wrap;
+    font-family: monospace;
+}
+
 .input-area {
     margin-top: 10px;
     padding: 10px;

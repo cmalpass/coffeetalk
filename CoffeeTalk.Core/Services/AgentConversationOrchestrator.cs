@@ -88,6 +88,11 @@ public class AgentConversationOrchestrator
 
         while (totalTurns < maxTotalTurns)
         {
+            if (_ui.StopRequested)
+            {
+                break;
+            }
+
             try
             {
                 AgentPersona? selectedPersona = null;
@@ -208,6 +213,11 @@ public class AgentConversationOrchestrator
         {
             foreach (var persona in _personas)
             {
+                if (_ui.StopRequested)
+                {
+                    return;
+                }
+
                 try
                 {
                     string response = string.Empty;
