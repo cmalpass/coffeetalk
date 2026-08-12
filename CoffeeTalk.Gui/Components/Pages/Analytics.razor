@@ -1,0 +1,54 @@
+@page "/analytics"
+@using CoffeeTalk.Gui.Services
+@using MudBlazor
+@inject ConversationHistoryService History
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-8">
+    <MudText Typo="Typo.h2" GutterBottom="true">Conversation analytics</MudText>
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">
+        These statistics are calculated from locally saved conversations in the current workspace.
+        Token values are approximate character-based estimates; no provider pricing or prompt telemetry is collected.
+    </MudText>
+
+    <MudGrid>
+        <MudItem xs="6" sm="3"><MudPaper Class="pa-4"><MudText Typo="Typo.caption">Conversations</MudText><MudText Typo="Typo.h5">@_summary.ConversationCount</MudText></MudPaper></MudItem>
+        <MudItem xs="6" sm="3"><MudPaper Class="pa-4"><MudText Typo="Typo.caption">Messages</MudText><MudText Typo="Typo.h5">@_summary.MessageCount</MudText></MudPaper></MudItem>
+        <MudItem xs="6" sm="3"><MudPaper Class="pa-4"><MudText Typo="Typo.caption">Words</MudText><MudText Typo="Typo.h5">@_summary.WordCount</MudText></MudPaper></MudItem>
+        <MudItem xs="6" sm="3"><MudPaper Class="pa-4"><MudText Typo="Typo.caption">Estimated tokens</MudText><MudText Typo="Typo.h5">@_summary.EstimatedTokenCount</MudText></MudPaper></MudItem>
+    </MudGrid>
+
+    <MudPaper Class="pa-4 mt-4" Outlined="true">
+        <MudText Typo="Typo.subtitle1">Average duration</MudText>
+        <MudText Typo="Typo.h6">@FormatDuration(_summary.AverageDuration)</MudText>
+    </MudPaper>
+
+    <MudPaper Class="pa-4 mt-4" Outlined="true">
+        <MudText Typo="Typo.subtitle1" GutterBottom="true">Messages by participant</MudText>
+        @if (_summary.MessagesByParticipant.Count == 0)
+        {
+            <MudText Color="Color.Secondary">No saved conversation messages yet.</MudText>
+        }
+        else
+        {
+            @foreach (var participant in _summary.MessagesByParticipant.OrderByDescending(pair => pair.Value))
+            {
+                <div class="d-flex justify-space-between">
+                    <MudText>@participant.Key</MudText>
+                    <MudText Color="Color.Secondary">@participant.Value messages</MudText>
+                </div>
+            }
+        }
+    </MudPaper>
+</MudContainer>
+
+@code {
+    private ConversationAnalyticsSummary _summary = new();
+
+    protected override async Task OnInitializedAsync()
+        => _summary = await History.SummaryAsync();
+
+    private static string FormatDuration(TimeSpan duration) =>
+        duration.TotalHours >= 1
+            ? $"{(int)duration.TotalHours}h {duration.Minutes}m"
+            : $"{(int)duration.TotalMinutes}m {duration.Seconds}s";
+}

@@ -17,6 +17,7 @@ public sealed class ConversationState
     public DateTimeOffset? CompletedAt { get; set; }
     public string Status { get; set; } = "Completed";
     public Dictionary<string, string> Metadata { get; set; } = new(StringComparer.Ordinal);
+    public ConversationMetrics Metrics { get; set; } = new();
 }
 
 public sealed class ConversationMessage
@@ -34,4 +35,16 @@ public sealed class ConversationParticipant
     public string Name { get; set; } = string.Empty;
     public string? Role { get; set; }
     public Dictionary<string, string> Metadata { get; set; } = new(StringComparer.Ordinal);
+}
+
+public sealed class ConversationMetrics
+{
+    public TimeSpan Duration { get; set; }
+    public int MessageCount { get; set; }
+    public int WordCount { get; set; }
+    public int EstimatedTokenCount { get; set; }
+    public int DocumentWordCount { get; set; }
+    public int DocumentHeadingCount { get; set; }
+    public Dictionary<string, int> MessagesByParticipant { get; set; } = new(StringComparer.Ordinal);
+    public Dictionary<string, int> WordsByParticipant { get; set; } = new(StringComparer.Ordinal);
 }

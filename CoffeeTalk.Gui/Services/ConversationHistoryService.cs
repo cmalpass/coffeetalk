@@ -26,6 +26,12 @@ public sealed class ConversationHistoryService
         return states.Take(count).Select(ToRecord).ToList();
     }
 
+    public async Task<IReadOnlyList<ConversationRecord>> AllAsync(CancellationToken cancellationToken = default)
+        => (await GetStatesAsync(cancellationToken)).Select(ToRecord).ToList();
+
+    public async Task<ConversationAnalyticsSummary> SummaryAsync(CancellationToken cancellationToken = default)
+        => ConversationMetricsAggregator.Summarize(await GetStatesAsync(cancellationToken));
+
     public Task<string> SaveAsync(ConversationRecord record, CancellationToken cancellationToken = default)
         => _persistence.SaveAsync(ToState(record), cancellationToken);
 
@@ -60,12 +66,19 @@ public sealed class ConversationHistoryService
                 await _persistence.SaveAsync(state, cancellationToken);
                 migrated.Add(state);
             }
+
             return migrated;
         }
         catch (JsonException ex)
         {
             throw new ConversationStateCorruptException("Legacy conversation history JSON is invalid.", ex);
         }
+    }
+
+    private async Task<IReadOnlyList<ConversationState>> GetStatesAsync(CancellationToken cancellationToken)
+    {
+        var states = await _persistence.ListAsync(cancellationToken);
+        return states.Count == 0 ? await MigrateLegacyAsync(cancellationToken) : states;
     }
 
     private static ConversationState ToState(ConversationRecord record) => new()
@@ -96,6 +109,7 @@ public sealed class ConversationHistoryService
         Personas = state.Participants.Select(participant => participant.Name).ToList(),
         DocumentContent = state.DocumentContent,
         Metadata = new Dictionary<string, string>(state.Metadata, StringComparer.Ordinal),
+        Metrics = state.Metrics,
         Messages = state.Messages.Select(message => new ChatMessage
         {
             Sender = message.Sender, Content = message.Content, IsSystem = message.IsSystem,

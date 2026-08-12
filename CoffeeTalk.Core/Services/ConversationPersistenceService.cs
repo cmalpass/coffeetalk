@@ -37,6 +37,7 @@ public sealed class ConversationPersistenceService : IConversationPersistenceSer
         var id = NormalizeId(state.Id);
         state.Id = id;
         state.SchemaVersion = ConversationStateSchema.CurrentVersion;
+        state.Metrics = ConversationMetricsCalculator.Calculate(state);
         var path = PathFor(id);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
@@ -72,6 +73,7 @@ public sealed class ConversationPersistenceService : IConversationPersistenceSer
             state.Id = NormalizeId(state.Id);
             if (!state.Id.Equals(id, StringComparison.Ordinal))
                 throw new ConversationStateCorruptException("Conversation state identifier does not match its file.");
+            state.Metrics = ConversationMetricsCalculator.Calculate(state);
             return state;
         }
         catch (ConversationStateCorruptException) { throw; }
