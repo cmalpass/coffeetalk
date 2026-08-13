@@ -106,21 +106,23 @@ public sealed class WorkspaceService : IWorkspaceService
         {
             try
             {
-                metadata = ReadMetadataAsync(
-                    ResolveWorkspacePath(activeId), activeId, CancellationToken.None).GetAwaiter().GetResult();
+                metadata = ReadMetadata(
+                    ResolveWorkspacePath(activeId), activeId);
             }
             catch (UnauthorizedAccessException) { }
         }
         if (metadata is null)
         {
-            metadata = ReadMetadataAsync(ResolveWorkspacePath("default"), "default", CancellationToken.None).GetAwaiter().GetResult();
+            metadata = ReadMetadata(ResolveWorkspacePath("default"), "default");
             if (metadata is null)
             {
                 var path = ResolveWorkspacePath("default");
                 Directory.CreateDirectory(path);
                 MigrateLegacyFiles(path);
                 metadata = new WorkspaceMetadata { Id = "default", Name = "Default" };
-                WriteMetadataAsync(path, metadata, CancellationToken.None).GetAwaiter().GetResult();
+                File.WriteAllText(
+                    Path.Combine(path, MetadataFile),
+                    JsonSerializer.Serialize(metadata, _json));
             }
             File.WriteAllText(Path.Combine(_paths.BaseRootDirectory, ActiveFile),
                 JsonSerializer.Serialize(new { id = metadata.Id }, _json));
@@ -141,6 +143,26 @@ public sealed class WorkspaceService : IWorkspaceService
         }
         catch (JsonException) { return null; }
         catch (KeyNotFoundException) { return null; }
+        catch (InvalidOperationException) { return null; }
+    }
+
+    private WorkspaceMetadata? ReadMetadata(string directory, string expectedId)
+    {
+        var path = Path.Combine(directory, MetadataFile);
+        if (!File.Exists(path))
+            return null;
+        try
+        {
+            var metadata = JsonSerializer.Deserialize<WorkspaceMetadata>(
+                File.ReadAllText(path), _json);
+            if (metadata is null || string.IsNullOrWhiteSpace(metadata.Id) ||
+                !metadata.Id.Equals(expectedId, StringComparison.Ordinal))
+                return null;
+            WorkspaceNameValidator.Validate(metadata.Id);
+            return metadata;
+        }
+        catch (JsonException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
         catch (InvalidOperationException) { return null; }
     }
 

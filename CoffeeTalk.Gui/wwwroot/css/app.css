@@ -78,13 +78,32 @@ html, body {
     position: sticky;
     top: 0;
     z-index: 2;
+    border: 1px solid color-mix(in srgb, var(--mud-palette-primary) 18%, transparent);
+    background: linear-gradient(135deg, var(--mud-palette-surface), var(--mud-palette-background-gray));
+}
+
+.conversation-grid {
+    min-height: 0;
+    gap: .75rem 0;
+}
+
+.chat-panel {
+    min-width: 0;
+    border: 1px solid var(--mud-palette-divider);
+}
+
+.chat-container {
+    min-width: 0;
+    scroll-behavior: smooth;
+    background: color-mix(in srgb, var(--mud-palette-background) 82%, var(--mud-palette-primary) 18%);
 }
 
 .message-row {
     display: flex;
     flex-direction: column;
     margin-bottom: 1rem;
-    max-width: 86%;
+    width: min(86%, 52rem);
+    min-width: 0;
 }
 
 .message-row.align-end {
@@ -97,6 +116,71 @@ html, body {
     align-items: flex-start;
 }
 
+.system-message {
+    width: min(100%, 52rem);
+    margin: 0 auto 1rem;
+    min-width: 0;
+}
+
+.system-message-panel {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    color: var(--mud-palette-text-secondary);
+    background: color-mix(in srgb, var(--mud-palette-info-lighten) 35%, var(--mud-palette-surface));
+    border: 1px solid color-mix(in srgb, var(--mud-palette-info) 25%, transparent);
+}
+
+.timeline-event-meta {
+    color: var(--mud-palette-text-secondary);
+    font-size: .72rem;
+    letter-spacing: .02em;
+    margin-bottom: .3rem;
+}
+
+.telemetry-row {
+    display: flex;
+    align-items: baseline;
+    gap: .45rem;
+    width: min(100%, 58rem);
+    margin: .2rem auto;
+    padding: .28rem .55rem;
+    border-left: 2px solid var(--mud-palette-divider);
+    color: var(--mud-palette-text-secondary);
+    font: .76rem/1.35 ui-monospace, SFMono-Regular, Menlo, monospace;
+    overflow-wrap: anywhere;
+}
+
+.telemetry-time {
+    flex: 0 0 auto;
+    opacity: .7;
+}
+
+.telemetry-label {
+    flex: 0 0 auto;
+    min-width: 4.8rem;
+    color: var(--mud-palette-primary);
+    font-weight: 600;
+}
+
+.telemetry-content {
+    min-width: 0;
+}
+
+.telemetry-thinking {
+    border-left-color: var(--mud-palette-warning);
+    background: color-mix(in srgb, var(--mud-palette-warning-lighten) 12%, transparent);
+}
+
+.telemetry-completed {
+    border-left-color: var(--mud-palette-success);
+}
+
+.telemetry-failed {
+    border-left-color: var(--mud-palette-error);
+    color: var(--mud-palette-error);
+}
+
 .message-meta {
     display: flex;
     align-items: center;
@@ -106,6 +190,78 @@ html, body {
 
 .message-bubble {
     background-color: var(--mud-palette-surface);
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .06);
+}
+
+.message-content {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.55;
+}
+
+.message-content p {
+    margin: 0 0 .7rem;
+}
+
+.message-content p:last-child {
+    margin-bottom: 0;
+}
+
+.message-content ul,
+.message-content ol {
+    padding-left: 1.35rem;
+    margin: .35rem 0 .7rem;
+}
+
+.message-content blockquote {
+    margin: .6rem 0;
+    padding: .4rem .8rem;
+    border-left: 3px solid var(--mud-palette-primary);
+    color: var(--mud-palette-text-secondary);
+}
+
+.message-content pre {
+    max-width: 100%;
+    overflow-x: hidden;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.message-content code {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.message-content table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+}
+
+.message-content img,
+.message-content svg {
+    max-width: 100%;
+    height: auto;
+}
+
+.document-content .mermaid,
+.message-content .mermaid {
+    max-width: 100%;
+    overflow-x: auto;
+    padding: .75rem 0;
+    text-align: center;
+}
+
+.document-content .mermaid svg,
+.message-content .mermaid svg {
+    max-width: 100%;
+    height: auto;
 }
 
 .thinking-indicator {
@@ -128,6 +284,11 @@ html, body {
     padding: .75rem;
     border-radius: .35rem;
     background-color: var(--mud-palette-background-gray);
+}
+
+.document-content {
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .document-content code {
@@ -153,4 +314,14 @@ html, body {
     border: 1px solid #ffeeba;
     margin-bottom: 10px;
     border-radius: 4px;
+}
+
+@media (max-width: 960px) {
+    .conversation-grid {
+        height: auto !important;
+    }
+
+    .message-row {
+        width: 94%;
+    }
 }

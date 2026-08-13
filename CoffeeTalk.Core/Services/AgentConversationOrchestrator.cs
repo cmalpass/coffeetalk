@@ -156,8 +156,20 @@ public class AgentConversationOrchestrator
 
                 if (selectedPersona == null)
                 {
-                    await _ui.ShowMessageAsync("\n[yellow]⚠️  Orchestrator couldn't select a speaker. Ending conversation.[/]");
-                    break;
+                    var consensus = await VerifyConsensusAsync(currentMessage, conversationHistory, cancellationToken);
+                    if (consensus.Reached)
+                    {
+                        await _ui.ShowRuleAsync("Consensus reached");
+                        await _ui.ShowMessageAsync(
+                            "\n[bold green]✅ All personas agree that the conversation can conclude.[/]");
+                        break;
+                    }
+
+                    currentMessage = consensus.FollowUpMessage;
+                    await _ui.ShowMessageAsync(
+                        $"\n[yellow]⚠️  Consensus has not been reached. The orchestrator will request another contribution.[/]\n" +
+                        $"{Escape(consensus.FollowUpMessage)}");
+                    continue;
                 }
 
                 await _ui.ShowAgentResponseAsync(selectedPersona.Name, response);
@@ -250,6 +262,62 @@ public class AgentConversationOrchestrator
 
         await TryExtractMemoryAsync(topic, conversationHistory, cancellationToken);
         await TryAutoSaveAsync(cancellationToken);
+    }
+
+    private async Task<(bool Reached, string FollowUpMessage)> VerifyConsensusAsync(
+        string currentMessage,
+        List<string> conversationHistory,
+        CancellationToken cancellationToken)
+    {
+        await _ui.SetStatusAsync("Personas are checking consensus...");
+        var assessments = await Task.WhenAll(
+            _personas.Select(async persona =>
+            {
+                try
+                {
+                    var response = await persona.AssessConsensusAsync(
+                        currentMessage, conversationHistory, cancellationToken);
+                    var lines = response
+                        .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    var vote = lines.FirstOrDefault(line =>
+                        line.StartsWith("CONSENSUS:", StringComparison.OrdinalIgnoreCase));
+                    var agrees = vote is not null &&
+                        vote.Contains("YES", StringComparison.OrdinalIgnoreCase);
+                    var reason = lines.FirstOrDefault(line =>
+                        line.StartsWith("Reason:", StringComparison.OrdinalIgnoreCase))
+                        ?? "No rationale provided.";
+                    return (persona.Name, Agrees: agrees, Reason: reason);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    return (persona.Name, Agrees: false, Reason: $"Consensus check failed: {ex.Message}");
+                }
+            }));
+
+        foreach (var assessment in assessments)
+        {
+            await _ui.ShowMessageAsync(
+                $"[dim]Consensus — {Escape(assessment.Name)}: " +
+                $"{(assessment.Agrees ? "AGREE" : "REVISE")} — {Escape(assessment.Reason)}[/]");
+        }
+
+        var dissent = assessments.Where(assessment => !assessment.Agrees).ToList();
+        if (dissent.Count == 0)
+        {
+            return (true, string.Empty);
+        }
+
+        var concerns = string.Join(
+            "\n",
+            dissent.Select(assessment => $"- {assessment.Name}: {assessment.Reason}"));
+        return (
+            false,
+            $"The consensus check found these unresolved concerns:\n{concerns}\n" +
+            "Address the concerns in the document before proposing completion again.");
     }
 
     private async Task RunRoundRobinConversationAsync(List<string> conversationHistory, string currentMessage, CancellationToken cancellationToken)
@@ -431,6 +499,7 @@ public class AgentConversationOrchestrator
         CancellationToken cancellationToken)
     {
         var response = new StringBuilder();
+        var lastDocumentPreview = persona.GetDocumentPreview();
         try
         {
             await foreach (var chunk in persona.RespondStreamingAsync(
@@ -441,6 +510,13 @@ public class AgentConversationOrchestrator
                 cancellationToken.ThrowIfCancellationRequested();
                 response.Append(chunk);
                 await _ui.ShowAgentResponseChunkAsync(persona.Name, chunk);
+
+                var documentPreview = persona.GetDocumentPreview();
+                if (!string.Equals(documentPreview, lastDocumentPreview, StringComparison.Ordinal))
+                {
+                    lastDocumentPreview = documentPreview;
+                    await _ui.ShowDocumentPreviewAsync(documentPreview);
+                }
             }
         }
         catch

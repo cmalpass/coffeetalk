@@ -54,7 +54,7 @@
     </MudPaper>
 }
 
-<MudGrid Style="height: calc(100vh - 145px);">
+<MudGrid Class="conversation-grid" Style="height: calc(100vh - 145px);">
     <MudItem xs="12" md="4" Class="d-flex flex-column" Style="height: 100%;">
         <MudPaper Elevation="4" Class="d-flex flex-column flex-grow-1 overflow-hidden">
             <MudToolBar Dense="true" Class="mud-theme-primary">
@@ -80,12 +80,12 @@
     </MudItem>
 
     <MudItem xs="12" md="8" Class="d-flex flex-column" Style="height: 100%;">
-        <MudPaper Elevation="4" Class="d-flex flex-column flex-grow-1 overflow-hidden">
+        <MudPaper Elevation="4" Class="chat-panel d-flex flex-column flex-grow-1 overflow-hidden">
             @if (!string.IsNullOrEmpty(UI.StatusMessage))
             {
                 <MudAlert Severity="Severity.Info" Dense="true" Class="rounded-0">@UI.StatusMessage</MudAlert>
             }
-            <div class="flex-grow-1 overflow-y-auto pa-4" id="chat-container">
+            <div class="chat-container flex-grow-1 overflow-y-auto pa-4" id="chat-container">
                 @foreach (var msg in UI.GetMessagesSnapshot())
                 {
                     if (msg.IsDivider)
@@ -96,10 +96,21 @@
                             <MudText Align="Align.Center" Color="Color.Secondary" Typo="Typo.caption" Class="d-block mb-2">@msg.Content</MudText>
                         }
                     }
+                    else if (msg.IsTelemetry)
+                    {
+                        <div class="telemetry-row telemetry-@msg.TelemetryCategory">
+                            <span class="telemetry-time">@FormatTimestamp(msg.Timestamp)</span>
+                            <span class="telemetry-label">@GetTelemetryLabel(msg.TelemetryCategory)</span>
+                            <span class="telemetry-content">@msg.Content</span>
+                        </div>
+                    }
                     else if (msg.IsSystem)
                     {
-                        <div class="d-flex justify-center mb-2">
-                            <MudChip T="string" Color="Color.Info" Size="Size.Small" Variant="Variant.Text">@msg.Content</MudChip>
+                        <div class="system-message timeline-event">
+                            <MudPaper Class="system-message-panel pa-3" Elevation="0">
+                                <div class="timeline-event-meta">@FormatTimestamp(msg.Timestamp) · request timeline</div>
+                                <div class="message-content">@((MarkupString)RenderMarkdown(msg.Content))</div>
+                            </MudPaper>
                         </div>
                     }
                     else if (msg.IsError)
@@ -162,6 +173,11 @@
         UI.OnChange += OnUiChanged;
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await RenderMermaidAsync();
+    }
+
     public void Dispose()
     {
         _disposed = true;
@@ -170,6 +186,15 @@
     }
 
     private void StopConversation() => Session.Cancel();
+
+    private static string GetTelemetryLabel(string? category) => category switch
+    {
+        "thinking" => "thinking",
+        "started" => "request",
+        "completed" => "done",
+        "failed" => "failed",
+        _ => "event"
+    };
     private void Submit(string action, string message)
     {
         if (action == "quit")
@@ -194,6 +219,7 @@
                 return;
 
             StateHasChanged();
+            await RenderMermaidAsync();
             await ScrollToBottomAsync(scrollCancellationToken);
         });
         _ = ObserveRenderTaskAsync(renderTask, scrollCancellationToken);
@@ -224,6 +250,22 @@
         }
         catch (JSException) { }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+    }
+
+    private async Task RenderMermaidAsync()
+    {
+        if (!UI.DocumentMarkdown.Contains("```mermaid", StringComparison.OrdinalIgnoreCase) &&
+            !UI.GetMessagesSnapshot().Any(message =>
+                message.Content.Contains("```mermaid", StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("renderMermaid");
+        }
+        catch (JSException) { }
     }
 
     private async Task SaveChat()
@@ -401,6 +443,20 @@
     {
         if (string.IsNullOrWhiteSpace(markdown))
             return "";
-        return ConversationExportService.RenderMarkdown(markdown);
+        return ConversationExportService.RenderMarkdown(RemoveConsoleMarkup(markdown));
+    }
+
+    private static string RemoveConsoleMarkup(string text)
+    {
+        foreach (var tag in new[]
+        {
+            "[bold]", "[/]", "[yellow]", "[green]", "[magenta]", "[dim]",
+            "[bold green]", "[bold red]"
+        })
+        {
+            text = text.Replace(tag, string.Empty, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return text;
     }
 }

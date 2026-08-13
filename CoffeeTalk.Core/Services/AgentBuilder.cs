@@ -22,8 +22,7 @@ public static class AgentBuilder
 
         OpenAI.Chat.ChatClient chatClient = config.Type.ToLower() switch
         {
-            "openai" => new OpenAI.OpenAIClient(new System.ClientModel.ApiKeyCredential(config.ApiKey))
-                .GetChatClient(config.ModelId),
+            "openai" => CreateOpenAIClient(config),
             
             "ollama" => new OpenAI.OpenAIClient(
                 new System.ClientModel.ApiKeyCredential("not-needed"), // Ollama doesn't require API key
@@ -63,5 +62,19 @@ public static class AgentBuilder
             new System.ClientModel.ApiKeyCredential(config.ApiKey));
 
         return azureClient.GetChatClient(deployment);
+    }
+
+    private static OpenAI.Chat.ChatClient CreateOpenAIClient(LlmProviderConfig config)
+    {
+        var apiKey = string.IsNullOrWhiteSpace(config.ApiKey) ? "not-needed" : config.ApiKey;
+        var credential = new System.ClientModel.ApiKeyCredential(apiKey);
+
+        if (string.IsNullOrWhiteSpace(config.Endpoint))
+            return new OpenAI.OpenAIClient(credential).GetChatClient(config.ModelId);
+
+        return new OpenAI.OpenAIClient(
+            credential,
+            new OpenAI.OpenAIClientOptions { Endpoint = new Uri(config.Endpoint) })
+            .GetChatClient(config.ModelId);
     }
 }

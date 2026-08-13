@@ -4,6 +4,7 @@ using System.Text.Json;
 using Markdig;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
+using System.Text.RegularExpressions;
 
 namespace CoffeeTalk.Gui.Services;
 
@@ -27,7 +28,12 @@ public static class ConversationExportService
                 link.Url = null;
         }
 
-        return Markdig.Markdown.ToHtml(document, MarkdownPipeline);
+        var html = Markdig.Markdown.ToHtml(document, MarkdownPipeline);
+        return Regex.Replace(
+            html,
+            "<pre><code class=\"language-mermaid\">(?<diagram>.*?)</code></pre>",
+            "<div class=\"mermaid\">${diagram}</div>",
+            RegexOptions.Singleline | RegexOptions.CultureInvariant);
     }
 
     public static string GenerateMarkdown(
