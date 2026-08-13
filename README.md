@@ -1,6 +1,6 @@
 # ☕ CoffeeTalk
 
-A .NET CLI application that orchestrates multi-persona LLM conversations using Microsoft Agent Framework. Configure multiple AI personas with unique system prompts and watch them engage in dynamic conversations to explore topics and reach conclusions through collaborative document creation.
+CoffeeTalk is a .NET 9 application for orchestrating multi-persona LLM conversations with Microsoft's Agent Framework. It includes a Photino/Blazor desktop GUI and a Spectre.Console CLI. Configure personas with distinct system prompts, let them collaborate on a shared Markdown document, inspect live request/tool telemetry, and require persona consensus before a conversation concludes.
 
 ## Features
 
@@ -16,10 +16,15 @@ A .NET CLI application that orchestrates multi-persona LLM conversations using M
 - **Retry Handling**: Automatic retry with exponential backoff for API rate limits (HTTP 429)
 - **Flexible Conversation Modes**: Choose between orchestrated (AI-directed) or round-robin (sequential) conversation flow
 - **Built on Microsoft Agent Framework**: Leverages Microsoft's Agent Framework for robust agentic AI integration
+- **Agent Threads**: Personas and the orchestrator retain framework-managed thread state across requests
+- **Full Document Context**: Personas and the orchestrator receive the current Markdown document, not only its headings
+- **Consensus Verification**: When the orchestrator proposes completion, every persona reviews the document and must agree
+- **Request and Tool Telemetry**: View prompt/output sizes, token usage, first-output latency, duration, failures, and document tool calls
+- **Mermaid Rendering**: Mermaid fenced blocks render in the GUI and exported Markdown previews
 
 ## Prerequisites
 
-- .NET 8.0 SDK or later
+- .NET 9.0 SDK
 - OpenAI API key (for OpenAI provider) or Ollama running locally
 
 ## Package Restoration
@@ -99,17 +104,24 @@ Edit `CoffeeTalk/appsettings.json` or use `appsettings.azureopenai.json` as a te
 cp CoffeeTalk/appsettings.ollama.json CoffeeTalk/appsettings.json
 ```
 
-### 3. Build and Run
+### 3. Build and Run the CLI
 
 ```bash
-cd CoffeeTalk
-dotnet build
-dotnet run
+dotnet build CoffeeTalk/CoffeeTalk.CLI.csproj
+dotnet run --project CoffeeTalk/CoffeeTalk.CLI.csproj
 ```
+
+To launch the desktop GUI:
+
+```bash
+dotnet run --project CoffeeTalk.Gui/CoffeeTalk.Gui.csproj
+```
+
+The GUI stores active workspace configuration and conversation data under the application data directory. The CLI loads the same workspace-oriented configuration model and also supports history, analytics, export, and memory commands.
 
 ### 4. Start a Conversation
 
-When prompted, enter a topic:
+In either interface, enter a topic when prompted. The GUI shows conversation messages, the live Markdown document, status updates, and compact telemetry rows. The CLI displays the conversation and operational events in the terminal.
 
 ```
 What would you like the personas to discuss?
@@ -120,7 +132,7 @@ Watch the personas engage in a multi-perspective discussion and collaboratively 
 
 ### 5. Review the Output
 
-The conversation is auto-saved to `conversation.md` in the CoffeeTalk directory.
+The shared document is auto-saved to the active workspace. The CLI can additionally persist conversation history with `--save` and export the document with `--export-format`.
 
 ## Configuration
 
@@ -415,13 +427,29 @@ Personas can collaborate on a shared markdown document using these tools:
 - `AppendParagraph`: Add content to the document
 - `InsertAfterHeading`: Insert content under a specific heading
 - `ListHeadings`: View current document structure
+- `ReplaceSection`: Replace the content under a heading
+- `SaveDocument`: Persist the current document
 
-The document is maintained in memory during the conversation and auto-saved to `conversation.md` when complete.
+The document is shared and locked across agents. Personas, the orchestrator, and optional editor/fact-checking agents receive the current full Markdown snapshot. The GUI refreshes the document while responses stream, and Mermaid blocks are rendered in the preview.
+
+The document is maintained in memory during the conversation and auto-saved to the active workspace when complete.
 
 ### Additional Settings
 
 - **MaxConversationTurns**: Maximum number of conversation rounds (default: 10). This is multiplied by the number of personas in round-robin mode, or used as a total turn limit in orchestrated mode.
 - **ShowThinking**: Display thinking indicators during responses (default: true). When enabled, you see `💭 Thinking...` while the LLM processes.
+- **StreamingEnabled**: Enable streaming responses when the provider supports it (default: true)
+- **StreamingFallback**: Use `"buffered"` when streaming is unavailable, or `"error"` to fail instead
+
+### Request and tool telemetry
+
+The active event sink records each LLM and document-tool operation. Events include a request or tool ID, operation name, prompt/argument size, output/result size, estimated tokens, provider-reported usage when available, first-output latency, total duration, completion, and failure details. The GUI groups these events into compact timeline rows; the CLI writes them to the terminal. Streaming reasoning chunks are surfaced as thinking events when the provider exposes them.
+
+Telemetry measures the application payload passed to the Agent Framework. Providers may add system instructions and thread history, so provider-reported input usage can be larger than the application estimate.
+
+### Consensus verification
+
+Consensus verification applies to orchestrated mode. When the orchestrator returns its completion signal, CoffeeTalk asks every configured persona to review the full document and recent discussion concurrently. Each persona must return `CONSENSUS: YES` or `CONSENSUS: NO` with a short reason. The conversation ends only when all personas agree; dissenting reasons are sent back to the orchestrator as the next follow-up message. A failed or malformed consensus check is treated as a request to revise rather than as agreement.
 
 ## Usage Examples
 
@@ -679,7 +707,7 @@ Or use Ollama for unlimited local usage.
 ## Project Structure
 
 ```
-CoffeeTalk/
+CoffeeTalk.Core/
 ├── Models/
 │   ├── AppSettings.cs               # Main configuration model
 │   ├── LlmProviderConfig.cs         # LLM provider settings
@@ -699,14 +727,14 @@ CoffeeTalk/
 │   ├── AgentBuilder.cs              # Builds AIAgent instances for different providers
 │   ├── CollaborativeMarkdownDocument.cs  # Shared document state
 │   ├── MarkdownToolFunctions.cs     # Document editing tools as AIFunctions
+│   ├── RequestTelemetry.cs           # LLM request lifecycle telemetry
+│   ├── ToolTelemetry.cs              # Document tool lifecycle telemetry
 │   ├── RateLimiter.cs               # Request/token throttling
 │   └── RetryHandler.cs              # HTTP 429 retry logic
-├── appsettings.json                 # Default configuration
-├── appsettings.orchestrated.json    # Orchestrated mode example
-├── appsettings.azureopenai.json     # Azure OpenAI example
-├── appsettings.ollama.json          # Ollama example
-├── conversation.md                  # Auto-saved conversation output
-└── Program.cs                       # Application entry point
+├── CoffeeTalk.Gui/                  # Photino/Blazor desktop application
+├── CoffeeTalk/                      # Spectre.Console CLI
+├── CoffeeTalk.Tests/                # Unit and component tests
+└── examples/                        # Ready-to-use configurations
 
 examples/
 ├── product-team.json                # Product development team personas
@@ -828,7 +856,7 @@ examples/
 ### Round-Robin Mode (Default)
 
 1. **Initialization**: The application loads configuration from `appsettings.json`
-2. **Kernel Setup**: A Semantic Kernel instance is created with the configured LLM provider
+2. **Agent Setup**: Microsoft Agent Framework agents and persona threads are created with the configured LLM provider
 3. **Persona Creation**: Each persona is initialized with its unique system prompt
 4. **Tool Verification**: The system verifies that personas can use markdown collaboration tools
 5. **Conversation Loop**:
@@ -837,7 +865,7 @@ examples/
    - Each response builds on the conversation history and document state
    - Personas use tools to collaboratively edit the shared markdown document
    - Conversation continues until a conclusion is reached or max turns are hit
-6. **Auto-Save**: The collaborative document is saved to `conversation.md`
+6. **Auto-Save**: The collaborative document is saved to the active workspace
 
 ### Orchestrated Mode
 
@@ -854,7 +882,7 @@ examples/
    - Conversation adapts to needs (structure → content → refinement → conclusion)
    - No rigid turn order
    - Better token efficiency
-5. **Completion Detection**: Orchestrator recognizes when goals are achieved
+5. **Completion Proposal**: Orchestrator signals when it believes the goals are achieved, then all personas verify consensus
 
 ## Further Reading
 
@@ -883,7 +911,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 Built with:
 - [Microsoft Agent Framework](https://github.com/microsoft/agent-framework) - AI agent orchestration framework
-- [.NET 8](https://dotnet.microsoft.com/) - Runtime platform
+- [.NET 9](https://dotnet.microsoft.com/) - Runtime platform
 
 ## Support
 
