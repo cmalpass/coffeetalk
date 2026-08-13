@@ -97,7 +97,7 @@ public sealed class ConversationPipelineBuilder
 
         var sharedDocument = new CollaborativeMarkdownDocument(_dataPaths);
         var toolsConfig = settings.Tools ?? new ToolsConfig();
-        var markdownTools = new MarkdownToolFunctions(sharedDocument, toolsConfig);
+        var markdownTools = new MarkdownToolFunctions(sharedDocument, toolsConfig, _eventSink);
         var tools = markdownTools.CreateTools();
         if (toolsConfig.RequireToolsVerification && !markdownTools.VerifyTools(tools))
         {
@@ -217,7 +217,7 @@ public sealed class ConversationPipelineBuilder
             settings.LlmProvider,
             "PersonaGenerator",
             AgentPersonaGenerator.BuildSystemPrompt());
-        var generator = new AgentPersonaGenerator(generatorAgent, retryService, rateLimiter);
+        var generator = new AgentPersonaGenerator(generatorAgent, retryService, rateLimiter, _eventSink);
         var requested = Math.Clamp(dynamicConfig.Count, 2, 10);
         var replace = dynamicConfig.Mode?.Equals("replace", StringComparison.OrdinalIgnoreCase) == true;
         var reserved = replace ? Array.Empty<string>() : configured.Select(persona => persona.Name);
@@ -310,7 +310,8 @@ public sealed class ConversationPipelineBuilder
             totalPersonaCount ?? agentCount,
             retryService,
             personaTools.Select(tool => tool.Name).ToList(),
-            settings.LlmProvider);
+            settings.LlmProvider,
+            _eventSink);
     }
 
     private static void ValidateAllowedTools(IEnumerable<PersonaConfig> configs, AIFunction[] tools)

@@ -1,6 +1,7 @@
 using CoffeeTalk.Models;
 using CoffeeTalk.Services;
 using Microsoft.Extensions.Logging;
+using System.Diagnostics;
 
 namespace CoffeeTalk.Gui.Services;
 
@@ -51,6 +52,10 @@ public sealed class ConversationSessionService : IConversationSessionService, ID
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(topic);
         ArgumentNullException.ThrowIfNull(personas);
+        _logger.LogInformation(
+            "Starting conversation for topic {Topic} with personas {Personas}",
+            topic,
+            string.Join(", ", personas.Select(persona => persona.Name)));
 
         CancellationTokenSource cts;
         Task? previousTask;
@@ -62,6 +67,7 @@ public sealed class ConversationSessionService : IConversationSessionService, ID
             cts = _cts = new CancellationTokenSource();
             _conversationTask = RunAfterPreviousAsync(previousTask, topic, personas.ToList(), cts);
         }
+        _ui.BeginConversation(topic, personas.Select(persona => persona.Name).ToList());
         _ui.CancelIntervention(false);
     }
 
@@ -130,10 +136,19 @@ public sealed class ConversationSessionService : IConversationSessionService, ID
 
     private async Task RunAsync(string topic, List<PersonaConfig> personas, CancellationTokenSource cts)
     {
+        var stopwatch = Stopwatch.StartNew();
         try
         {
+            _logger.LogInformation("Building conversation pipeline for {Topic}", topic);
             var pipeline = await _pipelineBuilder.BuildAsync(_appState.Settings, topic, personas, cts.Token);
+            _logger.LogInformation(
+                "Conversation pipeline built for {Topic}; orchestrator={HasOrchestrator}, personas={PersonaCount}",
+                topic,
+                pipeline.Orchestrator is not null,
+                pipeline.Personas.Count);
+            _logger.LogInformation("Entering agent conversation execution for {Topic}", topic);
             await pipeline.CreateConversation(_ui).StartConversationAsync(topic, cts.Token);
+            _logger.LogInformation("Agent conversation execution completed for {Topic}", topic);
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
@@ -141,10 +156,15 @@ public sealed class ConversationSessionService : IConversationSessionService, ID
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during conversation orchestration");
-            await _ui.ShowErrorAsync("An error occurred while starting the conversation. Please check your configuration and try again.");
+            await _ui.ShowErrorAsync($"Conversation failed: {ex.Message}");
         }
         finally
         {
+            _logger.LogInformation(
+                "Conversation task finished for {Topic} after {ElapsedSeconds:F1}s; cancelled={Cancelled}",
+                topic,
+                stopwatch.Elapsed.TotalSeconds,
+                cts.IsCancellationRequested);
             ConversationRecord? record = null;
             lock (_gate)
             {

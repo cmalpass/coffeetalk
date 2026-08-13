@@ -5,7 +5,14 @@ public enum OperationalEventKind
     RetryAttempt,
     RetryTerminalFailure,
     OrchestratorDecision,
-    OperationFailure
+    OperationFailure,
+    RequestStarted,
+    RequestThinking,
+    RequestCompleted,
+    RequestFailed,
+    ToolStarted,
+    ToolCompleted,
+    ToolFailed
 }
 
 public sealed record OperationalEvent(
@@ -18,6 +25,18 @@ public sealed record OperationalEvent(
     string? Reason = null)
 {
     public Exception? Exception { get; init; }
+    public string? RequestId { get; init; }
+    public int? PromptCharacters { get; init; }
+    public int? EstimatedPromptTokens { get; init; }
+    public int? OutputCharacters { get; init; }
+    public int? EstimatedOutputTokens { get; init; }
+    public long? InputTokens { get; init; }
+    public long? OutputTokens { get; init; }
+    public long? TotalTokens { get; init; }
+    public long? DurationMilliseconds { get; init; }
+    public long? FirstTokenMilliseconds { get; init; }
+    public int? ArgumentCharacters { get; init; }
+    public int? ResultCharacters { get; init; }
 }
 
 public interface IOperationalEventSink

@@ -13,12 +13,18 @@ public class AgentPersonaGenerator
     private readonly AIAgent _agent;
     private readonly IRetryService _retryService;
     private readonly RateLimiter? _rateLimiter;
+    private readonly IOperationalEventSink _eventSink;
 
-    public AgentPersonaGenerator(AIAgent agent, IRetryService retryService, RateLimiter? rateLimiter = null)
+    public AgentPersonaGenerator(
+        AIAgent agent,
+        IRetryService retryService,
+        RateLimiter? rateLimiter = null,
+        IOperationalEventSink? eventSink = null)
     {
         _agent = agent;
         _retryService = retryService;
         _rateLimiter = rateLimiter;
+        _eventSink = eventSink ?? NullOperationalEventSink.Instance;
     }
 
     public AgentPersonaGenerator(AIAgent agent)
@@ -46,14 +52,26 @@ REQUIREMENTS:
         int count = Math.Clamp(requestedCount, 2, 10);
 
         var prompt = $"Topic: {topic}\nGenerate {count} personas for this conversation. JSON array only, in this shape:\n[\n  {{\"name\":\"<ShortUniqueName>\",\"systemPrompt\":\"You are <ShortUniqueName>, <1-2 sentence role and perspective>. Collaborate concisely, avoid redundancy, and use tools effectively when available.\"}},\n  ...\n]";
+        var telemetry = new RequestTelemetry(_eventSink, "Generate personas", prompt);
 
         if (_rateLimiter != null)
             await _rateLimiter.ThrottleAsync(_rateLimiter.EstimateTokens(prompt), cancellationToken);
-        var response = await _retryService.ExecuteAsync(
-            async cancellationToken => await _agent.RunAsync(prompt, cancellationToken: cancellationToken),
-            "Generate personas",
-            cancellationToken);
+        AgentRunResponse response;
+        try
+        {
+            response = await _retryService.ExecuteAsync(
+                async cancellationToken => await _agent.RunAsync(prompt, cancellationToken: cancellationToken),
+                "Generate personas",
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            telemetry.Fail(ex);
+            throw;
+        }
         var responseText = response.ToString();
+        telemetry.AppendOutput(responseText);
+        telemetry.Complete(response.Usage);
         _rateLimiter?.AccountAdditionalTokens(_rateLimiter.EstimateTokens(responseText));
 
         // Try to parse JSON array

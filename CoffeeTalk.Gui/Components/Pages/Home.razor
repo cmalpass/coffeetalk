@@ -73,10 +73,11 @@
                     <MudText Typo="Typo.caption" Class="mb-2 d-block">Choose at least two personas.</MudText>
 
                     <MudPaper Class="pa-4" Outlined="true">
-                        <MudChipSet T="object" MultiSelection="true" @bind-SelectedValues="SelectedPersonas" CheckMark="true">
+                        <MudChipSet T="PersonaConfig" SelectionMode="SelectionMode.MultiSelection"
+                                    @bind-SelectedValues="SelectedPersonas" CheckMark="true">
                             @foreach (var persona in AppState.Settings.Personas)
                             {
-                                <MudChip T="object" Value="@((object)persona)" Text="@persona.Name" Color="Color.Primary" Variant="Variant.Text" SelectedColor="Color.Primary" />
+                                <MudChip T="PersonaConfig" Value="@persona" Text="@persona.Name" Color="Color.Primary" Variant="Variant.Text" SelectedColor="Color.Primary" />
                             }
                         </MudChipSet>
                     </MudPaper>
@@ -121,16 +122,30 @@
 @code {
     private string Topic = "";
 
-    private IReadOnlyCollection<object> SelectedPersonas { get; set; } = new List<object>();
+    private IReadOnlyCollection<PersonaConfig> SelectedPersonas { get; set; } = Array.Empty<PersonaConfig>();
     private IReadOnlyList<ConversationRecord> _recentConversations = Array.Empty<ConversationRecord>();
     private IReadOnlyList<WorkspaceMetadata> _workspaces = Array.Empty<WorkspaceMetadata>();
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
         // Select all by default
-        SelectedPersonas = AppState.Settings.Personas.Cast<object>().ToList();
+        SelectedPersonas = AppState.Settings.Personas.ToList();
+    }
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return Task.CompletedTask;
+
+        _ = LoadStartupDataAsync();
+        return Task.CompletedTask;
+    }
+
+    private async Task LoadStartupDataAsync()
+    {
         _recentConversations = await History.RecentAsync();
         _workspaces = await AppState.ListWorkspacesAsync();
+        await InvokeAsync(StateHasChanged);
     }
 
     private void StartConversation()
@@ -138,7 +153,7 @@
         if (string.IsNullOrWhiteSpace(Topic)) return;
         if (SelectedPersonas == null || SelectedPersonas.Count < 2) return;
 
-        Session.Start(Topic, SelectedPersonas.Cast<PersonaConfig>().ToList());
+        Session.Start(Topic, SelectedPersonas);
         Navigation.NavigateTo("/conversation");
     }
 
@@ -159,7 +174,7 @@
         }
         await AppState.SwitchWorkspaceAsync(id);
         _workspaces = await AppState.ListWorkspacesAsync();
-        SelectedPersonas = AppState.Settings.Personas.Cast<object>().ToList();
+        SelectedPersonas = AppState.Settings.Personas.ToList();
         _recentConversations = await History.RecentAsync();
     }
 }

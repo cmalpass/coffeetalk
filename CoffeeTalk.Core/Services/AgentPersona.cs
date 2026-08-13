@@ -1,4 +1,5 @@
 using Microsoft.Agents.AI;
+using Microsoft.Extensions.AI;
 using CoffeeTalk.Core.Interfaces;
 using CoffeeTalk.Models;
 using System.Runtime.CompilerServices;
@@ -18,6 +19,9 @@ public class AgentPersona
     private readonly int _agentCount;
     private readonly IRetryService _retryService;
     private readonly LlmProviderConfig _providerConfig;
+    private readonly IOperationalEventSink _eventSink;
+    private AgentThread? _thread;
+    private bool _threadInitialized;
 
     public string Name => _config.Name;
     public string SystemPrompt => _config.SystemPrompt;
@@ -32,7 +36,8 @@ public class AgentPersona
         int agentCount,
         IRetryService retryService,
         IReadOnlyCollection<string>? effectiveToolNames = null,
-        LlmProviderConfig? providerConfig = null)
+        LlmProviderConfig? providerConfig = null,
+        IOperationalEventSink? eventSink = null)
     {
         _agent = agent;
         _config = config;
@@ -42,6 +47,7 @@ public class AgentPersona
         _agentCount = agentCount;
         _retryService = retryService;
         _providerConfig = providerConfig ?? new LlmProviderConfig();
+        _eventSink = eventSink ?? NullOperationalEventSink.Instance;
         EffectiveToolNames = effectiveToolNames?.ToList() ?? [];
     }
 
@@ -71,6 +77,7 @@ public class AgentPersona
     public async Task<string> RespondAsync(string currentMessage, List<string> conversationHistory, CancellationToken cancellationToken = default)
     {
         var contextMessage = BuildContext(currentMessage, conversationHistory);
+        var telemetry = new RequestTelemetry(_eventSink, $"{Name} response", contextMessage);
 
         // Throttle based on an estimated token count
         var estimatedTokens = _rateLimiter?.EstimateTokens(contextMessage) ?? 0;
@@ -84,11 +91,14 @@ public class AgentPersona
         try
         {
             var response = await _retryService.ExecuteAsync(
-                async cancellationToken => await _agent.RunAsync(contextMessage, cancellationToken: cancellationToken),
+                async cancellationToken => await _agent.RunAsync(
+                    contextMessage, GetThread(), cancellationToken: cancellationToken),
                 $"{Name} response",
                 cancellationToken,
                 _rateLimiter is null ? null : token => _rateLimiter.ThrottleAsync(0, token));
             responseText = response.ToString();
+            telemetry.AppendOutput(responseText);
+            telemetry.Complete(response.Usage);
         }
         catch (OperationCanceledException)
         {
@@ -96,14 +106,17 @@ public class AgentPersona
         }
         catch (TimeoutException)
         {
+            telemetry.Fail(new TimeoutException("Operation timed out."));
             responseText = $"Error: Operation timed out.";
         }
         catch (HttpRequestException)
         {
+            telemetry.Fail(new HttpRequestException("Network error occurred."));
             responseText = $"Error: Network error occurred.";
         }
         catch (Exception ex) when (ex is not OutOfMemoryException && ex is not StackOverflowException)
         {
+            telemetry.Fail(ex);
             responseText = $"Error: An unexpected error occurred.";
         }
 
@@ -111,6 +124,45 @@ public class AgentPersona
         _rateLimiter?.AccountAdditionalTokens(_rateLimiter.EstimateTokens(responseText));
 
         return responseText;
+    }
+
+    public async Task<string> AssessConsensusAsync(
+        string currentMessage,
+        List<string> conversationHistory,
+        CancellationToken cancellationToken = default)
+    {
+        var contextMessage = BuildContext(
+            $"""
+            Assess whether the current document has reached consensus.
+            Review the full Markdown document and recent discussion.
+            The orchestrator's proposed completion message is:
+            {currentMessage}
+            Return exactly:
+            CONSENSUS: YES or CONSENSUS: NO
+            Reason: one concise sentence explaining your assessment.
+            Use CONSENSUS: NO if your expertise identifies a material unresolved issue.
+            """,
+            conversationHistory);
+        var telemetry = new RequestTelemetry(_eventSink, $"{Name} consensus check", contextMessage);
+
+        try
+        {
+            var response = await _retryService.ExecuteAsync(
+                async token => await _agent.RunAsync(
+                    contextMessage, GetThread(), cancellationToken: token),
+                $"{Name} consensus check",
+                cancellationToken,
+                _rateLimiter is null ? null : token => _rateLimiter.ThrottleAsync(0, token));
+            var responseText = response.ToString();
+            telemetry.AppendOutput(responseText);
+            telemetry.Complete(response.Usage);
+            return responseText;
+        }
+        catch (Exception ex)
+        {
+            telemetry.Fail(ex);
+            throw;
+        }
     }
 
     public async IAsyncEnumerable<string> RespondStreamingAsync(
@@ -140,14 +192,16 @@ public class AgentPersona
 
         var emitted = false;
         Exception? failure = null;
+        var telemetry = new RequestTelemetry(_eventSink, $"{Name} streaming response", contextMessage);
         IAsyncEnumerator<AgentRunResponseUpdate>? updates = null;
+        (IAsyncEnumerator<AgentRunResponseUpdate> enumerator, bool hasUpdate) initialUpdate;
         try
         {
-            var initialUpdate = await _retryService.ExecuteAsync(
+            initialUpdate = await _retryService.ExecuteAsync(
                 async token =>
                 {
                     var enumerator = _agent
-                        .RunStreamingAsync(contextMessage, cancellationToken: token)
+                        .RunStreamingAsync(contextMessage, GetThread(), cancellationToken: token)
                         .GetAsyncEnumerator(token);
                     try
                     {
@@ -162,16 +216,26 @@ public class AgentPersona
                 $"{Name} streaming response",
                 cancellationToken,
                 _rateLimiter is null ? null : token => _rateLimiter.ThrottleAsync(0, token));
-            updates = initialUpdate.enumerator;
-            var hasUpdate = initialUpdate.hasUpdate;
-
+        }
+        catch (Exception ex)
+        {
+            telemetry.Fail(ex);
+            throw;
+        }
+        updates = initialUpdate.enumerator;
+        var hasUpdate = initialUpdate.hasUpdate;
+        try
+        {
             while (hasUpdate)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                foreach (var reasoning in updates.Current.Contents.OfType<TextReasoningContent>())
+                    telemetry.PublishThinking(reasoning.Text);
                 var text = updates.Current.Text;
                 if (!string.IsNullOrEmpty(text))
                 {
                     emitted = true;
+                    telemetry.AppendOutput(text);
                     _rateLimiter?.AccountAdditionalTokens(_rateLimiter.EstimateTokens(text));
                     yield return text;
                 }
@@ -189,22 +253,33 @@ public class AgentPersona
         }
         finally
         {
-            if (updates is not null)
-                await updates.DisposeAsync();
+            await updates.DisposeAsync();
         }
 
         if (failure is OperationCanceledException)
+        {
+            telemetry.Fail(failure);
             throw failure;
+        }
         if (failure is not null && emitted)
+        {
+            telemetry.Fail(failure);
             throw failure;
+        }
         if (failure is not null && UseBufferedFallback())
         {
+            telemetry.Fail(failure);
             await foreach (var chunk in FallbackToBufferedAsync(contextMessage, cancellationToken))
                 yield return chunk;
         }
         else if (failure is not null)
         {
+            telemetry.Fail(failure);
             throw failure;
+        }
+        else
+        {
+            telemetry.Complete();
         }
     }
 
@@ -213,7 +288,7 @@ public class AgentPersona
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var response = await _retryService.ExecuteAsync(
-            async token => await _agent.RunAsync(contextMessage, cancellationToken: token),
+            async token => await _agent.RunAsync(contextMessage, GetThread(), cancellationToken: token),
             $"{Name} response",
             cancellationToken,
             _rateLimiter is null ? null : token => _rateLimiter.ThrottleAsync(0, token));
@@ -230,7 +305,7 @@ public class AgentPersona
             : currentMessage;
         var docState = GetDocumentState();
         if (!string.IsNullOrWhiteSpace(docState))
-            contextMessage = $"Current document state:\n{docState}\n\n{contextMessage}";
+            contextMessage = $"Current document state (use this exact Markdown as the source of truth):\n```markdown\n{docState}\n```\n\n{contextMessage}";
 
         var currentTurn = (conversationHistory.Count / _agentCount) + 1;
         var turnsRemaining = _maxTurns - currentTurn;
@@ -238,6 +313,24 @@ public class AgentPersona
             contextMessage = $"⚠️ IMPORTANT: Only {turnsRemaining} turn(s) remaining. Focus on wrapping up and reaching a clear conclusion.\n\n{contextMessage}";
 
         return $"{GetPersonaCollaborationGuidelines()}\n\n{contextMessage}";
+    }
+
+    private AgentThread? GetThread()
+    {
+        if (_threadInitialized)
+            return _thread;
+
+        _threadInitialized = true;
+        try
+        {
+            _thread = _agent.GetNewThread();
+        }
+        catch (NotSupportedException)
+        {
+            // Some test doubles and custom agents only support stateless runs.
+        }
+
+        return _thread;
     }
 
     private bool SupportsStreaming()
@@ -293,8 +386,8 @@ Completion Strategy:
     {
         try
         {
-            var headings = _doc.ListHeadings();
-            return string.IsNullOrWhiteSpace(headings) ? "Document is empty" : headings;
+            var content = _doc.Snapshot();
+            return string.IsNullOrWhiteSpace(content) ? "Document is empty" : content;
         }
         catch (Exception ex) when (ex is not OutOfMemoryException && ex is not StackOverflowException)
         {
@@ -306,9 +399,8 @@ Completion Strategy:
     {
         try
         {
-            var headings = _doc.ListHeadings();
-            if (string.IsNullOrWhiteSpace(headings)) return "  [Document is empty]";
-            return string.Join("\n", headings.Split('\n').Select(h => $"  {h}"));
+            var content = _doc.Snapshot();
+            return string.IsNullOrWhiteSpace(content) ? "  [Document is empty]" : content;
         }
         catch (Exception ex) when (ex is not OutOfMemoryException && ex is not StackOverflowException)
         {

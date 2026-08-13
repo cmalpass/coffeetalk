@@ -1,6 +1,5 @@
 using CoffeeTalk.Core.Interfaces;
 using Microsoft.AspNetCore.Components;
-using Markdig;
 
 namespace CoffeeTalk.Gui.Services
 {
@@ -33,12 +32,7 @@ namespace CoffeeTalk.Gui.Services
         // Document State
         public string DocumentContent { get; private set; } = "";
         public string DocumentMarkdown { get; private set; } = "";
-        public string DocumentHtml => Markdown.ToHtml(DocumentMarkdown, MarkdownPipeline);
-
-        private static readonly MarkdownPipeline MarkdownPipeline = new MarkdownPipelineBuilder()
-            .DisableHtml()
-            .UseAdvancedExtensions()
-            .Build();
+        public string DocumentHtml => ConversationExportService.RenderMarkdown(DocumentMarkdown);
 
         // User Intervention
         private readonly object _tcsLock = new();
@@ -59,6 +53,34 @@ namespace CoffeeTalk.Gui.Services
         {
             lock (_messagesLock)
                 Messages.Add(new ChatMessage { Sender = "Error", Content = message, IsError = true });
+            NotifyStateChanged();
+            return Task.CompletedTask;
+        }
+
+        public Task ShowTelemetryAsync(string requestId, string category, string message)
+        {
+            lock (_messagesLock)
+            {
+                var previous = Messages.LastOrDefault();
+                if (category == "thinking" &&
+                    previous is { IsTelemetry: true, TelemetryRequestId: not null } &&
+                    previous.TelemetryRequestId == requestId &&
+                    previous.TelemetryCategory == category)
+                {
+                    previous.Content += message;
+                }
+                else
+                {
+                    Messages.Add(new ChatMessage
+                    {
+                        Sender = "Telemetry",
+                        Content = message,
+                        IsTelemetry = true,
+                        TelemetryRequestId = requestId,
+                        TelemetryCategory = category
+                    });
+                }
+            }
             NotifyStateChanged();
             return Task.CompletedTask;
         }
@@ -235,6 +257,19 @@ namespace CoffeeTalk.Gui.Services
             NotifyStateChanged();
         }
 
+        public void BeginConversation(string topic, IReadOnlyCollection<string> participants)
+        {
+            ConversationTopic = topic;
+            ConversationParticipants = participants.ToList();
+            ConversationMode = "Preparing";
+            ConversationStartedAt = DateTime.Now;
+            IsConversationRunning = true;
+            StopRequested = false;
+            IsBusy = true;
+            StatusMessage = "Preparing conversation...";
+            NotifyStateChanged();
+        }
+
         public void LoadConversation(ConversationRecord record)
         {
             lock (_messagesLock)
@@ -248,6 +283,9 @@ namespace CoffeeTalk.Gui.Services
                     IsSystem = message.IsSystem,
                     IsError = message.IsError,
                     IsDivider = message.IsDivider,
+                    IsTelemetry = message.IsTelemetry,
+                    TelemetryRequestId = message.TelemetryRequestId,
+                    TelemetryCategory = message.TelemetryCategory,
                     Timestamp = message.Timestamp
                 }));
             }
@@ -286,6 +324,9 @@ namespace CoffeeTalk.Gui.Services
         public bool IsSystem { get; set; }
         public bool IsError { get; set; }
         public bool IsDivider { get; set; }
+        public bool IsTelemetry { get; set; }
+        public string? TelemetryRequestId { get; set; }
+        public string? TelemetryCategory { get; set; }
         public DateTime Timestamp { get; set; } = DateTime.Now;
     }
 }

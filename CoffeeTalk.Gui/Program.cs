@@ -1,5 +1,6 @@
 using Photino.Blazor;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using CoffeeTalk.Services;
 using CoffeeTalk.Gui.Services;
 using CoffeeTalk.Core.Interfaces;
@@ -14,7 +15,8 @@ class Program
     {
         var appBuilder = PhotinoBlazorAppBuilder.CreateDefault(args);
 
-        appBuilder.Services.AddLogging();
+        appBuilder.Services.AddLogging(logging =>
+            logging.AddConsole().SetMinimumLevel(LogLevel.Information));
         appBuilder.Services.AddSingleton<ApplicationDataPathResolver>();
         appBuilder.Services.AddSingleton<IApplicationDataPathResolver>(sp => sp.GetRequiredService<ApplicationDataPathResolver>());
         appBuilder.Services.AddSingleton<IWorkspacePathResolver>(sp => sp.GetRequiredService<ApplicationDataPathResolver>());
@@ -40,15 +42,17 @@ class Program
 
         // Try using the type directly if possible, or fully qualified.
         // Since App is in CoffeeTalk.Gui.Components namespace.
-        appBuilder.RootComponents.Add<CoffeeTalk.Gui.Components.App>("#app");
+        appBuilder.RootComponents.Add<CoffeeTalk.Gui.Components.App>("app");
 
         var app = appBuilder.Build();
+
+        AppDomain.CurrentDomain.UnhandledException += (_, error) =>
+            app.MainWindow.ShowMessage("CoffeeTalk startup error", error.ExceptionObject?.ToString() ?? "Unknown error");
 
         app.MainWindow
             .SetTitle("CoffeeTalk GUI")
             .SetUseOsDefaultSize(false)
-            .SetSize(1024, 768)
-            .SetIconFile("favicon.ico"); // Optional
+            .SetSize(1024, 768);
 
         app.Run();
     }
