@@ -17,6 +17,8 @@ public sealed class CliOperationalEventSink : IOperationalEventSink
                 $"Orchestrator: {operationalEvent.Decision} ({operationalEvent.Reason})",
             OperationalEventKind.OperationFailure =>
                 $"{operationalEvent.Operation}: operation failed",
+            OperationalEventKind.RequestFallback =>
+                $"{operationalEvent.Operation}: falling back to buffered response",
             _ => operationalEvent.Operation
         };
 
