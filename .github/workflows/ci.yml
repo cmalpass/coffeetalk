@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.308
+
+      - name: Restore
+        run: dotnet restore CoffeeTalk.sln --configfile nuget.config
+
+      - name: Build
+        run: dotnet build CoffeeTalk.sln --configuration Release --no-restore
+
+      - name: Test with coverage
+        run: >-
+          dotnet test CoffeeTalk.sln
+          --configuration Release
+          --no-build
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory TestResults
+          --collect:"XPlat Code Coverage"
+
+      - name: Check dependencies for known vulnerabilities
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet list CoffeeTalk.sln package \
+            --vulnerable \
+            --include-transitive \
+            --format json > vulnerability-report.json
+          if jq -e '[.. | objects | select(has("severity"))] | length > 0' vulnerability-report.json >/dev/null; then
+            echo "Known vulnerable packages detected:"
+            jq '[.. | objects | select(has("severity"))]' vulnerability-report.json
+            exit 1
+          fi
+
+      - name: Upload test and coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-and-coverage
+          path: TestResults/
+          if-no-files-found: warn

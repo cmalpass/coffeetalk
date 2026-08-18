@@ -9,6 +9,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CoffeeTalk.Gui", "CoffeeTal
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CoffeeTalk.Tests", "CoffeeTalk.Tests\CoffeeTalk.Tests.csproj", "{EF3154A8-0622-4B29-ADC8-B02144CA3D23}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "CoffeeTalk", "CoffeeTalk", "{E6FBB7B8-F370-09DF-F403-1FC1BB5AD01D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CoffeeTalk.CLI", "CoffeeTalk\CoffeeTalk.CLI.csproj", "{2B655E74-D838-4341-A7ED-92631B0C39FE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -55,8 +59,23 @@ Global
 		{EF3154A8-0622-4B29-ADC8-B02144CA3D23}.Release|x64.Build.0 = Release|Any CPU
 		{EF3154A8-0622-4B29-ADC8-B02144CA3D23}.Release|x86.ActiveCfg = Release|Any CPU
 		{EF3154A8-0622-4B29-ADC8-B02144CA3D23}.Release|x86.Build.0 = Release|Any CPU
+		{2B655E74-D838-4341-A7ED-92631B0C39FE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2B655E74-D838-4341-A7ED-92631B0C39FE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2B655E74-D838-4341-A7ED-92631B0C39FE}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{2B655E74-D838-4341-A7ED-92631B0C39FE}.Debug|x64.Build.0 = Debug|Any CPU
+		{2B655E74-D838-4341-A7ED-92631B0C39FE}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{2B655E74-D838-4341-A7ED-92631B0C39FE}.Debug|x86.Build.0 = Debug|Any CPU
+		{2B655E74-D838-4341-A7ED-92631B0C39FE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2B655E74-D838-4341-A7ED-92631B0C39FE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2B655E74-D838-4341-A7ED-92631B0C39FE}.Release|x64.ActiveCfg = Release|Any CPU
+		{2B655E74-D838-4341-A7ED-92631B0C39FE}.Release|x64.Build.0 = Release|Any CPU
+		{2B655E74-D838-4341-A7ED-92631B0C39FE}.Release|x86.ActiveCfg = Release|Any CPU
+		{2B655E74-D838-4341-A7ED-92631B0C39FE}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{2B655E74-D838-4341-A7ED-92631B0C39FE} = {E6FBB7B8-F370-09DF-F403-1FC1BB5AD01D}
 	EndGlobalSection
 EndGlobal
