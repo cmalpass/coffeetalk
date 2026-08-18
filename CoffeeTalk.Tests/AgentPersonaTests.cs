@@ -25,6 +25,31 @@ public sealed class AgentPersonaTests
     }
 
     [Fact]
+    public async Task RespondAsync_UsesBoundedStatelessContextAcrossTurns()
+    {
+        var agent = new TestAIAgent("ok");
+        var document = new CollaborativeMarkdownDocument();
+        document.AppendParagraph(new string('x', AgentContextPolicy.MaxDocumentCharacters * 2));
+        var persona = new AgentPersona(
+            agent,
+            new PersonaConfig { Name = "Analyst", SystemPrompt = "You are Analyst." },
+            document,
+            null,
+            maxTurns: 3,
+            agentCount: 1);
+
+        var history = new List<string> { "first turn", "second turn" };
+        await persona.RespondAsync("current", history);
+        await persona.RespondAsync("next", history);
+
+        Assert.Equal(2, agent.Calls);
+        Assert.Equal(2, agent.Prompts.Count);
+        Assert.All(agent.Prompts, prompt => Assert.InRange(prompt.Length, 1, AgentContextPolicy.MaxPromptCharacters));
+        Assert.Contains("first turn", agent.Prompts[0]);
+        Assert.Contains("second turn", agent.Prompts[1]);
+    }
+
+    [Fact]
     public async Task RespondStreamingAsync_EmitsChunksAndPreservesOrder()
     {
         var agent = new TestAIAgent(

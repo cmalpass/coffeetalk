@@ -19,8 +19,6 @@ public partial class AgentOrchestrator
     private readonly IRetryService _retryService;
     private readonly IOperationalEventSink _eventSink;
     private readonly RateLimiter? _rateLimiter;
-    private AgentThread? _thread;
-    private bool _threadInitialized;
 
     public AgentOrchestrator(AIAgent agent, OrchestratorConfig config, CollaborativeMarkdownDocument doc, List<AgentPersona> personas, IRetryService retryService, IOperationalEventSink? eventSink = null, RateLimiter? rateLimiter = null)
     {
@@ -132,7 +130,7 @@ Reason: Document complete, all personas contributed, clear consensus reached");
             await _rateLimiter.ThrottleAsync(_rateLimiter.EstimateTokens(prompt), cancellationToken);
         var response = await _retryService.ExecuteAsync(
             async cancellationToken => await _agent.RunAsync(
-                prompt, GetThread(), cancellationToken: cancellationToken),
+                AgentContextPolicy.Limit(prompt, AgentContextPolicy.MaxPromptCharacters), cancellationToken: cancellationToken),
             "Orchestrator summarization",
             cancellationToken);
         var result = response.ToString();
@@ -158,7 +156,7 @@ Reason: Document complete, all personas contributed, clear consensus reached");
         {
             response = await _retryService.ExecuteAsync(
                 async cancellationToken => await _agent.RunAsync(
-                    context, GetThread(), cancellationToken: cancellationToken),
+                    context, cancellationToken: cancellationToken),
                 "Orchestrator selection",
                 cancellationToken);
         }
@@ -206,35 +204,18 @@ Reason: Document complete, all personas contributed, clear consensus reached");
     private static string LimitReason(string reason) =>
         reason.Length > 200 ? reason[..200] : reason;
 
-    private AgentThread? GetThread()
-    {
-        if (_threadInitialized)
-            return _thread;
-
-        _threadInitialized = true;
-        try
-        {
-            _thread = _agent.GetNewThread();
-        }
-        catch (NotSupportedException)
-        {
-        }
-
-        return _thread;
-    }
-
     private string BuildOrchestratorContext(string currentMessage, List<string> history, int turnsRemaining)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"Current topic/message: {currentMessage}");
+        sb.AppendLine($"Current topic/message: {AgentContextPolicy.LimitCurrentMessage(currentMessage)}");
         sb.AppendLine();
 
         // Add recent history
         if (history.Count > 0)
         {
-            var recentHistory = history.TakeLast(5);
+            var recentHistory = AgentContextPolicy.LimitHistory(history);
             sb.AppendLine("Recent conversation:");
-            sb.AppendLine(string.Join("\n", recentHistory));
+            sb.AppendLine(recentHistory);
             sb.AppendLine();
         }
 
@@ -242,7 +223,7 @@ Reason: Document complete, all personas contributed, clear consensus reached");
         var document = _doc.Snapshot();
         sb.AppendLine("Current document state:");
         sb.AppendLine("```markdown");
-        sb.AppendLine(string.IsNullOrWhiteSpace(document) ? "[Document is empty]" : document);
+        sb.AppendLine(string.IsNullOrWhiteSpace(document) ? "[Document is empty]" : AgentContextPolicy.LimitDocument(document));
         sb.AppendLine("```");
         sb.AppendLine();
 
@@ -271,7 +252,7 @@ Reason: Document complete, all personas contributed, clear consensus reached");
 
         sb.Append("Who should speak next?");
         
-        return sb.ToString();
+        return AgentContextPolicy.Limit(sb.ToString(), AgentContextPolicy.MaxPromptCharacters);
     }
 
     private AgentPersona? ParsePersonaSelection(string response)
