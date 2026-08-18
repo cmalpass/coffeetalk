@@ -60,6 +60,7 @@ public sealed class NullOperationalEventSink : IOperationalEventSink
 
 public interface IRetryService
 {
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "The cancellation token position is preserved for interface compatibility; callers use named arguments.")]
     Task<T> ExecuteAsync<T>(
         Func<CancellationToken, Task<T>> operation,
         string operationName,

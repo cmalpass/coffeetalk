@@ -40,7 +40,7 @@ public class RetryServiceTests
             service.ExecuteAsync(
                 _ => Task.FromResult("unused"),
                 "Test operation",
-                cancellation.Token));
+                cancellationToken: cancellation.Token));
 
         Assert.Empty(sink.Events);
     }

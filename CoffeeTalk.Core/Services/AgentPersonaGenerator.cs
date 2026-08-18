@@ -1,6 +1,7 @@
 using Microsoft.Agents.AI;
 using CoffeeTalk.Core.Interfaces;
 using CoffeeTalk.Models;
+using System.Globalization;
 using System.Text.Json;
 
 namespace CoffeeTalk.Services;
@@ -10,6 +11,7 @@ namespace CoffeeTalk.Services;
 /// </summary>
 public class AgentPersonaGenerator
 {
+    private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
     private readonly AIAgent _agent;
     private readonly IRetryService _retryService;
     private readonly RateLimiter? _rateLimiter;
@@ -62,7 +64,7 @@ REQUIREMENTS:
             response = await _retryService.ExecuteAsync(
                 async cancellationToken => await _agent.RunAsync(prompt, cancellationToken: cancellationToken),
                 "Generate personas",
-                cancellationToken);
+                cancellationToken: cancellationToken);
         }
         catch (Exception ex)
         {
@@ -78,10 +80,7 @@ REQUIREMENTS:
         List<GeneratedPersona>? generated;
         try
         {
-            generated = JsonSerializer.Deserialize<List<GeneratedPersona>>(responseText, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
+            generated = JsonSerializer.Deserialize<List<GeneratedPersona>>(responseText, JsonOptions);
         }
         catch
         {
@@ -90,11 +89,8 @@ REQUIREMENTS:
             var end = responseText.LastIndexOf(']');
             if (start >= 0 && end >= start)
             {
-                var slice = responseText.Substring(start, end - start + 1);
-                generated = JsonSerializer.Deserialize<List<GeneratedPersona>>(slice, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
+                var slice = responseText[start..(end + 1)];
+                generated = JsonSerializer.Deserialize<List<GeneratedPersona>>(slice, JsonOptions);
             }
             else
             {
@@ -187,13 +183,13 @@ REQUIREMENTS:
         int i = 2;
         while (used.Contains(candidate))
         {
-            candidate = baseName + i.ToString();
+            candidate = baseName + i.ToString(CultureInfo.InvariantCulture);
             i++;
         }
         return candidate;
     }
 
-    private class GeneratedPersona
+    private sealed class GeneratedPersona
     {
         public string? Name { get; set; }
         public string? SystemPrompt { get; set; }

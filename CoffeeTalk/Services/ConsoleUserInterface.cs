@@ -85,11 +85,7 @@ namespace CoffeeTalk.Services
             var selection = AnsiConsole.Prompt(
                 new SelectionPrompt<string>()
                     .Title("[green]Director's Chair[/]: What would you like to do?")
-                    .AddChoices(new[] {
-                        "Continue",
-                        "Inject Direction/Feedback",
-                        "End Conversation"
-                    }));
+                    .AddChoices("Continue", "Inject Direction/Feedback", "End Conversation"));
 
             if (selection == "End Conversation")
             {

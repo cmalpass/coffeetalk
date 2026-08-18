@@ -49,7 +49,7 @@ public sealed class AgentMemoryExtractor
         var response = await _retryService.ExecuteAsync(
             ct => _agent.RunAsync(prompt, cancellationToken: ct),
             "Memory extraction",
-            cancellationToken);
+            cancellationToken: cancellationToken);
 
         _rateLimiter?.AccountAdditionalTokens(_rateLimiter.EstimateTokens(response.ToString()));
         var content = ParseContent(response.ToString());

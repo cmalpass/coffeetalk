@@ -8,8 +8,9 @@ using System.Text.Json;
 
 namespace CoffeeTalk;
 
-class Program
+sealed class Program
 {
+    private static readonly JsonSerializerOptions WebJsonOptions = new(JsonSerializerDefaults.Web);
     static async Task Main(string[] args)
     {
         try
@@ -108,7 +109,7 @@ class Program
     }
 
     private static async Task MigrateLegacyHistoryAsync(
-        IApplicationDataPathResolver paths,
+        ApplicationDataPathResolver paths,
         ConversationPersistenceService persistence)
     {
         var legacyPath = paths.ResolveDataPath("conversation-history.json", "conversation-history.json");
@@ -119,7 +120,7 @@ class Program
         {
             var records = JsonSerializer.Deserialize<List<LegacyConversationRecord>>(
                 await File.ReadAllTextAsync(legacyPath),
-                new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? [];
+                WebJsonOptions) ?? [];
             foreach (var record in records)
             {
                 await persistence.SaveAsync(new ConversationState
@@ -190,7 +191,7 @@ class Program
 
     private static async Task<bool> HandleMemoryCommandAsync(
         string[] args,
-        IApplicationDataPathResolver dataPaths,
+        ApplicationDataPathResolver dataPaths,
         MemoryConfig config)
     {
         var action = args.Length > 1 ? args[1].ToLowerInvariant() : "help";
@@ -198,7 +199,11 @@ class Program
         try
         {
             using var memoryStore = new LocalMemoryStore(dataPaths, config);
+            // LocalMemoryStore supplies the storage; IMemoryStore keeps the CLI on the shared contract,
+            // including its default add/update operations.
+#pragma warning disable CA1859
             IMemoryStore memory = memoryStore;
+#pragma warning restore CA1859
             switch (action)
             {
                 case "list":
@@ -352,7 +357,7 @@ class Program
     }
 
     private static string? GetPositionalArgument(string[] args, int index) =>
-        index < args.Length && !args[index].StartsWith("-", StringComparison.Ordinal)
+        index < args.Length && !args[index].StartsWith('-')
             ? args[index]
             : null;
 
@@ -414,7 +419,7 @@ class Program
     private static async Task<bool> HandleWorkspaceCommandAsync(string[] args, WorkspaceService workspaces)
     {
         var command = args.FirstOrDefault();
-        if (command is null || command.StartsWith("-", StringComparison.Ordinal))
+        if (command is null || command.StartsWith('-'))
             return false;
 
         switch (command.ToLowerInvariant())
@@ -431,14 +436,14 @@ class Program
                 AnsiConsole.MarkupLine($"[green]Created and switched to workspace {Markup.Escape(created.Name)}[/]");
                 return true;
             case "switch":
-                var switchName = args.Length > 1 && !args[1].StartsWith("-", StringComparison.Ordinal) ? args[1] : null;
+                var switchName = args.Length > 1 && !args[1].StartsWith('-') ? args[1] : null;
                 if (string.IsNullOrWhiteSpace(switchName))
                     throw new ArgumentException("The switch command requires a workspace name or id.");
                 var selected = await workspaces.SwitchAsync(switchName);
                 AnsiConsole.MarkupLine($"[green]Switched to workspace {Markup.Escape(selected.Name)}[/]");
                 return true;
             case "delete":
-                var deleteName = args.Length > 1 && !args[1].StartsWith("-", StringComparison.Ordinal) ? args[1] : null;
+                var deleteName = args.Length > 1 && !args[1].StartsWith('-') ? args[1] : null;
                 if (string.IsNullOrWhiteSpace(deleteName))
                     throw new ArgumentException("The delete command requires a workspace name or id.");
                 if (!AnsiConsole.Confirm($"Delete workspace '{Markup.Escape(deleteName)}' and all its conversations?", false))
@@ -454,14 +459,14 @@ class Program
     private static string? GetOption(string[] args, string option)
     {
         var index = Array.FindIndex(args, value => value.Equals(option, StringComparison.OrdinalIgnoreCase));
-        return index >= 0 && index + 1 < args.Length && !args[index + 1].StartsWith("-", StringComparison.Ordinal)
+        return index >= 0 && index + 1 < args.Length && !args[index + 1].StartsWith('-')
             ? args[index + 1]
             : null;
     }
 
     private static async Task ExportDocumentAsync(
-        IApplicationDataPathResolver dataPaths,
-        IPdfDocumentExporter pdfExporter,
+        ApplicationDataPathResolver dataPaths,
+        PdfDocumentExporter pdfExporter,
         string format,
         string content,
         string topic)

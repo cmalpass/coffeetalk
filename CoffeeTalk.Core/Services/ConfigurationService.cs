@@ -77,7 +77,7 @@ public class ConfigurationService
     }
 
     // Helper method to map AppSettings to PersistedAppSettings, omitting sensitive fields
-    private PersistedAppSettings MapToPersistedAppSettings(AppSettings settings)
+    private static PersistedAppSettings MapToPersistedAppSettings(AppSettings settings)
     {
         return new PersistedAppSettings
         {

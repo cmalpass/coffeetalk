@@ -13,14 +13,13 @@ public static class AgentBuilder
 {
     public static AIAgent CreateAgent(LlmProviderConfig config, string name, string instructions, AIFunction[]? tools = null)
     {
-        if (config == null)
-            throw new ArgumentNullException(nameof(config));
+        ArgumentNullException.ThrowIfNull(config);
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Agent name is required.", nameof(name));
         if (string.IsNullOrWhiteSpace(instructions))
             throw new ArgumentException("Agent instructions are required.", nameof(instructions));
 
-        OpenAI.Chat.ChatClient chatClient = config.Type.ToLower() switch
+        OpenAI.Chat.ChatClient chatClient = config.Type.ToLowerInvariant() switch
         {
             "openai" => CreateOpenAIClient(config),
             

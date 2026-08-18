@@ -35,7 +35,7 @@ public static class ConfigurationHelper
         else
         {
             // Check for API key if using OpenAI
-            switch (settings.LlmProvider.Type.ToLower())
+            switch (settings.LlmProvider.Type.ToLowerInvariant())
             {
                 case "openai":
                     if (string.IsNullOrWhiteSpace(settings.LlmProvider.ApiKey))
@@ -122,7 +122,7 @@ public static class ConfigurationHelper
         var provider = AnsiConsole.Prompt(
             new SelectionPrompt<string>()
                 .Title("Select your LLM Provider:")
-                .AddChoices(new[] { "openai", "azureopenai", "ollama" }));
+                .AddChoices("openai", "azureopenai", "ollama"));
 
         settings.LlmProvider.Type = provider;
 

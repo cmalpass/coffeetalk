@@ -20,7 +20,7 @@ public static class ConversationMetricsCalculator
             DocumentWordCount = CountWords(state.DocumentContent),
             DocumentHeadingCount = state.DocumentContent
                 .Split('\n')
-                .Count(line => line.TrimStart().StartsWith("#", StringComparison.Ordinal))
+                .Count(line => line.TrimStart().StartsWith('#'))
         };
 
         foreach (var message in messages)

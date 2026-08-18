@@ -102,7 +102,7 @@ Prefer replacing existing sections over appending new content. Use ReplaceSectio
         var response = await _retryService.ExecuteAsync(
             async cancellationToken => await _agent.RunAsync(prompt, cancellationToken: cancellationToken),
             "Editor review",
-            cancellationToken);
+            cancellationToken: cancellationToken);
         var responseText = response.ToString();
 
         // Account response tokens

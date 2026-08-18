@@ -45,7 +45,7 @@ public class CollaborativeMarkdownDocument
         lock (_lock)
         {
             var current = _content.ToString();
-            if (current.StartsWith("# "))
+            if (current.StartsWith("# ", StringComparison.Ordinal))
             {
                 // Replace first line
                 var idx = current.IndexOf('\n');

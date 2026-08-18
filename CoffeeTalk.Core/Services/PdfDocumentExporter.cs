@@ -72,7 +72,7 @@ public sealed class PdfDocumentExporter : IPdfDocumentExporter
     {
         private readonly string _fontPath = FindFontPath();
 
-        public string DefaultFontName => "Arial";
+        public static string DefaultFontName => "Arial";
 
         public FontResolverInfo ResolveTypeface(string familyName, bool isBold, bool isItalic) =>
             new("CoffeeTalkSystemFont");

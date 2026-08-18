@@ -82,7 +82,7 @@ Based on the schema description '{_config.SchemaDescription}', extract the data 
             var response = await _retryService.ExecuteAsync(
                 async cancellationToken => await _agent.RunAsync(prompt, cancellationToken: cancellationToken),
                 "Data extraction",
-                cancellationToken);
+                cancellationToken: cancellationToken);
 
             var json = CleanJson(response.ToString());
             _rateLimiter?.AccountAdditionalTokens(_rateLimiter.EstimateTokens(json));
@@ -106,12 +106,12 @@ Based on the schema description '{_config.SchemaDescription}', extract the data 
         }
     }
 
-    private string CleanJson(string output)
+    private static string CleanJson(string output)
     {
         output = output.Trim();
-        if (output.StartsWith("```json")) output = output.Substring(7);
-        if (output.StartsWith("```")) output = output.Substring(3);
-        if (output.EndsWith("```")) output = output.Substring(0, output.Length - 3);
+        if (output.StartsWith("```json", StringComparison.Ordinal)) output = output[7..];
+        if (output.StartsWith("```", StringComparison.Ordinal)) output = output[3..];
+        if (output.EndsWith("```", StringComparison.Ordinal)) output = output[..^3];
         return output.Trim();
     }
 }

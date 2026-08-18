@@ -2,6 +2,7 @@ using Microsoft.Agents.AI;
 using CoffeeTalk.Core.Interfaces;
 using CoffeeTalk.Models;
 using System.Text;
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace CoffeeTalk.Services;
@@ -113,13 +114,15 @@ Reason: Document complete, all personas contributed, clear consensus reached");
 
             if (firstSentence.Length > 150)
             {
-                firstSentence = firstSentence.Substring(0, 147) + "...";
+                firstSentence = string.Concat(firstSentence.AsSpan(0, 147), "...");
             }
             return firstSentence;
         }
 
         // Fallback: just take first ~100 chars of system prompt
-        var fallback = systemPrompt.Length > 100 ? systemPrompt.Substring(0, 97) + "..." : systemPrompt;
+        var fallback = systemPrompt.Length > 100
+            ? string.Concat(systemPrompt.AsSpan(0, 97), "...")
+            : systemPrompt;
         return fallback;
     }
 
@@ -132,7 +135,7 @@ Reason: Document complete, all personas contributed, clear consensus reached");
             async cancellationToken => await _agent.RunAsync(
                 AgentContextPolicy.Limit(prompt, AgentContextPolicy.MaxPromptCharacters), cancellationToken: cancellationToken),
             "Orchestrator summarization",
-            cancellationToken);
+            cancellationToken: cancellationToken);
         var result = response.ToString();
         _rateLimiter?.AccountAdditionalTokens(_rateLimiter.EstimateTokens(result));
         return result;
@@ -158,7 +161,7 @@ Reason: Document complete, all personas contributed, clear consensus reached");
                 async cancellationToken => await _agent.RunAsync(
                     context, cancellationToken: cancellationToken),
                 "Orchestrator selection",
-                cancellationToken);
+                cancellationToken: cancellationToken);
         }
         catch (Exception ex)
         {
@@ -207,7 +210,7 @@ Reason: Document complete, all personas contributed, clear consensus reached");
     private string BuildOrchestratorContext(string currentMessage, List<string> history, int turnsRemaining)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"Current topic/message: {AgentContextPolicy.LimitCurrentMessage(currentMessage)}");
+        sb.AppendLine(CultureInfo.InvariantCulture, $"Current topic/message: {AgentContextPolicy.LimitCurrentMessage(currentMessage)}");
         sb.AppendLine();
 
         // Add recent history
@@ -231,7 +234,7 @@ Reason: Document complete, all personas contributed, clear consensus reached");
         sb.AppendLine("Speaker participation count:");
         foreach (var kvp in _speakerCount.OrderBy(x => x.Value))
         {
-            sb.AppendLine($"- {kvp.Key}: {kvp.Value} time(s)");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- {kvp.Key}: {kvp.Value} time(s)");
         }
         sb.AppendLine();
 
@@ -239,14 +242,14 @@ Reason: Document complete, all personas contributed, clear consensus reached");
         sb.AppendLine("Available personas:");
         foreach (var persona in _availablePersonas)
         {
-            sb.AppendLine($"- {persona.Name} (Capabilities: {(persona.EffectiveToolNames.Count == 0 ? "no document tools" : string.Join(", ", persona.EffectiveToolNames))})");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"- {persona.Name} (Capabilities: {(persona.EffectiveToolNames.Count == 0 ? "no document tools" : string.Join(", ", persona.EffectiveToolNames))})");
         }
         sb.AppendLine();
 
         // Add urgency if needed
         if (turnsRemaining <= 3)
         {
-            sb.AppendLine($"⚠️ URGENT: Only {turnsRemaining} turn(s) remaining. Select someone who can help wrap up and conclude.");
+            sb.AppendLine(CultureInfo.InvariantCulture, $"⚠️ URGENT: Only {turnsRemaining} turn(s) remaining. Select someone who can help wrap up and conclude.");
             sb.AppendLine();
         }
 
@@ -290,7 +293,7 @@ Reason: Document complete, all personas contributed, clear consensus reached");
         return null;
     }
 
-    private bool ShouldConclude(string orchestratorResponse)
+    private static bool ShouldConclude(string orchestratorResponse)
     {
         // Orchestrator explicitly signals conclusion with 'CONCLUDE'
         var lines = orchestratorResponse.Split('\n', StringSplitOptions.RemoveEmptyEntries);
