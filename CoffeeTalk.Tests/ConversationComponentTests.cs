@@ -12,9 +12,9 @@ using Bunit.Rendering;
 
 namespace CoffeeTalk.Tests;
 
-public class ConversationComponentTests : TestContext
+public class ConversationComponentTests : BunitContext
 {
-    private static (BlazorUserInterface Ui, IRenderedComponent<ContainerFragment> Component) RenderConversation(TestContext context)
+    private static (BlazorUserInterface Ui, IRenderedComponent<ContainerFragment> Component) RenderConversation(BunitContext context)
     {
         context.Services.AddMudServices();
         context.Services.AddSingleton<ConfigurationService>();
@@ -61,7 +61,7 @@ public class ConversationComponentTests : TestContext
         ui.NotifyStateChanged();
 
         cut.WaitForAssertion(() =>
-            Assert.Single(JSInterop.Invocations.Where(invocation => invocation.Identifier == "scrollToBottom")));
+            Assert.Single(JSInterop.Invocations, invocation => invocation.Identifier == "scrollToBottom"));
     }
 
     [Fact]
@@ -71,13 +71,13 @@ public class ConversationComponentTests : TestContext
         var (ui, cut) = RenderConversation(this);
         ui.NotifyStateChanged();
         cut.WaitForAssertion(() =>
-            Assert.Single(JSInterop.Invocations.Where(invocation => invocation.Identifier == "scrollToBottom")));
+            Assert.Single(JSInterop.Invocations, invocation => invocation.Identifier == "scrollToBottom"));
         var scrollInvocation = JSInterop.Invocations.Single(invocation => invocation.Identifier == "scrollToBottom");
 
         cut.FindComponent<Conversation>().Instance.Dispose();
         ui.NotifyStateChanged();
 
         Assert.True(scrollInvocation.CancellationToken?.IsCancellationRequested);
-        Assert.Single(JSInterop.Invocations.Where(invocation => invocation.Identifier == "scrollToBottom"));
+        Assert.Single(JSInterop.Invocations, invocation => invocation.Identifier == "scrollToBottom");
     }
 }
