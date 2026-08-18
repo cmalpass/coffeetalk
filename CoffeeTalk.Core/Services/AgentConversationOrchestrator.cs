@@ -125,6 +125,8 @@ public class AgentConversationOrchestrator
     {
         int totalTurns = 0;
         int maxTotalTurns = _maxTurns * _personas.Count; // Total individual turns allowed
+        int consensusAttempts = 0;
+        int maxConsensusAttempts = Math.Max(1, maxTotalTurns);
         int failedAttempts = 0;
 
         while (totalTurns < maxTotalTurns)
@@ -156,12 +158,22 @@ public class AgentConversationOrchestrator
 
                 if (selectedPersona == null)
                 {
+                    consensusAttempts++;
                     var consensus = await VerifyConsensusAsync(currentMessage, conversationHistory, cancellationToken);
                     if (consensus.Reached)
                     {
                         await _ui.ShowRuleAsync("Consensus reached");
                         await _ui.ShowMessageAsync(
                             "\n[bold green]✅ All personas agree that the conversation can conclude.[/]");
+                        break;
+                    }
+
+                    if (consensusAttempts >= maxConsensusAttempts)
+                    {
+                        await _ui.ShowRuleAsync("Consensus budget exhausted");
+                        await _ui.ShowMessageAsync(
+                            $"\n[yellow]⚠️  Consensus was not reached after {consensusAttempts} attempt(s). " +
+                            "The conversation ended with unresolved concerns.[/]");
                         break;
                     }
 

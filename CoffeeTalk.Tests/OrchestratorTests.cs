@@ -58,4 +58,43 @@ public class OrchestratorTests
             message.Content.Contains("An unexpected error occurred."));
         Assert.DoesNotContain(ui.Messages, message => message.Content.Contains("internal stack details"));
     }
+
+    [Fact]
+    public async Task OrchestratedConversation_StopsAfterConsensusBudgetWhenPersonasDissent()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "coffeetalk-consensus-tests", Guid.NewGuid().ToString("N"));
+        var doc = new CollaborativeMarkdownDocument(new ApplicationDataPathResolver(root));
+        var persona = new AgentPersona(
+            new TestAIAgent("CONSENSUS: NO\nReason: The recommendation is incomplete."),
+            new PersonaConfig { Name = "Analyst", SystemPrompt = "You are Analyst." },
+            doc,
+            null,
+            maxTurns: 1,
+            agentCount: 1);
+        var orchestrator = new AgentOrchestrator(
+            new TestAIAgent("CONCLUDE\nReason: ready to finish"),
+            new OrchestratorConfig { Enabled = true },
+            doc,
+            [persona]);
+        var ui = new BlazorUserInterface();
+        var conversation = new AgentConversationOrchestrator(
+            ui,
+            [persona],
+            doc,
+            new AppSettings { MaxConversationTurns = 1 },
+            orchestrator);
+
+        try
+        {
+            await conversation.StartConversationAsync("Test topic");
+
+            Assert.Contains(ui.Messages, message =>
+                message.Content.Contains("Consensus was not reached after 1 attempt", StringComparison.Ordinal));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
 }
