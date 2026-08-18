@@ -13,7 +13,7 @@ public interface IConversationSessionService
     Task LoadConversationAsync(ConversationRecord record);
 }
 
-public sealed class ConversationSessionService : IConversationSessionService, IDisposable
+public sealed partial class ConversationSessionService : IConversationSessionService, IDisposable
 {
     private readonly AppState _appState;
     private readonly BlazorUserInterface _ui;
@@ -52,10 +52,7 @@ public sealed class ConversationSessionService : IConversationSessionService, ID
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(topic);
         ArgumentNullException.ThrowIfNull(personas);
-        _logger.LogInformation(
-            "Starting conversation for topic {Topic} with personas {Personas}",
-            topic,
-            string.Join(", ", personas.Select(persona => persona.Name)));
+        LogConversationStarting(_logger, topic, string.Join(", ", personas.Select(persona => persona.Name)));
 
         CancellationTokenSource cts;
         Task? previousTask;
@@ -139,32 +136,24 @@ public sealed class ConversationSessionService : IConversationSessionService, ID
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            _logger.LogInformation("Building conversation pipeline for {Topic}", topic);
+            LogPipelineBuilding(_logger, topic);
             var pipeline = await _pipelineBuilder.BuildAsync(_appState.Settings, topic, personas, cancellationToken: cts.Token);
-            _logger.LogInformation(
-                "Conversation pipeline built for {Topic}; orchestrator={HasOrchestrator}, personas={PersonaCount}",
-                topic,
-                pipeline.Orchestrator is not null,
-                pipeline.Personas.Count);
-            _logger.LogInformation("Entering agent conversation execution for {Topic}", topic);
+            LogPipelineBuilt(_logger, topic, pipeline.Orchestrator is not null, pipeline.Personas.Count);
+            LogConversationExecutionStarting(_logger, topic);
             await pipeline.CreateConversation(_ui).StartConversationAsync(topic, cts.Token);
-            _logger.LogInformation("Agent conversation execution completed for {Topic}", topic);
+            LogConversationExecutionCompleted(_logger, topic);
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error during conversation orchestration");
+            LogConversationError(_logger, ex);
             await _ui.ShowErrorAsync($"Conversation failed: {ex.Message}");
         }
         finally
         {
-            _logger.LogInformation(
-                "Conversation task finished for {Topic} after {ElapsedSeconds:F1}s; cancelled={Cancelled}",
-                topic,
-                stopwatch.Elapsed.TotalSeconds,
-                cts.IsCancellationRequested);
+            LogConversationFinished(_logger, topic, stopwatch.Elapsed.TotalSeconds, cts.IsCancellationRequested);
             ConversationRecord? record = null;
             lock (_gate)
             {
@@ -205,11 +194,11 @@ public sealed class ConversationSessionService : IConversationSessionService, ID
             }
             catch (IOException ex)
             {
-                _logger.LogError(ex, "Failed to write conversation history for {Topic}", topic);
+                LogHistoryWriteFailed(_logger, ex, topic);
             }
             catch (UnauthorizedAccessException ex)
             {
-                _logger.LogError(ex, "Failed to persist conversation history for {Topic}", topic);
+                LogHistoryPersistFailed(_logger, ex, topic);
             }
             cts.Dispose();
         }
@@ -225,4 +214,31 @@ public sealed class ConversationSessionService : IConversationSessionService, ID
         }
         _ui.CancelIntervention();
     }
+
+    [LoggerMessage(EventId = 1101, Level = LogLevel.Information, Message = "Starting conversation for topic {Topic} with personas {Personas}")]
+    private static partial void LogConversationStarting(ILogger logger, string topic, string personas);
+
+    [LoggerMessage(EventId = 1102, Level = LogLevel.Information, Message = "Building conversation pipeline for {Topic}")]
+    private static partial void LogPipelineBuilding(ILogger logger, string topic);
+
+    [LoggerMessage(EventId = 1103, Level = LogLevel.Information, Message = "Conversation pipeline built for {Topic}; orchestrator={HasOrchestrator}, personas={PersonaCount}")]
+    private static partial void LogPipelineBuilt(ILogger logger, string topic, bool hasOrchestrator, int personaCount);
+
+    [LoggerMessage(EventId = 1104, Level = LogLevel.Information, Message = "Entering agent conversation execution for {Topic}")]
+    private static partial void LogConversationExecutionStarting(ILogger logger, string topic);
+
+    [LoggerMessage(EventId = 1105, Level = LogLevel.Information, Message = "Agent conversation execution completed for {Topic}")]
+    private static partial void LogConversationExecutionCompleted(ILogger logger, string topic);
+
+    [LoggerMessage(EventId = 1106, Level = LogLevel.Error, Message = "Error during conversation orchestration")]
+    private static partial void LogConversationError(ILogger logger, Exception exception);
+
+    [LoggerMessage(EventId = 1107, Level = LogLevel.Information, Message = "Conversation task finished for {Topic} after {ElapsedSeconds:F1}s; cancelled={Cancelled}")]
+    private static partial void LogConversationFinished(ILogger logger, string topic, double elapsedSeconds, bool cancelled);
+
+    [LoggerMessage(EventId = 1108, Level = LogLevel.Error, Message = "Failed to write conversation history for {Topic}")]
+    private static partial void LogHistoryWriteFailed(ILogger logger, IOException exception, string topic);
+
+    [LoggerMessage(EventId = 1109, Level = LogLevel.Error, Message = "Failed to persist conversation history for {Topic}")]
+    private static partial void LogHistoryPersistFailed(ILogger logger, UnauthorizedAccessException exception, string topic);
 }

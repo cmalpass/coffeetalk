@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace CoffeeTalk.Gui.Services;
 
-public sealed class BlazorOperationalEventSink : IOperationalEventSink
+public sealed partial class BlazorOperationalEventSink : IOperationalEventSink
 {
     private readonly ILogger<BlazorOperationalEventSink> _logger;
     private readonly BlazorUserInterface _ui;
@@ -20,18 +20,18 @@ public sealed class BlazorOperationalEventSink : IOperationalEventSink
     {
         if (operationalEvent.Kind == OperationalEventKind.RequestFallback)
         {
-            _logger.LogWarning(
+            LogFallback(
+                _logger,
                 operationalEvent.Exception,
-                "Operational fallback for {Operation}; request {RequestId}; reason {Reason}",
                 operationalEvent.Operation,
                 operationalEvent.RequestId,
                 operationalEvent.Reason);
         }
         else if (operationalEvent.Exception is not null)
         {
-            _logger.LogError(
+            LogOperationalError(
+                _logger,
                 operationalEvent.Exception,
-                "Operational event {EventKind} for {Operation}; attempt {Attempt}/{MaxRetries}; decision {Decision}; reason {Reason}",
                 operationalEvent.Kind,
                 operationalEvent.Operation,
                 operationalEvent.Attempt,
@@ -41,8 +41,8 @@ public sealed class BlazorOperationalEventSink : IOperationalEventSink
         }
         else
         {
-            _logger.LogInformation(
-                "Operational event {EventKind} for {Operation}; attempt {Attempt}/{MaxRetries}; decision {Decision}; reason {Reason}",
+            LogOperationalInfo(
+                _logger,
                 operationalEvent.Kind,
                 operationalEvent.Operation,
                 operationalEvent.Attempt,
@@ -119,4 +119,33 @@ public sealed class BlazorOperationalEventSink : IOperationalEventSink
 
     private static string FormatTokenCount(long? actual, int? estimate) =>
         actual is not null ? $"{actual} actual" : $"~{estimate} estimated";
+
+    [LoggerMessage(EventId = 1001, Level = LogLevel.Warning, Message = "Operational fallback for {Operation}; request {RequestId}; reason {Reason}")]
+    private static partial void LogFallback(
+        ILogger logger,
+        Exception? exception,
+        string operation,
+        string? requestId,
+        string? reason);
+
+    [LoggerMessage(EventId = 1002, Level = LogLevel.Error, Message = "Operational event {EventKind} for {Operation}; attempt {Attempt}/{MaxRetries}; decision {Decision}; reason {Reason}")]
+    private static partial void LogOperationalError(
+        ILogger logger,
+        Exception exception,
+        OperationalEventKind eventKind,
+        string operation,
+        int? attempt,
+        int? maxRetries,
+        string? decision,
+        string? reason);
+
+    [LoggerMessage(EventId = 1003, Level = LogLevel.Information, Message = "Operational event {EventKind} for {Operation}; attempt {Attempt}/{MaxRetries}; decision {Decision}; reason {Reason}")]
+    private static partial void LogOperationalInfo(
+        ILogger logger,
+        OperationalEventKind eventKind,
+        string operation,
+        int? attempt,
+        int? maxRetries,
+        string? decision,
+        string? reason);
 }
