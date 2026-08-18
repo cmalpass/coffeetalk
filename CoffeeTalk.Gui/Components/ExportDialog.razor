@@ -3,7 +3,7 @@
 <MudDialog>
     <DialogContent>
         <MudText Typo="Typo.h6" GutterBottom="true">Export Format</MudText>
-        <MudRadioGroup @bind-Value="_format" Orientation="Orientation.Vertical">
+        <MudRadioGroup @bind-Value="_format" Class="d-flex flex-column">
             <MudRadio Value="@("markdown")">Markdown (.md)</MudRadio>
             <MudRadio Value="@("html")">HTML (.html)</MudRadio>
             <MudRadio Value="@("json")">JSON (.json)</MudRadio>

@@ -139,7 +139,7 @@
                         <RowTemplate>
                             @if (_editingId == context.Id)
                             {
-                                <MudTd ColSpan="3">
+                                <MudTd colspan="3">
                                     <MudTextField @bind-Value="_editingTitle" Label="Title" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2" />
                                     <MudTextField @bind-Value="_editingContent" Label="Content" Variant="Variant.Outlined" Lines="4" FullWidth="true" Class="mb-2" />
                                     <div class="d-flex gap-2">
@@ -158,8 +158,8 @@
                                     <MudText Typo="Typo.caption">@context.UpdatedAt.ToLocalTime().ToString("MMM d, yyyy")</MudText>
                                 </MudTd>
                                 <MudTd DataLabel="Actions">
-                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" Title="Edit memory" OnClick="@(() => BeginEdit(context))" Disabled="@(!_settings.Enabled || _busy)" />
-                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" Title="Delete memory" OnClick="@(() => DeleteAsync(context))" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" Size="Size.Small" aria-label="Edit memory" OnClick="@(() => BeginEdit(context))" Disabled="@(!_settings.Enabled || _busy)" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small" aria-label="Delete memory" OnClick="@(() => DeleteAsync(context))" />
                                 </MudTd>
                             }
                         </RowTemplate>
