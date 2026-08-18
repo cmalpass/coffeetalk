@@ -90,6 +90,49 @@ public class OrchestratorTests
 
             Assert.Contains(ui.Messages, message =>
                 message.Content.Contains("Consensus was not reached after 1 attempt", StringComparison.Ordinal));
+            Assert.Equal(ConversationTerminationReason.ConsensusBudgetExhausted, ui.TerminationReason);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task OrchestratedConversation_RecordsConsensusReachedTermination()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "coffeetalk-consensus-tests", Guid.NewGuid().ToString("N"));
+        var doc = new CollaborativeMarkdownDocument(new ApplicationDataPathResolver(root));
+        var persona = new AgentPersona(
+            new TestAIAgent("CONSENSUS: YES\nReason: The recommendation is complete."),
+            new PersonaConfig { Name = "Analyst", SystemPrompt = "You are Analyst." },
+            doc,
+            null,
+            maxTurns: 1,
+            agentCount: 1);
+        var orchestrator = new AgentOrchestrator(
+            new TestAIAgent("CONCLUDE\nReason: ready to finish"),
+            new OrchestratorConfig { Enabled = true },
+            doc,
+            [persona]);
+        var ui = new BlazorUserInterface();
+        var conversation = new AgentConversationOrchestrator(
+            ui,
+            [persona],
+            doc,
+            new AppSettings { MaxConversationTurns = 1 },
+            orchestrator);
+
+        try
+        {
+            await conversation.StartConversationAsync("Test topic");
+
+            Assert.Equal(ConversationTerminationReason.ConsensusReached, ui.TerminationReason);
+            Assert.Contains(ui.Messages, message =>
+                message.Content.Contains("Consensus reached. Conversation ended successfully", StringComparison.Ordinal));
+            Assert.DoesNotContain(ui.Messages, message =>
+                message.Content.Contains("Maximum turns", StringComparison.Ordinal));
         }
         finally
         {

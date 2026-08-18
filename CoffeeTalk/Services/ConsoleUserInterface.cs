@@ -1,4 +1,5 @@
 using CoffeeTalk.Core.Interfaces;
+using CoffeeTalk.Models;
 using Spectre.Console;
 using System;
 using System.Collections.Generic;
@@ -9,6 +10,7 @@ namespace CoffeeTalk.Services
     public class ConsoleUserInterface : IUserInterface
     {
         public bool StopRequested => false;
+        public ConversationTerminationReason TerminationReason { get; set; }
         public string? ConversationTopic { get; private set; }
         public IReadOnlyList<string> ConversationParticipants { get; private set; } = Array.Empty<string>();
         public DateTimeOffset? ConversationStartedAt { get; private set; }

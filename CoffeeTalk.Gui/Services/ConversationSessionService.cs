@@ -169,16 +169,27 @@ public sealed class ConversationSessionService : IConversationSessionService, ID
             lock (_gate)
             {
                 var messages = _ui.GetMessagesSnapshot();
+                var terminationReason = cts.IsCancellationRequested
+                    ? ConversationTerminationReason.Cancelled
+                    : _ui.TerminationReason == ConversationTerminationReason.Unknown
+                        ? (_ui.StopRequested ? ConversationTerminationReason.UserStopped : ConversationTerminationReason.TurnBudgetExhausted)
+                        : _ui.TerminationReason;
                 record = new ConversationRecord
                 {
                     Topic = topic,
                     StartedAt = _ui.ConversationStartedAt ?? DateTime.Now,
                     CompletedAt = DateTime.Now,
-                    Status = cts.IsCancellationRequested || _ui.StopRequested ? "Stopped" : "Completed",
+                    Status = terminationReason is ConversationTerminationReason.Cancelled or ConversationTerminationReason.UserStopped
+                        ? "Stopped"
+                        : "Completed",
                     MessageCount = messages.Count,
                     Personas = _ui.ConversationParticipants.ToList(),
                     Messages = messages.ToList(),
-                    DocumentContent = _ui.DocumentMarkdown
+                    DocumentContent = _ui.DocumentMarkdown,
+                    Metadata = new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["terminationReason"] = terminationReason.ToString()
+                    }
                 };
                 if (ReferenceEquals(_cts, cts))
                 {

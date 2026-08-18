@@ -1,12 +1,14 @@
 
 using System;
 using System.Threading.Tasks;
+using CoffeeTalk.Models;
 
 namespace CoffeeTalk.Core.Interfaces
 {
     public interface IUserInterface
     {
         bool StopRequested { get; }
+        ConversationTerminationReason TerminationReason { get; set; }
         Task ShowMessageAsync(string message);
         Task ShowErrorAsync(string message);
         Task ShowAgentResponseAsync(string agentName, string response);
