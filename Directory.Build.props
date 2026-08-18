@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <WarningsAsErrors>NU1605;NU1900;NU1901;NU1902;NU1903;NU1904;NU1905</WarningsAsErrors>
+  </PropertyGroup>
+</Project>
