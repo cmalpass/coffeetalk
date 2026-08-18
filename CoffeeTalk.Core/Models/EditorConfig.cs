@@ -2,7 +2,7 @@ namespace CoffeeTalk.Models;
 
 public class EditorConfig
 {
-    public bool Enabled { get; set; } = false;
+    public bool Enabled { get; set; }
     public int InterventionFrequency { get; set; } = 3; // Editor reviews every N turns
     public string SystemPrompt { get; set; } = DefaultSystemPrompt;
     public string StyleGuidelines { get; set; } = string.Empty;

@@ -630,7 +630,7 @@ public class AgentConversationOrchestrator
             "ready to end this discussion"
         };
 
-        var lowerResponse = response.ToLower();
+        var lowerResponse = response.ToLowerInvariant();
         return completionIndicators.Any(indicator => lowerResponse.Contains(indicator));
     }
 
@@ -708,7 +708,7 @@ public class AgentConversationOrchestrator
     }
 
     // Helper to escape markup since we are using Spectre Console conventions in strings still
-    private string Escape(string text)
+    private static string Escape(string text)
     {
         return text.Replace("[", "[[").Replace("]", "]]");
         // Note: Generic escaping might be needed if UI implementation relies on markup.

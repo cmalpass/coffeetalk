@@ -15,8 +15,7 @@ public static class AgentContextPolicy
     public static string Limit(string value, int maximumCharacters)
     {
         ArgumentNullException.ThrowIfNull(value);
-        if (maximumCharacters < 1)
-            throw new ArgumentOutOfRangeException(nameof(maximumCharacters));
+        ArgumentOutOfRangeException.ThrowIfLessThan(maximumCharacters, 1);
         if (value.Length <= maximumCharacters)
             return value;
 

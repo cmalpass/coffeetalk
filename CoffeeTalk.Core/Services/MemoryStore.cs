@@ -272,6 +272,7 @@ public class LocalMemoryStore : IMemoryStore, IDisposable
 
     public void Dispose()
     {
+        GC.SuppressFinalize(this);
     }
 
     private async Task<MemoryDocument> ReadDocumentAsync(CancellationToken cancellationToken)

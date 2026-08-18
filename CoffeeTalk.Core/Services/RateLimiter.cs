@@ -8,11 +8,11 @@ public class RateLimiter
     private readonly RateLimitConfig? _cfg;
     private readonly object _convLock = new();
     private DateTime _windowStart = DateTime.UtcNow;
-    private int _requestsInWindow = 0;
-    private int _tokensInWindow = 0;
+    private int _requestsInWindow;
+    private int _tokensInWindow;
 
-    private int _convRequests = 0;
-    private int _convTokens = 0;
+    private int _convRequests;
+    private int _convTokens;
 
     public RateLimiter(RateLimitConfig? cfg)
     {
@@ -97,6 +97,7 @@ public class RateLimiter
         }
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822", Justification = "The configured overload remains instance-based; this overload is retained as part of the public limiter API.")]
     public int EstimateTokens(string text, double charsPerToken)
     {
         if (string.IsNullOrEmpty(text)) return 0;

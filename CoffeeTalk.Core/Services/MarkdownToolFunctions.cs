@@ -49,6 +49,7 @@ public class MarkdownToolFunctions
         return tools.ToArray();
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822", Justification = "This remains an instance method to preserve the public tool-helper API.")]
     public bool VerifyTools(AIFunction[] tools)
     {
         return tools.Length >= 7;

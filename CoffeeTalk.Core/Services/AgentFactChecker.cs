@@ -58,7 +58,7 @@ Output Format:
             var response = await _retryService.ExecuteAsync(
                 async cancellationToken => await _agent.RunAsync(prompt, cancellationToken: cancellationToken),
                 "Fact Check",
-                cancellationToken);
+                cancellationToken: cancellationToken);
 
             var result = response.ToString().Trim();
             _rateLimiter?.AccountAdditionalTokens(_rateLimiter.EstimateTokens(result));

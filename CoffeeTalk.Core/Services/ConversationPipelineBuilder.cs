@@ -84,6 +84,7 @@ public sealed class ConversationPipelineBuilder
         _agentFactory = agentFactory ?? new ConversationAgentFactory();
     }
 
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1068", Justification = "The cancellation token position is preserved for API compatibility; callers may use named arguments.")]
     public async Task<ConversationPipeline> BuildAsync(
         AppSettings settings,
         string topic,
@@ -115,8 +116,8 @@ public sealed class ConversationPipelineBuilder
                 personaConfigs,
                 retryService,
                 rateLimiter,
-                cancellationToken,
-                notify);
+                notify,
+                cancellationToken);
         }
 
         ValidateAllowedTools(personaConfigs, tools);
@@ -209,8 +210,8 @@ public sealed class ConversationPipelineBuilder
         List<PersonaConfig> configured,
         IRetryService retryService,
         RateLimiter rateLimiter,
-        CancellationToken cancellationToken,
-        Action<string>? notify)
+        Action<string>? notify,
+        CancellationToken cancellationToken)
     {
         var dynamicConfig = settings.DynamicPersonas!;
         var generatorAgent = _agentFactory.Create(

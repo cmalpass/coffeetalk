@@ -92,8 +92,8 @@ public class AgentPersona
                 async cancellationToken => await _agent.RunAsync(
                     contextMessage, cancellationToken: cancellationToken),
                 $"{Name} response",
-                cancellationToken,
-                _rateLimiter is null ? null : token => _rateLimiter.ThrottleAsync(0, token));
+                cancellationToken: cancellationToken,
+                beforeRetry: _rateLimiter is null ? null : token => _rateLimiter.ThrottleAsync(0, token));
             responseText = response.ToString();
             telemetry.AppendOutput(responseText);
             telemetry.Complete(response.Usage);
@@ -149,8 +149,8 @@ public class AgentPersona
                 async token => await _agent.RunAsync(
                     contextMessage, cancellationToken: token),
                 $"{Name} consensus check",
-                cancellationToken,
-                _rateLimiter is null ? null : token => _rateLimiter.ThrottleAsync(0, token));
+                cancellationToken: cancellationToken,
+                beforeRetry: _rateLimiter is null ? null : token => _rateLimiter.ThrottleAsync(0, token));
             var responseText = response.ToString();
             telemetry.AppendOutput(responseText);
             telemetry.Complete(response.Usage);
@@ -179,7 +179,7 @@ public class AgentPersona
         {
             if (UseBufferedFallback())
             {
-                yield return await FallbackToBufferedAsync(contextMessage, cancellationToken, telemetry);
+                yield return await FallbackToBufferedAsync(contextMessage, telemetry, cancellationToken);
             }
             else
             {
@@ -214,8 +214,8 @@ public class AgentPersona
                     }
                 },
                 $"{Name} streaming response",
-                cancellationToken,
-                _rateLimiter is null ? null : token => _rateLimiter.ThrottleAsync(0, token));
+                cancellationToken: cancellationToken,
+                beforeRetry: _rateLimiter is null ? null : token => _rateLimiter.ThrottleAsync(0, token));
         }
         catch (Exception ex)
         {
@@ -231,7 +231,7 @@ public class AgentPersona
         if (initialFailure is not null)
         {
             telemetry.Fallback(initialFailure);
-            yield return await FallbackToBufferedAsync(contextMessage, cancellationToken, telemetry);
+            yield return await FallbackToBufferedAsync(contextMessage, telemetry, cancellationToken);
             yield break;
         }
 
@@ -285,7 +285,7 @@ public class AgentPersona
         if (failure is not null && UseBufferedFallback())
         {
             telemetry.Fallback(failure);
-            yield return await FallbackToBufferedAsync(contextMessage, cancellationToken, telemetry);
+            yield return await FallbackToBufferedAsync(contextMessage, telemetry, cancellationToken);
         }
         else if (failure is not null)
         {
@@ -300,16 +300,16 @@ public class AgentPersona
 
     private async Task<string> FallbackToBufferedAsync(
         string contextMessage,
-        CancellationToken cancellationToken,
-        RequestTelemetry telemetry)
+        RequestTelemetry telemetry,
+        CancellationToken cancellationToken)
     {
         try
         {
             var response = await _retryService.ExecuteAsync(
                 async token => await _agent.RunAsync(contextMessage, cancellationToken: token),
                 $"{Name} response",
-                cancellationToken,
-                _rateLimiter is null ? null : token => _rateLimiter.ThrottleAsync(0, token));
+                cancellationToken: cancellationToken,
+                beforeRetry: _rateLimiter is null ? null : token => _rateLimiter.ThrottleAsync(0, token));
             var responseText = response.ToString();
             telemetry.AppendOutput(responseText);
             telemetry.Complete(response.Usage);

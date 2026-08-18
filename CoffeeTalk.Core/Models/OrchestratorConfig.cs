@@ -2,7 +2,7 @@ namespace CoffeeTalk.Models;
 
 public class OrchestratorConfig
 {
-    public bool Enabled { get; set; } = false;
+    public bool Enabled { get; set; }
     public bool UseDynamicPersonaSelection { get; set; }
     public string? BaseSystemPrompt { get; set; }
 

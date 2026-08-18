@@ -140,7 +140,7 @@ public sealed class ConversationSessionService : IConversationSessionService, ID
         try
         {
             _logger.LogInformation("Building conversation pipeline for {Topic}", topic);
-            var pipeline = await _pipelineBuilder.BuildAsync(_appState.Settings, topic, personas, cts.Token);
+            var pipeline = await _pipelineBuilder.BuildAsync(_appState.Settings, topic, personas, cancellationToken: cts.Token);
             _logger.LogInformation(
                 "Conversation pipeline built for {Topic}; orchestrator={HasOrchestrator}, personas={PersonaCount}",
                 topic,

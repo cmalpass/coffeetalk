@@ -3,7 +3,7 @@ namespace CoffeeTalk.Models;
 public class DynamicPersonasConfig
 {
     // Enable dynamic persona generation
-    public bool Enabled { get; set; } = false;
+    public bool Enabled { get; set; }
 
     // Number of personas to generate at runtime (clamped to [2,10])
     public int Count { get; set; } = 3;
