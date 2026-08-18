@@ -64,6 +64,7 @@ public class AgentConversationOrchestrator
         _currentTopic = topic;
         if (_personas.Count == 0)
         {
+            _ui.TerminationReason = ConversationTerminationReason.NoPersonas;
             await _ui.ShowErrorAsync("[red]No personas configured. Please add personas to appsettings.json[/]");
             return;
         }
@@ -128,11 +129,13 @@ public class AgentConversationOrchestrator
         int consensusAttempts = 0;
         int maxConsensusAttempts = Math.Max(1, maxTotalTurns);
         int failedAttempts = 0;
+        var terminationReason = ConversationTerminationReason.TurnBudgetExhausted;
 
         while (totalTurns < maxTotalTurns)
         {
             if (_ui.StopRequested)
             {
+                terminationReason = ConversationTerminationReason.UserStopped;
                 break;
             }
 
@@ -162,6 +165,7 @@ public class AgentConversationOrchestrator
                     var consensus = await VerifyConsensusAsync(currentMessage, conversationHistory, cancellationToken);
                     if (consensus.Reached)
                     {
+                        terminationReason = ConversationTerminationReason.ConsensusReached;
                         await _ui.ShowRuleAsync("Consensus reached");
                         await _ui.ShowMessageAsync(
                             "\n[bold green]✅ All personas agree that the conversation can conclude.[/]");
@@ -170,6 +174,7 @@ public class AgentConversationOrchestrator
 
                     if (consensusAttempts >= maxConsensusAttempts)
                     {
+                        terminationReason = ConversationTerminationReason.ConsensusBudgetExhausted;
                         await _ui.ShowRuleAsync("Consensus budget exhausted");
                         await _ui.ShowMessageAsync(
                             $"\n[yellow]⚠️  Consensus was not reached after {consensusAttempts} attempt(s). " +
@@ -220,7 +225,11 @@ public class AgentConversationOrchestrator
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                     var (action, message) = await _ui.GetUserInterventionAsync();
-                    if (action == "quit") break;
+                    if (action == "quit")
+                    {
+                        terminationReason = ConversationTerminationReason.UserStopped;
+                        break;
+                    }
                     if (action == "inject" && !string.IsNullOrWhiteSpace(message))
                     {
                         await _ui.ShowMessageAsync($"\n[bold green]👤 Director:[/]: {Escape(message)}");
@@ -256,7 +265,10 @@ public class AgentConversationOrchestrator
                 await _ui.ShowErrorAsync("[red]❌ An unexpected error occurred.[/]");
                 failedAttempts++;
                 if (failedAttempts >= maxTotalTurns)
+                {
+                    terminationReason = ConversationTerminationReason.FailureBudgetExhausted;
                     break;
+                }
             }
 
             await _ui.ShowRuleAsync();
@@ -264,8 +276,9 @@ public class AgentConversationOrchestrator
             cancellationToken.ThrowIfCancellationRequested();
         }
 
+        _ui.TerminationReason = terminationReason;
         await _ui.ShowRuleAsync("Conversation Ended");
-        await _ui.ShowMessageAsync($"\n[yellow]⏱️  Maximum turns ({maxTotalTurns}) reached. Conversation ended.[/]");
+        await _ui.ShowMessageAsync($"\n{FormatTerminationMessage(terminationReason, maxTotalTurns)}");
 
         if (_dataExtractor != null)
         {
@@ -275,6 +288,16 @@ public class AgentConversationOrchestrator
         await TryExtractMemoryAsync(topic, conversationHistory, cancellationToken);
         await TryAutoSaveAsync(cancellationToken);
     }
+
+    private static string FormatTerminationMessage(ConversationTerminationReason reason, int maxTotalTurns) =>
+        reason switch
+        {
+            ConversationTerminationReason.ConsensusReached => "[bold green]✅ Consensus reached. Conversation ended successfully.[/]",
+            ConversationTerminationReason.UserStopped => "[yellow]Conversation manually ended by user.[/]",
+            ConversationTerminationReason.FailureBudgetExhausted => "[red]❌ Conversation ended after repeated failures.[/]",
+            ConversationTerminationReason.ConsensusBudgetExhausted => "[yellow]⚠️ Consensus budget exhausted. Conversation ended with unresolved concerns.[/]",
+            _ => $"[yellow]⏱️ Maximum turns ({maxTotalTurns}) reached. Conversation ended.[/]"
+        };
 
     private async Task<(bool Reached, string FollowUpMessage)> VerifyConsensusAsync(
         string currentMessage,

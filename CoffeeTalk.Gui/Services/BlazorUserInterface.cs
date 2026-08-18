@@ -1,4 +1,5 @@
 using CoffeeTalk.Core.Interfaces;
+using CoffeeTalk.Models;
 using Microsoft.AspNetCore.Components;
 
 namespace CoffeeTalk.Gui.Services
@@ -18,6 +19,7 @@ namespace CoffeeTalk.Gui.Services
                 return Messages.ToList();
         }
         public bool StopRequested { get; private set; }
+        public ConversationTerminationReason TerminationReason { get; set; }
         public string? ConversationTopic { get; private set; }
         public IReadOnlyList<string> ConversationParticipants { get; private set; } = Array.Empty<string>();
         public string? ConversationMode { get; private set; }
@@ -244,6 +246,7 @@ namespace CoffeeTalk.Gui.Services
                 _streamingMessage = null;
             }
             StopRequested = false;
+            TerminationReason = ConversationTerminationReason.Unknown;
             ConversationTopic = null;
             ConversationParticipants = Array.Empty<string>();
             ConversationMode = null;
@@ -265,6 +268,7 @@ namespace CoffeeTalk.Gui.Services
             ConversationStartedAt = DateTime.Now;
             IsConversationRunning = true;
             StopRequested = false;
+            TerminationReason = ConversationTerminationReason.Unknown;
             IsBusy = true;
             StatusMessage = "Preparing conversation...";
             NotifyStateChanged();
