@@ -8,7 +8,7 @@ using MudBlazor.Services;
 
 namespace CoffeeTalk.Gui;
 
-class Program
+sealed class Program
 {
     [STAThread]
     static void Main(string[] args)

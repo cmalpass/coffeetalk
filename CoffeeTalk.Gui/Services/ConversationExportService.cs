@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -10,6 +11,12 @@ namespace CoffeeTalk.Gui.Services;
 
 public static class ConversationExportService
 {
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = true
+    };
+
     private static readonly MarkdownPipeline MarkdownPipeline = new MarkdownPipelineBuilder()
         .DisableHtml()
         .UsePipeTables()
@@ -44,7 +51,7 @@ public static class ConversationExportService
     {
         var builder = new StringBuilder();
         builder.Append("# ").AppendLine(EscapeMarkdown(topic ?? "Conversation"));
-        builder.Append("Started: ").AppendLine(startedAt?.ToString("yyyy-MM-dd HH:mm") ?? "Unknown");
+        builder.Append("Started: ").AppendLine(startedAt?.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) ?? "Unknown");
         builder.Append("Participants: ").AppendLine(string.Join(", ", participants.Select(EscapeMarkdown)));
         builder.AppendLine();
 
@@ -60,7 +67,7 @@ public static class ConversationExportService
             }
 
             builder.Append("**").Append(EscapeMarkdown(message.Sender)).Append("** ");
-            builder.Append("_(").Append(message.Timestamp.ToString("HH:mm")).AppendLine(")_");
+            builder.Append("_(").Append(message.Timestamp.ToString("HH:mm", CultureInfo.InvariantCulture)).AppendLine(")_");
             builder.AppendLine();
             builder.AppendLine(message.Content);
             builder.AppendLine();
@@ -94,7 +101,7 @@ public static class ConversationExportService
             .AppendLine("<body>")
             .Append("    <h1>").Append(title).AppendLine("</h1>")
             .Append("    <p>Started: ")
-            .Append(EscapeHtml(startedAt?.ToString("yyyy-MM-dd HH:mm") ?? "Unknown"))
+            .Append(EscapeHtml(startedAt?.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) ?? "Unknown"))
             .AppendLine("</p>")
             .Append("    <p>Participants: ")
             .Append(EscapeHtml(string.Join(", ", participants)))
@@ -125,7 +132,7 @@ public static class ConversationExportService
                     .Append("        <span class=\"sender\">")
                     .Append(EscapeHtml(message.Sender))
                     .Append("</span> <span class=\"timestamp\">(")
-                    .Append(message.Timestamp.ToString("HH:mm"))
+                    .Append(message.Timestamp.ToString("HH:mm", CultureInfo.InvariantCulture))
                     .AppendLine(")</span>")
                     .Append("        <div>")
                     .Append(RenderMarkdown(message.Content))
@@ -149,11 +156,7 @@ public static class ConversationExportService
             startedAt,
             participants,
             messages
-        }, new JsonSerializerOptions
-        {
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-            WriteIndented = true
-        });
+        }, JsonOptions);
     }
 
     private static string EscapeHtml(string text) => WebUtility.HtmlEncode(text);

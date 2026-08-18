@@ -6,6 +6,8 @@ namespace CoffeeTalk.Gui.Services;
 
 public sealed class ConversationHistoryService
 {
+    private static readonly JsonSerializerOptions LegacyJsonOptions = new(JsonSerializerDefaults.Web);
+
     private readonly ConversationPersistenceService _persistence;
     private readonly IApplicationDataPathResolver _paths;
 
@@ -53,7 +55,7 @@ public sealed class ConversationHistoryService
         {
             var records = JsonSerializer.Deserialize<List<ConversationRecord>>(
                 await File.ReadAllTextAsync(path, cancellationToken),
-                new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? new();
+                LegacyJsonOptions) ?? new();
             var migrated = new List<ConversationState>();
             foreach (var record in records)
             {
