@@ -12,6 +12,7 @@ internal sealed class TestAIAgent : AIAgent
     private readonly bool _failBeforeStreamingOutput;
     public int Calls { get; private set; }
     public int StreamingCalls { get; private set; }
+    public List<string> Prompts { get; } = [];
 
     public TestAIAgent(Func<AgentRunResponse> response)
     {
@@ -56,6 +57,7 @@ internal sealed class TestAIAgent : AIAgent
     {
         cancellationToken.ThrowIfCancellationRequested();
         Calls++;
+        Prompts.Add(string.Join("\n", messages.Select(message => message.Text)));
         return Task.FromResult(_response());
     }
 
@@ -66,6 +68,7 @@ internal sealed class TestAIAgent : AIAgent
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         StreamingCalls++;
+        Prompts.Add(string.Join("\n", messages.Select(message => message.Text)));
         if (_failBeforeStreamingOutput && _streamingException is not null)
             throw _streamingException;
 

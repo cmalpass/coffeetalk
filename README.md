@@ -16,8 +16,8 @@ CoffeeTalk is a .NET 9 application for orchestrating multi-persona LLM conversat
 - **Retry Handling**: Automatic retry with exponential backoff for API rate limits (HTTP 429)
 - **Flexible Conversation Modes**: Choose between orchestrated (AI-directed) or round-robin (sequential) conversation flow
 - **Built on Microsoft Agent Framework**: Leverages Microsoft's Agent Framework for robust agentic AI integration
-- **Agent Threads**: Personas and the orchestrator retain framework-managed thread state across requests
-- **Full Document Context**: Personas and the orchestrator receive the current Markdown document, not only its headings
+- **Stateless Agent Context**: Personas and the orchestrator receive explicitly reconstructed, bounded prompts; provider-managed thread state is not retained
+- **Bounded Document Context**: Prompts include the current Markdown document and recent history within a documented 24,000-character budget, truncating oversized sections with a visible marker
 - **Consensus Verification**: When the orchestrator proposes completion, every persona reviews the document and must agree
 - **Request and Tool Telemetry**: View prompt/output sizes, token usage, first-output latency, duration, failures, and document tool calls
 - **Mermaid Rendering**: Mermaid fenced blocks render in the GUI and exported Markdown previews
@@ -445,7 +445,7 @@ The document is maintained in memory during the conversation and auto-saved to t
 
 The active event sink records each LLM and document-tool operation. Events include a request or tool ID, operation name, prompt/argument size, output/result size, estimated tokens, provider-reported usage when available, first-output latency, total duration, completion, and failure details. The GUI groups these events into compact timeline rows; the CLI writes them to the terminal. Streaming reasoning chunks are surfaced as thinking events when the provider exposes them.
 
-Telemetry measures the application payload passed to the Agent Framework. Providers may add system instructions and thread history, so provider-reported input usage can be larger than the application estimate.
+Telemetry measures the application payload passed to the Agent Framework. Providers may add system instructions or other transport metadata, so provider-reported input usage can be larger than the application estimate.
 
 ### Consensus verification
 
@@ -856,13 +856,13 @@ examples/
 ### Round-Robin Mode (Default)
 
 1. **Initialization**: The application loads configuration from `appsettings.json`
-2. **Agent Setup**: Microsoft Agent Framework agents and persona threads are created with the configured LLM provider
+2. **Agent Setup**: Microsoft Agent Framework agents are created with the configured LLM provider
 3. **Persona Creation**: Each persona is initialized with its unique system prompt
 4. **Tool Verification**: The system verifies that personas can use markdown collaboration tools
 5. **Conversation Loop**:
    - User provides a topic
    - Personas take turns responding in sequence
-   - Each response builds on the conversation history and document state
+   - Each response builds on bounded conversation history and document state; request telemetry reports the effective prompt size
    - Personas use tools to collaboratively edit the shared markdown document
    - Conversation continues until a conclusion is reached or max turns are hit
 6. **Auto-Save**: The collaborative document is saved to the active workspace

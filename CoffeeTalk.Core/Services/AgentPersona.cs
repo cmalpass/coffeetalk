@@ -20,8 +20,6 @@ public class AgentPersona
     private readonly IRetryService _retryService;
     private readonly LlmProviderConfig _providerConfig;
     private readonly IOperationalEventSink _eventSink;
-    private AgentThread? _thread;
-    private bool _threadInitialized;
 
     public string Name => _config.Name;
     public string SystemPrompt => _config.SystemPrompt;
@@ -92,7 +90,7 @@ public class AgentPersona
         {
             var response = await _retryService.ExecuteAsync(
                 async cancellationToken => await _agent.RunAsync(
-                    contextMessage, GetThread(), cancellationToken: cancellationToken),
+                    contextMessage, cancellationToken: cancellationToken),
                 $"{Name} response",
                 cancellationToken,
                 _rateLimiter is null ? null : token => _rateLimiter.ThrottleAsync(0, token));
@@ -149,7 +147,7 @@ public class AgentPersona
         {
             var response = await _retryService.ExecuteAsync(
                 async token => await _agent.RunAsync(
-                    contextMessage, GetThread(), cancellationToken: token),
+                    contextMessage, cancellationToken: token),
                 $"{Name} consensus check",
                 cancellationToken,
                 _rateLimiter is null ? null : token => _rateLimiter.ThrottleAsync(0, token));
@@ -203,7 +201,7 @@ public class AgentPersona
                 async token =>
                 {
                     var enumerator = _agent
-                        .RunStreamingAsync(contextMessage, GetThread(), cancellationToken: token)
+                        .RunStreamingAsync(contextMessage, cancellationToken: token)
                         .GetAsyncEnumerator(token);
                     try
                     {
@@ -308,7 +306,7 @@ public class AgentPersona
         try
         {
             var response = await _retryService.ExecuteAsync(
-                async token => await _agent.RunAsync(contextMessage, GetThread(), cancellationToken: token),
+                async token => await _agent.RunAsync(contextMessage, cancellationToken: token),
                 $"{Name} response",
                 cancellationToken,
                 _rateLimiter is null ? null : token => _rateLimiter.ThrottleAsync(0, token));
@@ -327,38 +325,20 @@ public class AgentPersona
 
     private string BuildContext(string currentMessage, List<string> conversationHistory)
     {
-        var recentHistory = conversationHistory.TakeLast(3).ToList();
-        var contextMessage = recentHistory.Count > 0
-            ? $"Recent conversation:\n{string.Join("\n", recentHistory)}\n\nCurrent message: {currentMessage}"
-            : currentMessage;
+        var recentHistory = AgentContextPolicy.LimitHistory(conversationHistory);
+        var contextMessage = recentHistory.Length > 0
+            ? $"Recent conversation:\n{recentHistory}\n\nCurrent message: {AgentContextPolicy.LimitCurrentMessage(currentMessage)}"
+            : AgentContextPolicy.LimitCurrentMessage(currentMessage);
         var docState = GetDocumentState();
         if (!string.IsNullOrWhiteSpace(docState))
-            contextMessage = $"Current document state (use this exact Markdown as the source of truth):\n```markdown\n{docState}\n```\n\n{contextMessage}";
+            contextMessage = $"Current document state (use this exact Markdown as the source of truth):\n```markdown\n{AgentContextPolicy.LimitDocument(docState)}\n```\n\n{contextMessage}";
 
         var currentTurn = (conversationHistory.Count / _agentCount) + 1;
         var turnsRemaining = _maxTurns - currentTurn;
         if (turnsRemaining <= 2)
             contextMessage = $"⚠️ IMPORTANT: Only {turnsRemaining} turn(s) remaining. Focus on wrapping up and reaching a clear conclusion.\n\n{contextMessage}";
 
-        return $"{GetPersonaCollaborationGuidelines()}\n\n{contextMessage}";
-    }
-
-    private AgentThread? GetThread()
-    {
-        if (_threadInitialized)
-            return _thread;
-
-        _threadInitialized = true;
-        try
-        {
-            _thread = _agent.GetNewThread();
-        }
-        catch (NotSupportedException)
-        {
-            // Some test doubles and custom agents only support stateless runs.
-        }
-
-        return _thread;
+        return AgentContextPolicy.Limit($"{GetPersonaCollaborationGuidelines()}\n\n{contextMessage}", AgentContextPolicy.MaxPromptCharacters);
     }
 
     private bool SupportsStreaming()
