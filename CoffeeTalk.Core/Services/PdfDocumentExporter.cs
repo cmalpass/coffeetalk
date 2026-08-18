@@ -1,8 +1,7 @@
 using CoffeeTalk.Core.Interfaces;
-using PdfSharpCore.Drawing;
-using PdfSharpCore.Fonts;
-using PdfSharpCore.Pdf;
-using PdfSharpCore.Utils;
+using PdfSharp.Drawing;
+using PdfSharp.Fonts;
+using PdfSharp.Pdf;
 using System.Text;
 
 namespace CoffeeTalk.Services;
@@ -18,7 +17,7 @@ public sealed class PdfDocumentExporter : IPdfDocumentExporter
 
         using var document = new PdfDocument();
         var font = new XFont("Arial", 11);
-        var headingFont = new XFont("Arial", 16, XFontStyle.Bold);
+        var headingFont = new XFont("Arial", 16, XFontStyleEx.Bold);
         var lines = markdown.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
         var lineIndex = 0;
         var pendingLines = new Queue<PendingLine>();
@@ -39,19 +38,19 @@ public sealed class PdfDocumentExporter : IPdfDocumentExporter
                     var text = isHeading ? line[(headingLength + 1)..] : line;
                     var fontForLine = isHeading ? headingFont : font;
                     var lineHeight = isHeading ? 24d : 16d;
-                    foreach (var wrappedText in WrapText(graphics, text, fontForLine, page.Width - 80, cancellationToken))
+                    foreach (var wrappedText in WrapText(graphics, text, fontForLine, page.Width.Point - 80, cancellationToken))
                         pendingLines.Enqueue(new PendingLine(wrappedText, fontForLine, lineHeight));
                 }
 
                 var pendingLine = pendingLines.Peek();
                 var lineHeightForPage = pendingLine.LineHeight;
-                if (y + lineHeightForPage > page.Height - 40)
+                if (y + lineHeightForPage > page.Height.Point - 40)
                 {
                     break;
                 }
 
                 pendingLines.Dequeue();
-                DrawLine(graphics, pendingLine.Text, pendingLine.Font, ref y, lineHeightForPage, page.Width);
+                DrawLine(graphics, pendingLine.Text, pendingLine.Font, ref y, lineHeightForPage, page.Width.Point);
             }
         }
 
