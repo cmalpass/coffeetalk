@@ -64,7 +64,7 @@
                            Color="Color.Inherit" OnClick="@(() => _documentTab = 0)">Rendered</MudButton>
                 <MudButton Variant="@(_documentTab == 1 ? Variant.Filled : Variant.Text)" Size="Size.Small"
                            Color="Color.Inherit" OnClick="@(() => _documentTab = 1)">Raw</MudButton>
-                <MudIconButton Icon="@Icons.Material.Filled.Save" Color="Color.Inherit" OnClick="SaveChat" Title="Save Chat" />
+                <MudIconButton Icon="@Icons.Material.Filled.Save" Color="Color.Inherit" OnClick="SaveChat" aria-label="Save Chat" />
             </MudToolBar>
             <MudPaper Class="document-content pa-4 flex-grow-1 overflow-y-auto">
                 @if (_documentTab == 0)
@@ -162,7 +162,6 @@
 @code {
     private string FeedbackMessage = "";
     private int _documentTab;
-    private string? _exportFormat;
     private readonly CancellationTokenSource _scrollCancellation = new();
     private CancellationToken _scrollCancellationToken;
     private bool _disposed;
@@ -337,11 +336,11 @@
     {
         var parameters = new DialogParameters
         {
-            ["ExportFormat"] = _exportFormat ?? "markdown"
+            ["ExportFormat"] = "markdown"
         };
-        var dialog = DialogService.Show<ExportDialog>("Export Conversation", parameters);
+        var dialog = await DialogService.ShowAsync<ExportDialog>("Export Conversation", parameters);
         var result = await dialog.Result;
-        if (!result.Canceled && result.Data is string format)
+        if (result is { Canceled: false, Data: string format })
         {
             await ExportConversation(format);
         }
@@ -353,9 +352,7 @@
         {
             string content;
             string extension;
-            string mimeType;
-
-            switch (format.ToLower())
+            switch (format.ToLowerInvariant())
             {
                 case "html":
                     content = ConversationExportService.GenerateHtml(
@@ -364,7 +361,6 @@
                         UI.ConversationParticipants,
                         UI.GetMessagesSnapshot());
                     extension = "html";
-                    mimeType = "text/html";
                     break;
                 case "json":
                     content = ConversationExportService.GenerateJson(
@@ -373,7 +369,6 @@
                         UI.ConversationParticipants,
                         UI.GetMessagesSnapshot());
                     extension = "json";
-                    mimeType = "application/json";
                     break;
                 case "pdf":
                     extension = "pdf";
@@ -391,7 +386,6 @@
                         UI.ConversationParticipants,
                         UI.GetMessagesSnapshot());
                     extension = "md";
-                    mimeType = "text/markdown";
                     break;
             }
 
