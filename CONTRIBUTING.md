@@ -1,176 +1,73 @@
 # Contributing to CoffeeTalk
 
-Thank you for your interest in contributing to CoffeeTalk! This document provides guidelines and information for contributors.
+CoffeeTalk is a .NET 9 desktop and command-line application for bounded, multi-persona LLM conversations. Contributions should preserve the shared Core behavior across both user interfaces and keep agent behavior observable, testable, and safe.
 
-## How to Contribute
+## Before you start
 
-### Reporting Issues
+1. Search existing issues and pull requests before opening a new issue.
+2. For a bug, include reproducible steps, expected and actual behavior, OS, SDK version, and provider (if relevant).
+3. For an enhancement, describe the user outcome, compatibility impact, and how it will be tested.
 
-If you find a bug or have a suggestion:
+Never include API keys, tokens, personal workspace data, or full provider transcripts in an issue or pull request.
 
-1. Check if the issue already exists in the GitHub Issues
-2. If not, create a new issue with:
-   - Clear title and description
-   - Steps to reproduce (for bugs)
-   - Expected vs actual behavior
-   - Your environment (OS, .NET version, LLM provider)
+## Repository layout
 
-### Submitting Changes
+| Project | Responsibility |
+| --- | --- |
+| `CoffeeTalk.Core` | Shared models, configuration, agent orchestration, document tools, memory, telemetry, persistence, and provider integration |
+| `CoffeeTalk` | Spectre.Console CLI entry point and command handlers |
+| `CoffeeTalk.Gui` | Photino/Blazor desktop UI and GUI event sinks |
+| `CoffeeTalk.Tests` | Unit and component tests, deterministic agent doubles, and regression coverage |
+| `examples` | Safe, provider-neutral example configurations |
 
-1. **Fork the repository**
-2. **Create a feature branch**
-   ```bash
-   git checkout -b feature/your-feature-name
-   ```
-3. **Make your changes**
-4. **Test your changes**
-   ```bash
-   cd CoffeeTalk
-   dotnet build
-   dotnet run
-   ```
-5. **Commit your changes**
-   ```bash
-   git commit -m "Add feature: description"
-   ```
-6. **Push to your fork**
-   ```bash
-   git push origin feature/your-feature-name
-   ```
-7. **Create a Pull Request**
+The solution file includes all four projects. Keep feature logic in Core so the CLI and GUI use the same pipeline.
 
-## Development Guidelines
+## Local setup and validation
 
-### Code Style
+Use the pinned SDK in `global.json` and the public source in `nuget.config`:
 
-- Follow standard C# conventions
-- Use meaningful variable and method names
-- Keep methods focused and concise
-- Add comments for complex logic
-
-### Project Structure
-
-```
-CoffeeTalk/
-├── Models/          # Configuration and data models
-├── Services/        # Business logic and orchestration
-├── Program.cs       # Application entry point
-└── appsettings.json # Configuration file
+```bash
+dotnet restore CoffeeTalk.sln --configfile nuget.config
+dotnet build CoffeeTalk.sln --configuration Release --no-restore
+dotnet test CoffeeTalk.sln --configuration Release --no-build
+dotnet list CoffeeTalk.sln package --vulnerable --include-transitive
 ```
 
-### Adding New Features
+The GitHub Actions workflow runs the same restore/build/test flow, collects coverage, and fails on known vulnerable packages. Run focused tests while iterating, then run the full solution checks before opening a pull request. `dotnet format --verify-no-changes` is not currently a repository gate because the existing codebase contains unrelated formatting debt.
 
-When adding features, consider:
+To run locally, use an ignored `CoffeeTalk/appsettings.json` or environment variables. The CLI is started with:
 
-1. **Minimal Changes**: Keep changes focused and minimal
-2. **Configuration**: Make features configurable when possible
-3. **Documentation**: Update relevant docs (README, USAGE)
-4. **Examples**: Add examples if introducing new capabilities
-
-### Testing
-
-Currently, the project focuses on integration testing:
-
-1. Build the project without errors
-2. Run with different configurations
-3. Test with both OpenAI and Ollama providers
-4. Verify error handling
-
-## Contribution Ideas
-
-### Easy Contributions
-
-- Fix typos in documentation
-- Add new example configurations
-- Improve error messages
-- Add console output formatting
-
-### Medium Contributions
-
-- Add conversation export functionality
-- Implement conversation history persistence
-- Add support for additional LLM providers
-- Improve conversation completion detection
-
-### Advanced Contributions
-
-- Add unit tests
-- Implement plugin system for custom behaviors
-- Add streaming response support
-- Create GUI wrapper
-
-## Example Contributions
-
-### Adding a New Example Configuration
-
-1. Create a new JSON file in `examples/`
-2. Define personas with clear system prompts
-3. Add documentation to `examples/README.md`
-4. Test with various topics
-
-Example:
-```json
-{
-  "LlmProvider": { ... },
-  "Personas": [
-    {
-      "Name": "Expert",
-      "SystemPrompt": "Clear role definition..."
-    }
-  ]
-}
+```bash
+dotnet run --project CoffeeTalk/CoffeeTalk.CLI.csproj
 ```
 
-### Improving Conversation Detection
+The desktop app is started with:
 
-The `IsConversationComplete` method in `ConversationOrchestrator.cs` can be enhanced:
-
-```csharp
-private bool IsConversationComplete(string response, int turn)
-{
-    // Add your improved logic here
-}
+```bash
+dotnet run --project CoffeeTalk.Gui/CoffeeTalk.Gui.csproj
 ```
 
-### Adding New LLM Providers
+## Change workflow
 
-In `Services/KernelBuilder.cs`, add a new case:
+1. Create a focused branch (for example, `feature/<short-name>` or `codex/<short-name>`).
+2. Keep the change narrow and update tests and documentation in the same pull request.
+3. Prefer deterministic `TestAIAgent`-based tests for orchestration, prompt construction, streaming fallback, termination, and tool behavior; live provider calls are not required for the test suite.
+4. Run the full validation commands above and inspect `git diff --check`.
+5. Open a pull request with a concise summary, validation results, and the issue it closes. Do not merge directly to `main`.
 
-```csharp
-case "newprovider":
-    builder.AddOpenAIChatCompletion(
-        modelId: config.ModelId,
-        endpoint: new Uri(config.Endpoint),
-        apiKey: config.ApiKey);
-    break;
-```
+## Agentic and security invariants
+
+- `CoffeeTalk.Core` is the source of truth for behavior shared by the CLI and GUI; do not fork orchestration logic in either UI.
+- Persona and orchestrator requests use explicitly reconstructed, bounded stateless context. Keep `AgentContextPolicy` limits and visible truncation markers intact unless the change includes new budget tests and documentation.
+- System/developer instructions must not be generated from user messages, document text, memories, or model output. Treat all of those as untrusted reference data.
+- Markdown tools may edit the shared document and save through the configured workspace/export resolver. Do not add arbitrary filesystem or network capabilities to persona tools without a separate threat-model review.
+- Workspace memory is opt-in, local, size-limited, workspace-scoped, and untrusted. It must never be treated as instructions or silently shared across workspaces.
+- Do not weaken generic error messages or expose provider exceptions, prompts, API keys, or raw sensitive payloads in the GUI, CLI, telemetry, tests, or documentation.
+- Preserve request/tool telemetry and explicit conversation termination reasons when changing execution paths.
+- Configuration files containing secrets are ignored by git. Use environment variables or the checked-in example/template files; never commit a real key.
 
 ## Documentation
 
-When updating documentation:
+Update `README.md` when commands, configuration, architecture, or user-visible behavior changes. Keep examples provider-neutral and safe to copy. Add an entry to an existing issue rather than maintaining a separate TODO list in documentation.
 
-- Keep it clear and concise
-- Include examples where helpful
-- Update all relevant files (README, USAGE, etc.)
-- Test any code examples you include
-
-## Code of Conduct
-
-- Be respectful and constructive
-- Welcome newcomers and help them get started
-- Focus on what's best for the project
-- Assume good intentions
-
-## Questions?
-
-If you have questions about contributing:
-
-1. Check existing documentation
-2. Look at closed issues/PRs for similar questions
-3. Open a new issue with the "question" label
-
-## License
-
-By contributing, you agree that your contributions will be licensed under the MIT License.
-
-Thank you for contributing to CoffeeTalk! ☕
+Thank you for contributing thoughtfully to CoffeeTalk.

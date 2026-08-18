@@ -27,6 +27,8 @@ CoffeeTalk is a .NET 9 application for orchestrating multi-persona LLM conversat
 - .NET 9.0 SDK
 - OpenAI API key (for OpenAI provider) or Ollama running locally
 
+For contribution and agent-assisted development guidance, see [`CONTRIBUTING.md`](CONTRIBUTING.md) and [`AGENTS.md`](AGENTS.md).
+
 ## Package Restoration
 
 This project is configured to use only the standard public NuGet package source (nuget.org) via the included `nuget.config` file. This ensures that the project can be restored consistently across different environments without requiring access to any private NuGet feeds.
@@ -707,30 +709,8 @@ Or use Ollama for unlimited local usage.
 ## Project Structure
 
 ```
-CoffeeTalk.Core/
-├── Models/
-│   ├── AppSettings.cs               # Main configuration model
-│   ├── LlmProviderConfig.cs         # LLM provider settings
-│   ├── PersonaConfig.cs             # Persona definitions
-│   ├── DynamicPersonasConfig.cs     # Dynamic persona generation config
-│   ├── OrchestratorConfig.cs        # Orchestrator settings
-│   ├── EditorConfig.cs              # Editor agent configuration
-│   ├── RateLimitConfig.cs           # Rate limiting configuration
-│   ├── RetryConfig.cs               # Retry behavior settings
-│   └── ToolsConfig.cs               # Tool verification settings
-├── Services/
-│   ├── AgentConversationOrchestrator.cs  # Manages conversation flow using Agent Framework
-│   ├── AgentOrchestrator.cs         # AI-directed speaker selection agent
-│   ├── AgentEditor.cs               # Document editing and refinement agent
-│   ├── AgentPersona.cs              # Individual persona agent wrapper
-│   ├── AgentPersonaGenerator.cs     # Dynamic persona generation agent
-│   ├── AgentBuilder.cs              # Builds AIAgent instances for different providers
-│   ├── CollaborativeMarkdownDocument.cs  # Shared document state
-│   ├── MarkdownToolFunctions.cs     # Document editing tools as AIFunctions
-│   ├── RequestTelemetry.cs           # LLM request lifecycle telemetry
-│   ├── ToolTelemetry.cs              # Document tool lifecycle telemetry
-│   ├── RateLimiter.cs               # Request/token throttling
-│   └── RetryHandler.cs              # HTTP 429 retry logic
+.
+├── CoffeeTalk.Core/                 # Shared models, services, tools, memory, and telemetry
 ├── CoffeeTalk.Gui/                  # Photino/Blazor desktop application
 ├── CoffeeTalk/                      # Spectre.Console CLI
 ├── CoffeeTalk.Tests/                # Unit and component tests
