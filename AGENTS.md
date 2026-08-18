@@ -28,6 +28,8 @@ git diff --check
 
 The CI workflow also collects coverage and fails when the dependency vulnerability report contains an advisory. Run focused tests first, then the full solution checks before publishing a branch.
 
+Test analyzer policy: `CoffeeTalk.Tests` intentionally allows CA1707 for descriptive underscore-separated test names and CA1859/CA1861 for small fixture allocations. Correctness-oriented analyzers, xUnit analyzers, nullable diagnostics, and all production-project analyzers remain enabled.
+
 ## Agent behavior and security invariants
 
 1. Persona and orchestrator calls are stateless application-owned requests. `AgentContextPolicy` bounds the final prompt (24,000 characters), document (12,000), history (6,000), history entries (2,000), and current message (4,000). Changes to these limits require regression tests and documentation.

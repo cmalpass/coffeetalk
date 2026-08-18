@@ -1,0 +1,8 @@
+root = true
+
+# Test names intentionally describe behavior with underscore-separated clauses.
+# Allocation/type suggestions are not useful for these short-lived test fixtures.
+[CoffeeTalk.Tests/*.cs]
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1859.severity = none
+dotnet_diagnostic.CA1861.severity = none

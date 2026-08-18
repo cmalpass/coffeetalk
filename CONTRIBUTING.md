@@ -35,6 +35,8 @@ dotnet list CoffeeTalk.sln package --vulnerable --include-transitive
 
 The GitHub Actions workflow runs the same restore/build/test flow, collects coverage, and fails on known vulnerable packages. Run focused tests while iterating, then run the full solution checks before opening a pull request. `dotnet format --verify-no-changes` is not currently a repository gate because the existing codebase contains unrelated formatting debt.
 
+Test analyzer policy: the test project permits CA1707 for readable underscore-separated test names and CA1859/CA1861 for intentionally small fixtures. Correctness, xUnit, nullable, and production-project analyzers remain enforced; do not broaden these exceptions to application code.
+
 To run locally, use an ignored `CoffeeTalk/appsettings.json` or environment variables. The CLI is started with:
 
 ```bash
