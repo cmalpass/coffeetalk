@@ -175,26 +175,28 @@ public class AgentPersona
         if (_rateLimiter != null)
             await _rateLimiter.ThrottleAsync(estimatedTokens, cancellationToken);
 
+        var telemetry = new RequestTelemetry(_eventSink, $"{Name} streaming response", contextMessage);
+
         if (!_providerConfig.StreamingEnabled || !SupportsStreaming())
         {
             if (UseBufferedFallback())
             {
-                await foreach (var chunk in FallbackToBufferedAsync(contextMessage, cancellationToken))
-                    yield return chunk;
+                yield return await FallbackToBufferedAsync(contextMessage, cancellationToken, telemetry);
             }
             else
             {
-                throw new NotSupportedException(
+                var exception = new NotSupportedException(
                     $"Streaming is not available for provider '{_providerConfig.Type}'.");
+                telemetry.Fail(exception);
+                throw exception;
             }
             yield break;
         }
 
         var emitted = false;
         Exception? failure = null;
-        var telemetry = new RequestTelemetry(_eventSink, $"{Name} streaming response", contextMessage);
-        IAsyncEnumerator<AgentRunResponseUpdate>? updates = null;
-        (IAsyncEnumerator<AgentRunResponseUpdate> enumerator, bool hasUpdate) initialUpdate;
+        (IAsyncEnumerator<AgentRunResponseUpdate> enumerator, bool hasUpdate) initialUpdate = default;
+        Exception? initialFailure = null;
         try
         {
             initialUpdate = await _retryService.ExecuteAsync(
@@ -219,19 +221,35 @@ public class AgentPersona
         }
         catch (Exception ex)
         {
-            telemetry.Fail(ex);
-            throw;
+            if (!UseBufferedFallback())
+            {
+                telemetry.Fail(ex);
+                throw;
+            }
+
+            initialFailure = ex;
         }
-        updates = initialUpdate.enumerator;
+
+        if (initialFailure is not null)
+        {
+            telemetry.Fallback(initialFailure);
+            yield return await FallbackToBufferedAsync(contextMessage, cancellationToken, telemetry);
+            yield break;
+        }
+
+        var updates = initialUpdate.enumerator
+            ?? throw new InvalidOperationException("Streaming response did not provide an enumerator.");
         var hasUpdate = initialUpdate.hasUpdate;
         try
         {
             while (hasUpdate)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                foreach (var reasoning in updates.Current.Contents.OfType<TextReasoningContent>())
+                var update = updates.Current
+                    ?? throw new InvalidOperationException("Streaming response update was empty.");
+                foreach (var reasoning in update.Contents.OfType<TextReasoningContent>())
                     telemetry.PublishThinking(reasoning.Text);
-                var text = updates.Current.Text;
+                var text = update.Text;
                 if (!string.IsNullOrEmpty(text))
                 {
                     emitted = true;
@@ -268,9 +286,8 @@ public class AgentPersona
         }
         if (failure is not null && UseBufferedFallback())
         {
-            telemetry.Fail(failure);
-            await foreach (var chunk in FallbackToBufferedAsync(contextMessage, cancellationToken))
-                yield return chunk;
+            telemetry.Fallback(failure);
+            yield return await FallbackToBufferedAsync(contextMessage, cancellationToken, telemetry);
         }
         else if (failure is not null)
         {
@@ -283,18 +300,29 @@ public class AgentPersona
         }
     }
 
-    private async IAsyncEnumerable<string> FallbackToBufferedAsync(
+    private async Task<string> FallbackToBufferedAsync(
         string contextMessage,
-        [EnumeratorCancellation] CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        RequestTelemetry telemetry)
     {
-        var response = await _retryService.ExecuteAsync(
-            async token => await _agent.RunAsync(contextMessage, GetThread(), cancellationToken: token),
-            $"{Name} response",
-            cancellationToken,
-            _rateLimiter is null ? null : token => _rateLimiter.ThrottleAsync(0, token));
-        var responseText = response.ToString();
-        _rateLimiter?.AccountAdditionalTokens(_rateLimiter.EstimateTokens(responseText));
-        yield return responseText;
+        try
+        {
+            var response = await _retryService.ExecuteAsync(
+                async token => await _agent.RunAsync(contextMessage, GetThread(), cancellationToken: token),
+                $"{Name} response",
+                cancellationToken,
+                _rateLimiter is null ? null : token => _rateLimiter.ThrottleAsync(0, token));
+            var responseText = response.ToString();
+            telemetry.AppendOutput(responseText);
+            telemetry.Complete(response.Usage);
+            _rateLimiter?.AccountAdditionalTokens(_rateLimiter.EstimateTokens(responseText));
+            return responseText;
+        }
+        catch (Exception ex)
+        {
+            telemetry.Fail(ex);
+            throw;
+        }
     }
 
     private string BuildContext(string currentMessage, List<string> conversationHistory)

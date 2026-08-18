@@ -9,6 +9,7 @@ internal sealed class TestAIAgent : AIAgent
     private readonly Func<AgentRunResponse> _response;
     private readonly IReadOnlyList<string> _streamingChunks;
     private readonly Exception? _streamingException;
+    private readonly bool _failBeforeStreamingOutput;
     public int Calls { get; private set; }
     public int StreamingCalls { get; private set; }
 
@@ -23,11 +24,16 @@ internal sealed class TestAIAgent : AIAgent
     {
     }
 
-    public TestAIAgent(string response, IReadOnlyList<string> streamingChunks, Exception? streamingException = null)
+    public TestAIAgent(
+        string response,
+        IReadOnlyList<string> streamingChunks,
+        Exception? streamingException = null,
+        bool failBeforeStreamingOutput = false)
         : this(() => new AgentRunResponse(new ChatMessage(ChatRole.Assistant, response)))
     {
         _streamingChunks = streamingChunks;
         _streamingException = streamingException;
+        _failBeforeStreamingOutput = failBeforeStreamingOutput;
     }
 
     public TestAIAgent(Exception exception)
@@ -60,6 +66,9 @@ internal sealed class TestAIAgent : AIAgent
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         StreamingCalls++;
+        if (_failBeforeStreamingOutput && _streamingException is not null)
+            throw _streamingException;
+
         foreach (var chunk in _streamingChunks)
         {
             cancellationToken.ThrowIfCancellationRequested();

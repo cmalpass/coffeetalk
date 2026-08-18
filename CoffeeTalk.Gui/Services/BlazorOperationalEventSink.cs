@@ -18,7 +18,16 @@ public sealed class BlazorOperationalEventSink : IOperationalEventSink
 
     public void Publish(OperationalEvent operationalEvent)
     {
-        if (operationalEvent.Exception is not null)
+        if (operationalEvent.Kind == OperationalEventKind.RequestFallback)
+        {
+            _logger.LogWarning(
+                operationalEvent.Exception,
+                "Operational fallback for {Operation}; request {RequestId}; reason {Reason}",
+                operationalEvent.Operation,
+                operationalEvent.RequestId,
+                operationalEvent.Reason);
+        }
+        else if (operationalEvent.Exception is not null)
         {
             _logger.LogError(
                 operationalEvent.Exception,
@@ -61,6 +70,8 @@ public sealed class BlazorOperationalEventSink : IOperationalEventSink
                 $"Completed {operationalEvent.Operation} [{operationalEvent.RequestId}] in {FormatDuration(operationalEvent.DurationMilliseconds)} — first output {FormatDuration(operationalEvent.FirstTokenMilliseconds)}, context {FormatTokenCount(operationalEvent.InputTokens, operationalEvent.EstimatedPromptTokens)} tokens, output {FormatTokenCount(operationalEvent.OutputTokens, operationalEvent.EstimatedOutputTokens)} tokens ({operationalEvent.OutputCharacters} chars), total {FormatTokenCount(operationalEvent.TotalTokens, null)}.",
             OperationalEventKind.RequestFailed =>
                 $"Failed {operationalEvent.Operation} [{operationalEvent.RequestId}] after {FormatDuration(operationalEvent.DurationMilliseconds)} — {operationalEvent.Reason}",
+            OperationalEventKind.RequestFallback =>
+                $"Falling back to buffered {operationalEvent.Operation} [{operationalEvent.RequestId}] — {operationalEvent.Reason}",
             OperationalEventKind.ToolStarted =>
                 $"Tool started {operationalEvent.Operation} [{operationalEvent.RequestId}] — arguments {operationalEvent.ArgumentCharacters} chars.",
             OperationalEventKind.ToolCompleted =>
@@ -74,6 +85,7 @@ public sealed class BlazorOperationalEventSink : IOperationalEventSink
             or OperationalEventKind.RequestThinking
             or OperationalEventKind.RequestCompleted
             or OperationalEventKind.RequestFailed
+            or OperationalEventKind.RequestFallback
             or OperationalEventKind.ToolStarted
             or OperationalEventKind.ToolCompleted
             or OperationalEventKind.ToolFailed)
@@ -84,6 +96,7 @@ public sealed class BlazorOperationalEventSink : IOperationalEventSink
                 OperationalEventKind.RequestThinking => "thinking",
                 OperationalEventKind.RequestCompleted => "completed",
                 OperationalEventKind.RequestFailed => "failed",
+                OperationalEventKind.RequestFallback => "fallback",
                 OperationalEventKind.ToolStarted => "started",
                 OperationalEventKind.ToolCompleted => "completed",
                 OperationalEventKind.ToolFailed => "failed",

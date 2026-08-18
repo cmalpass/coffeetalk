@@ -99,6 +99,23 @@ internal sealed class RequestTelemetry
         });
     }
 
+    public void Fallback(Exception exception)
+    {
+        _eventSink.Publish(new OperationalEvent(
+            OperationalEventKind.RequestFallback,
+            _operation,
+            Reason: $"request={_requestId}; {exception.Message}")
+        {
+            RequestId = _requestId,
+            PromptCharacters = _promptCharacters,
+            EstimatedPromptTokens = EstimateTokens(_promptCharacters),
+            OutputCharacters = _outputCharacters,
+            EstimatedOutputTokens = EstimateTokens(_outputCharacters),
+            DurationMilliseconds = _stopwatch.ElapsedMilliseconds,
+            Exception = exception
+        });
+    }
+
     private static int EstimateTokens(int characters) =>
         characters == 0 ? 0 : (characters + 3) / 4;
 }

@@ -1,5 +1,6 @@
 using CoffeeTalk.Models;
 using CoffeeTalk.Services;
+using CoffeeTalk.Core.Interfaces;
 
 namespace CoffeeTalk.Tests;
 
@@ -73,6 +74,43 @@ public sealed class AgentPersonaTests
         Assert.Equal(["buffered"], chunks);
         Assert.Equal(1, agent.Calls);
         Assert.Equal(0, agent.StreamingCalls);
+    }
+
+    [Fact]
+    public async Task RespondStreamingAsync_RecordsRecoveredBufferedFallback()
+    {
+        var events = new RecordingEventSink();
+        var agent = new TestAIAgent(
+            "buffered",
+            [],
+            new InvalidOperationException("stream unavailable"),
+            failBeforeStreamingOutput: true);
+        var persona = new AgentPersona(
+            agent,
+            new PersonaConfig { Name = "Analyst", SystemPrompt = "You are Analyst." },
+            new CollaborativeMarkdownDocument(),
+            null,
+            maxTurns: 2,
+            agentCount: 1,
+            retryService: new RetryService(null),
+            providerConfig: new LlmProviderConfig { Type = "openai" },
+            eventSink: events);
+
+        var chunks = new List<string>();
+        await foreach (var chunk in persona.RespondStreamingAsync("topic", []))
+            chunks.Add(chunk);
+
+        Assert.Equal(["buffered"], chunks);
+        Assert.Contains(events.Events, item => item.Kind == OperationalEventKind.RequestFallback);
+        Assert.Contains(events.Events, item => item.Kind == OperationalEventKind.RequestCompleted);
+        Assert.DoesNotContain(events.Events, item => item.Kind == OperationalEventKind.RequestFailed);
+    }
+
+    private sealed class RecordingEventSink : IOperationalEventSink
+    {
+        public List<OperationalEvent> Events { get; } = [];
+
+        public void Publish(OperationalEvent operationalEvent) => Events.Add(operationalEvent);
     }
 
     [Fact]

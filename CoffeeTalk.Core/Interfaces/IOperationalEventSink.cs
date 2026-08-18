@@ -10,6 +10,7 @@ public enum OperationalEventKind
     RequestThinking,
     RequestCompleted,
     RequestFailed,
+    RequestFallback,
     ToolStarted,
     ToolCompleted,
     ToolFailed
