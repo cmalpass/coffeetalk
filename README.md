@@ -388,10 +388,16 @@ Configure request and token limits to manage API usage:
     "RequestsPerMinute": 30,
     "TokensPerMinute": 40000,
     "MaxRequestsPerConversation": 100,
-    "MaxTokensPerConversation": 150000
+    "MaxTokensPerConversation": 150000,
+    "MaxPerMinuteDelaySeconds": 30,
+    "JitterMaxMilliseconds": 500
   }
 }
 ```
+
+- **RequestsPerMinute** / **TokensPerMinute**: per-minute quotas. The boundary is inclusive, so the full configured quota is usable — the call that would exceed the quota waits.
+- **MaxPerMinuteDelaySeconds**: caps a single wait (default `30`) so the limiter never stalls a pipeline for the full remaining minute.
+- **JitterMaxMilliseconds** (optional, default `null` = off): adds bounded, wait-lengthening jitter to desynchronize concurrent callers. The cap remains an upper bound.
 
 ### Retry Configuration
 
