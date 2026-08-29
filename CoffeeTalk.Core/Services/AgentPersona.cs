@@ -85,7 +85,6 @@ public class AgentPersona
         }
 
         // Execute with retry logic for rate limiting (HTTP 429)
-        string responseText;
         try
         {
             var response = await _retryService.ExecuteAsync(
@@ -94,34 +93,29 @@ public class AgentPersona
                 $"{Name} response",
                 cancellationToken: cancellationToken,
                 beforeRetry: _rateLimiter is null ? null : token => _rateLimiter.ThrottleAsync(0, token));
-            responseText = response.ToString();
+            var responseText = response.ToString();
             telemetry.AppendOutput(responseText);
             telemetry.Complete(response.Usage);
+
+            // Account response tokens approximately
+            _rateLimiter?.AccountAdditionalTokens(_rateLimiter.EstimateTokens(responseText));
+
+            return responseText;
         }
         catch (OperationCanceledException)
         {
             throw;
         }
-        catch (TimeoutException)
-        {
-            telemetry.Fail(new TimeoutException("Operation timed out."));
-            responseText = $"Error: Operation timed out.";
-        }
-        catch (HttpRequestException)
-        {
-            telemetry.Fail(new HttpRequestException("Network error occurred."));
-            responseText = $"Error: Network error occurred.";
-        }
         catch (Exception ex) when (ex is not OutOfMemoryException && ex is not StackOverflowException)
         {
+            // Infrastructure failures (timeouts, transport errors, exhausted rate-limit retries)
+            // are rethrown (after being recorded in telemetry) so the orchestrator's failure
+            // handling can surface them and a fabricated "Error: ..." response is never appended
+            // to conversation history. This is consistent with AssessConsensusAsync and
+            // FallbackToBufferedAsync; cancellation is still rethrown above.
             telemetry.Fail(ex);
-            responseText = $"Error: An unexpected error occurred.";
+            throw;
         }
-
-        // Account response tokens approximately
-        _rateLimiter?.AccountAdditionalTokens(_rateLimiter.EstimateTokens(responseText));
-
-        return responseText;
     }
 
     public async Task<string> AssessConsensusAsync(
