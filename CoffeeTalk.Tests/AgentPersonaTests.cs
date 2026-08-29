@@ -7,7 +7,7 @@ namespace CoffeeTalk.Tests;
 public sealed class AgentPersonaTests
 {
     [Fact]
-    public async Task RespondAsync_ReturnsGenericFailureTextWithoutExceptionDetails()
+    public async Task RespondAsync_PropagatesProviderFailureInsteadOfFabricatingErrorResponse()
     {
         const string secret = "internal-host-and-connection-details";
         var persona = new AgentPersona(
@@ -18,10 +18,81 @@ public sealed class AgentPersonaTests
             maxTurns: 2,
             agentCount: 1);
 
-        var result = await persona.RespondAsync("topic", new List<string>());
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => persona.RespondAsync("topic", new List<string>()));
 
-        Assert.Equal("Error: An unexpected error occurred.", result);
-        Assert.DoesNotContain(secret, result);
+        // The original exception is rethrown so the orchestrator's failure handling can
+        // surface it; no fabricated "Error: ..." assistant response is produced that could
+        // be appended to conversation history.
+        Assert.Equal(secret, ex.Message);
+    }
+
+    [Fact]
+    public async Task RespondAsync_PropagatesTimeoutFailure()
+    {
+        var persona = new AgentPersona(
+            new TestAIAgent(new TimeoutException("timed out")),
+            new PersonaConfig { Name = "Analyst", SystemPrompt = "You are Analyst." },
+            new CollaborativeMarkdownDocument(),
+            null,
+            maxTurns: 2,
+            agentCount: 1);
+
+        await Assert.ThrowsAsync<TimeoutException>(
+            () => persona.RespondAsync("topic", new List<string>()));
+    }
+
+    [Fact]
+    public async Task RespondAsync_RethrowsCancellation()
+    {
+        var persona = new AgentPersona(
+            new TestAIAgent("ok"),
+            new PersonaConfig { Name = "Analyst", SystemPrompt = "You are Analyst." },
+            new CollaborativeMarkdownDocument(),
+            null,
+            maxTurns: 2,
+            agentCount: 1);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(
+            () => persona.RespondAsync("topic", new List<string>(), cancellation.Token));
+    }
+
+    [Fact]
+    public async Task AssessConsensusAsync_PropagatesProviderFailure()
+    {
+        var persona = new AgentPersona(
+            new TestAIAgent(new HttpRequestException("network error")),
+            new PersonaConfig { Name = "Analyst", SystemPrompt = "You are Analyst." },
+            new CollaborativeMarkdownDocument(),
+            null,
+            maxTurns: 2,
+            agentCount: 1);
+
+        await Assert.ThrowsAsync<HttpRequestException>(
+            () => persona.AssessConsensusAsync("CONCLUDE", new List<string>()));
+    }
+
+    [Fact]
+    public async Task FallbackToBufferedAsync_PropagatesProviderFailure()
+    {
+        var persona = new AgentPersona(
+            new TestAIAgent(new TimeoutException("fallback timed out")),
+            new PersonaConfig { Name = "Analyst", SystemPrompt = "You are Analyst." },
+            new CollaborativeMarkdownDocument(),
+            null,
+            maxTurns: 2,
+            agentCount: 1,
+            retryService: new RetryService(null),
+            providerConfig: new LlmProviderConfig { Type = "ollama" });
+
+        await Assert.ThrowsAsync<TimeoutException>(async () =>
+        {
+            await foreach (var _ in persona.RespondStreamingAsync("topic", []))
+            {
+            }
+        });
     }
 
     [Fact]
