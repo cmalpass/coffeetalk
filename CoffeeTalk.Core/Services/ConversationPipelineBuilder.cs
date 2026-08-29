@@ -312,7 +312,8 @@ public sealed class ConversationPipelineBuilder
             retryService,
             personaTools.Select(tool => tool.Name).ToList(),
             settings.LlmProvider,
-            _eventSink);
+            _eventSink,
+            settings.IncludeThinkingInTelemetry);
     }
 
     private static void ValidateAllowedTools(IEnumerable<PersonaConfig> configs, AIFunction[] tools)

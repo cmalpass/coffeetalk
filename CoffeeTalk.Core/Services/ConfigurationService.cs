@@ -95,6 +95,7 @@ public class ConfigurationService
             Personas = settings.Personas,
             MaxConversationTurns = settings.MaxConversationTurns,
             ShowThinking = settings.ShowThinking,
+            IncludeThinkingInTelemetry = settings.IncludeThinkingInTelemetry,
             InteractiveMode = settings.InteractiveMode,
             DevilsAdvocate = settings.DevilsAdvocate,
             ContextSummarization = settings.ContextSummarization,

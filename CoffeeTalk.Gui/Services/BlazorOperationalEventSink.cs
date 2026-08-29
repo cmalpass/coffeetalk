@@ -65,7 +65,7 @@ public sealed partial class BlazorOperationalEventSink : IOperationalEventSink
             OperationalEventKind.RequestStarted =>
                 $"Started {operationalEvent.Operation} [{operationalEvent.RequestId}] — context ~{operationalEvent.EstimatedPromptTokens} tokens ({operationalEvent.PromptCharacters} chars).",
             OperationalEventKind.RequestThinking =>
-                $"Thinking {operationalEvent.Operation} [{operationalEvent.RequestId}]: {operationalEvent.Reason}",
+                $"Thinking {operationalEvent.Operation} [{operationalEvent.RequestId}] — {operationalEvent.ThinkingCharacters} chars, ~{FormatTokenCount(null, operationalEvent.EstimatedThinkingTokens)} ({FormatDuration(operationalEvent.ThinkingDurationMilliseconds)}).",
             OperationalEventKind.RequestCompleted =>
                 $"Completed {operationalEvent.Operation} [{operationalEvent.RequestId}] in {FormatDuration(operationalEvent.DurationMilliseconds)} — first output {FormatDuration(operationalEvent.FirstTokenMilliseconds)}, context {FormatTokenCount(operationalEvent.InputTokens, operationalEvent.EstimatedPromptTokens)} tokens, output {FormatTokenCount(operationalEvent.OutputTokens, operationalEvent.EstimatedOutputTokens)} tokens ({operationalEvent.OutputCharacters} chars), total {FormatTokenCount(operationalEvent.TotalTokens, null)}.",
             OperationalEventKind.RequestFailed =>
