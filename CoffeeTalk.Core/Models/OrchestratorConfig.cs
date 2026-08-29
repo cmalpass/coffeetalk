@@ -6,6 +6,24 @@ public class OrchestratorConfig
     public bool UseDynamicPersonaSelection { get; set; }
     public string? BaseSystemPrompt { get; set; }
 
+    /// <summary>
+    /// Maximum number of consensus verification attempts before the conversation is
+    /// terminated with <see cref="ConversationTerminationReason.ConsensusBudgetExhausted"/>.
+    /// This is intentionally decoupled from the turn budget so consensus re-deliberation
+    /// cannot consume the entire conversation cost on LLM fan-out.
+    /// </summary>
+    public int? MaxConsensusAttempts { get; set; }
+
+    /// <summary>
+    /// Maximum number of per-persona consensus assessments that may run concurrently
+    /// during a single consensus attempt. Bounds the N+1 LLM fan-out to a fixed,
+    /// predictable concurrency.
+    /// </summary>
+    public int? MaxConsensusConcurrency { get; set; }
+
+    public const int DefaultMaxConsensusAttempts = 2;
+    public const int DefaultMaxConsensusConcurrency = 2;
+
     public const string DefaultBaseSystemPrompt = @"You are a conversation orchestrator managing a collaborative discussion between multiple personas.
 
 Your role:
