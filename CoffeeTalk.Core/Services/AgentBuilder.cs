@@ -2,6 +2,8 @@ using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using OpenAI;
 using Azure.AI.OpenAI;
+using Azure.Core;
+using Azure.Identity;
 using CoffeeTalk.Models;
 
 namespace CoffeeTalk.Services;
@@ -50,18 +52,53 @@ public static class AgentBuilder
         {
             throw new ArgumentException("Azure OpenAI requires an Endpoint (e.g., https://<resource>.openai.azure.com)");
         }
-        if (string.IsNullOrWhiteSpace(config.ApiKey))
+
+        // Prefer an explicit API key when provided; otherwise fall back to Entra ID /
+        // managed identity via DefaultAzureCredential so Azure-hosted workloads (AKS,
+        // App Service, function apps) can authenticate without a key.
+        if (UsesApiKeyAuth(config))
         {
-            throw new ArgumentException("Azure OpenAI requires an ApiKey");
+            var keyedClient = new AzureOpenAIClient(
+                new Uri(config.Endpoint),
+                new System.ClientModel.ApiKeyCredential(config.ApiKey));
+            return keyedClient.GetChatClient(deployment);
         }
 
-        // Create Azure OpenAI client with API key
-        var azureClient = new AzureOpenAIClient(
-            new Uri(config.Endpoint),
-            new System.ClientModel.ApiKeyCredential(config.ApiKey));
+        return CreateAzureClientWithEntraId(config, deployment);
+    }
+
+    /// <summary>
+    /// Builds an <see cref="AzureOpenAIClient"/> authenticated with <see cref="DefaultAzureCredential"/>
+    /// when no API key is configured.
+    /// </summary>
+    private static OpenAI.Chat.ChatClient CreateAzureClientWithEntraId(LlmProviderConfig config, string deployment)
+    {
+        AzureOpenAIClient azureClient;
+        try
+        {
+            azureClient = new AzureOpenAIClient(
+                new Uri(config.Endpoint),
+                new DefaultAzureCredential());
+        }
+        catch (Exception ex)
+        {
+            throw new ArgumentException(
+                "Azure OpenAI authentication failed: no Entra ID credential could be obtained from " +
+                "DefaultAzureCredential. Set ApiKey (or AZURE_OPENAI_API_KEY) to use an API key, or " +
+                "configure an Entra ID credential (managed identity, workload identity, or az login).",
+                ex);
+        }
 
         return azureClient.GetChatClient(deployment);
     }
+
+    /// <summary>
+    /// Decides which auth mode the Azure OpenAI client should use. When an API key is present
+    /// the client is built with ApiKeyCredential; otherwise Entra ID (DefaultAzureCredential)
+    /// is used. Exposed for testability.
+    /// </summary>
+    internal static bool UsesApiKeyAuth(LlmProviderConfig config) =>
+        !string.IsNullOrWhiteSpace(config.ApiKey);
 
     private static OpenAI.Chat.ChatClient CreateOpenAIClient(LlmProviderConfig config)
     {

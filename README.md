@@ -232,8 +232,11 @@ the buffered path.
 - `AZURE_OPENAI_DEPLOYMENT_NAME`: Alternative to setting `DeploymentName`
 - `AZURE_OPENAI_CHAT_DEPLOYMENT_NAME`: Alternative deployment name variable
 
+**Authentication (API key or Entra ID):**
+- `ApiKey` - Your Azure OpenAI API key (either here or via `AZURE_OPENAI_API_KEY`)
+- If no API key is configured, CoffeeTalk authenticates with **Entra ID** via `DefaultAzureCredential` (managed identity, workload identity, or `az login`). This enables keyless Azure environments such as App Service, AKS, and function apps.
+
 **Required Fields:**
-- `ApiKey` - Your Azure OpenAI API key
 - `Endpoint` - Your Azure OpenAI resource endpoint
 - `DeploymentName` - Your chat completion deployment name
 
@@ -735,11 +738,18 @@ examples/
 - Set the `OPENAI_API_KEY` environment variable, OR
 - Add `ApiKey` to `LlmProvider` section in `appsettings.json`
 
-**Error:** "Azure OpenAI requires ApiKey, Endpoint, and DeploymentName"
+**Error:** "Azure OpenAI requires an Endpoint"
 
 **Solution:**
-- Ensure all three required fields are set in configuration
-- Or set environment variables: `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT_NAME`
+- Ensure `Endpoint` (and `DeploymentName`) are set in configuration
+- Or set environment variables: `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT_NAME`
+- Authentication uses your `ApiKey` (or `AZURE_OPENAI_API_KEY`) when present, otherwise Entra ID via `DefaultAzureCredential`
+
+**Error:** "Azure OpenAI authentication failed: no Entra ID credential could be obtained from DefaultAzureCredential"
+
+**Solution:**
+- Provide an API key (`ApiKey` or `AZURE_OPENAI_API_KEY`), OR
+- Configure an Entra ID credential on the host: managed identity, workload identity, or run `az login`
 
 ### Connection Errors
 

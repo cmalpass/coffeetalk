@@ -16,4 +16,8 @@
     <PackageReference Include="PDFsharp" Version="6.2.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="CoffeeTalk.Tests" />
+  </ItemGroup>
+
 </Project>
