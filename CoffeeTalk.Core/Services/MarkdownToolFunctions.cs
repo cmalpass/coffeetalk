@@ -94,23 +94,69 @@ public class MarkdownToolFunctions
         [Description("Tool name, such as SetTitle or AppendParagraph")] string toolName,
         [Description("JSON object containing the tool arguments")] string argumentsJson)
     {
-        using var arguments = JsonDocument.Parse(argumentsJson);
-        return toolName switch
+        // Provider tool arguments are untrusted model output and may occasionally be malformed or
+        // missing required keys. Rather than throwing (which can abort the tool call / turn), we
+        // return a recoverable error string the model can read and react to, matching the
+        // fallback-tool pattern used by other markdown tools.
+        try
         {
-            "SetTitle" => SetTitle(arguments.RootElement.GetProperty("title").GetString() ?? string.Empty),
-            "AddHeading" => AddHeading(
-                arguments.RootElement.GetProperty("text").GetString() ?? string.Empty,
-                arguments.RootElement.TryGetProperty("level", out var level) ? level.GetInt32() : 2),
-            "AppendParagraph" => AppendParagraph(arguments.RootElement.GetProperty("text").GetString() ?? string.Empty),
-            "InsertAfterHeading" => InsertAfterHeading(
-                arguments.RootElement.GetProperty("headingText").GetString() ?? string.Empty,
-                arguments.RootElement.GetProperty("content").GetString() ?? string.Empty),
-            "ReplaceSection" => ReplaceSection(
-                arguments.RootElement.GetProperty("headingText").GetString() ?? string.Empty,
-                arguments.RootElement.GetProperty("content").GetString() ?? string.Empty),
-            "ListHeadings" => ListHeadings(),
-            _ => throw new ArgumentException($"Unsupported markdown tool: {toolName}", nameof(toolName))
-        };
+            using var arguments = JsonDocument.Parse(argumentsJson);
+            var root = arguments.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                return $"Error: invalid JSON arguments for tool '{toolName}': expected a JSON object";
+            }
+
+            return toolName switch
+            {
+                "SetTitle" => RequireString(root, "title", out var title)
+                    ? SetTitle(title)
+                    : $"Error: missing required argument 'title' for tool '{toolName}'",
+                "AddHeading" => RequireString(root, "text", out var text)
+                    ? AddHeading(text, ReadOptionalLevel(root))
+                    : $"Error: missing required argument 'text' for tool '{toolName}'",
+                "AppendParagraph" => RequireString(root, "text", out var paragraph)
+                    ? AppendParagraph(paragraph)
+                    : $"Error: missing required argument 'text' for tool '{toolName}'",
+                "InsertAfterHeading" => RequireTwoStrings(root, "headingText", "content", out var insertHeading, out var insertContent)
+                    ? InsertAfterHeading(insertHeading, insertContent)
+                    : $"Error: missing required arguments 'headingText' and 'content' for tool '{toolName}'",
+                "ReplaceSection" => RequireTwoStrings(root, "headingText", "content", out var sectionHeading, out var sectionContent)
+                    ? ReplaceSection(sectionHeading, sectionContent)
+                    : $"Error: missing required arguments 'headingText' and 'content' for tool '{toolName}'",
+                "ListHeadings" => ListHeadings(),
+                _ => $"Error: unsupported markdown tool: {toolName}"
+            };
+        }
+        catch (JsonException ex)
+        {
+            return $"Error: invalid JSON arguments for tool '{toolName}': {ex.Message}";
+        }
+    }
+
+    private static bool RequireString(JsonElement root, string name, out string value)
+    {
+        if (root.TryGetProperty(name, out var element) && element.ValueKind == JsonValueKind.String)
+        {
+            value = element.GetString() ?? string.Empty;
+            return true;
+        }
+        value = string.Empty;
+        return false;
+    }
+
+    private static bool RequireTwoStrings(JsonElement root, string firstName, string secondName, out string first, out string second)
+    {
+        first = string.Empty;
+        second = string.Empty;
+        return RequireString(root, firstName, out first) && RequireString(root, secondName, out second);
+    }
+
+    private static int ReadOptionalLevel(JsonElement root)
+    {
+        return root.TryGetProperty("level", out var level) && level.ValueKind == JsonValueKind.Number
+            ? level.GetInt32()
+            : 2;
     }
 
     private string ExecuteTool(string name, string? arguments, Action action)
