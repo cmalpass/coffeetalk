@@ -13,7 +13,9 @@ public enum OperationalEventKind
     RequestFallback,
     ToolStarted,
     ToolCompleted,
-    ToolFailed
+    ToolFailed,
+    DataExtractionRetry,
+    DataExtractionFailed
 }
 
 public sealed record OperationalEvent(
