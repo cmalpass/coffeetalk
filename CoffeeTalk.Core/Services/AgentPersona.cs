@@ -20,6 +20,7 @@ public class AgentPersona
     private readonly IRetryService _retryService;
     private readonly LlmProviderConfig _providerConfig;
     private readonly IOperationalEventSink _eventSink;
+    private readonly bool _includeThinkingInTelemetry;
 
     public string Name => _config.Name;
     public string SystemPrompt => _config.SystemPrompt;
@@ -35,7 +36,8 @@ public class AgentPersona
         IRetryService retryService,
         IReadOnlyCollection<string>? effectiveToolNames = null,
         LlmProviderConfig? providerConfig = null,
-        IOperationalEventSink? eventSink = null)
+        IOperationalEventSink? eventSink = null,
+        bool includeThinkingInTelemetry = false)
     {
         _agent = agent;
         _config = config;
@@ -46,6 +48,7 @@ public class AgentPersona
         _retryService = retryService;
         _providerConfig = providerConfig ?? new LlmProviderConfig();
         _eventSink = eventSink ?? NullOperationalEventSink.Instance;
+        _includeThinkingInTelemetry = includeThinkingInTelemetry;
         EffectiveToolNames = effectiveToolNames?.ToList() ?? [];
     }
 
@@ -75,7 +78,7 @@ public class AgentPersona
     public async Task<string> RespondAsync(string currentMessage, List<string> conversationHistory, CancellationToken cancellationToken = default)
     {
         var contextMessage = BuildContext(currentMessage, conversationHistory);
-        var telemetry = new RequestTelemetry(_eventSink, $"{Name} response", contextMessage);
+        var telemetry = new RequestTelemetry(_eventSink, $"{Name} response", contextMessage, _includeThinkingInTelemetry);
 
         // Throttle based on an estimated token count
         var estimatedTokens = _rateLimiter?.EstimateTokens(contextMessage) ?? 0;
@@ -135,7 +138,7 @@ public class AgentPersona
             Use CONSENSUS: NO if your expertise identifies a material unresolved issue.
             """,
             conversationHistory);
-        var telemetry = new RequestTelemetry(_eventSink, $"{Name} consensus check", contextMessage);
+        var telemetry = new RequestTelemetry(_eventSink, $"{Name} consensus check", contextMessage, _includeThinkingInTelemetry);
 
         try
         {
@@ -167,7 +170,7 @@ public class AgentPersona
         if (_rateLimiter != null)
             await _rateLimiter.ThrottleAsync(estimatedTokens, cancellationToken);
 
-        var telemetry = new RequestTelemetry(_eventSink, $"{Name} streaming response", contextMessage);
+        var telemetry = new RequestTelemetry(_eventSink, $"{Name} streaming response", contextMessage, _includeThinkingInTelemetry);
 
         if (!_providerConfig.StreamingEnabled || !SupportsStreaming())
         {

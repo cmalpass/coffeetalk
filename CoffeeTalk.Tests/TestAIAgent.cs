@@ -8,6 +8,7 @@ internal sealed class TestAIAgent : AIAgent
 {
     private readonly Func<AgentRunResponse> _response;
     private readonly IReadOnlyList<string> _streamingChunks;
+    private readonly IReadOnlyList<string> _reasoningChunks;
     private readonly Exception? _streamingException;
     private readonly bool _failBeforeStreamingOutput;
     public int Calls { get; private set; }
@@ -18,6 +19,7 @@ internal sealed class TestAIAgent : AIAgent
     {
         _response = response;
         _streamingChunks = [];
+        _reasoningChunks = [];
     }
 
     public TestAIAgent(string response)
@@ -29,10 +31,12 @@ internal sealed class TestAIAgent : AIAgent
         string response,
         IReadOnlyList<string> streamingChunks,
         Exception? streamingException = null,
-        bool failBeforeStreamingOutput = false)
+        bool failBeforeStreamingOutput = false,
+        IReadOnlyList<string>? reasoningChunks = null)
         : this(() => new AgentRunResponse(new ChatMessage(ChatRole.Assistant, response)))
     {
         _streamingChunks = streamingChunks;
+        _reasoningChunks = reasoningChunks ?? [];
         _streamingException = streamingException;
         _failBeforeStreamingOutput = failBeforeStreamingOutput;
     }
@@ -72,10 +76,15 @@ internal sealed class TestAIAgent : AIAgent
         if (_failBeforeStreamingOutput && _streamingException is not null)
             throw _streamingException;
 
+        var chunkIndex = 0;
         foreach (var chunk in _streamingChunks)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            yield return new AgentRunResponseUpdate(new ChatResponseUpdate(ChatRole.Assistant, chunk));
+            var contents = new List<AIContent> { new TextContent(chunk) };
+            if (_reasoningChunks.Count > 0)
+                contents.Add(new TextReasoningContent(_reasoningChunks[Math.Min(chunkIndex, _reasoningChunks.Count - 1)]));
+            yield return new AgentRunResponseUpdate(new ChatResponseUpdate(ChatRole.Assistant, contents));
+            chunkIndex++;
             await Task.Yield();
         }
 

@@ -11,18 +11,23 @@ internal sealed class RequestTelemetry
     private readonly string _requestId = Guid.NewGuid().ToString("N")[..8];
     private readonly string _operation;
     private readonly int _promptCharacters;
+    private readonly bool _includeThinkingContent;
     private int _outputCharacters;
+    private int _thinkingCharacters;
     private long? _firstTokenMilliseconds;
+    private long? _thinkingStartMilliseconds;
     private UsageDetails? _usage;
 
     public RequestTelemetry(
         IOperationalEventSink eventSink,
         string operation,
-        string prompt)
+        string prompt,
+        bool includeThinkingContent = false)
     {
         _eventSink = eventSink;
         _operation = operation;
         _promptCharacters = prompt.Length;
+        _includeThinkingContent = includeThinkingContent;
         _eventSink.Publish(new OperationalEvent(
             OperationalEventKind.RequestStarted,
             operation,
@@ -48,12 +53,21 @@ internal sealed class RequestTelemetry
         if (string.IsNullOrWhiteSpace(text))
             return;
 
+        _thinkingStartMilliseconds ??= _stopwatch.ElapsedMilliseconds;
+        _thinkingCharacters += text.Length;
+
+        var reasoning = _includeThinkingContent ? text.Trim() : null;
         _eventSink.Publish(new OperationalEvent(
             OperationalEventKind.RequestThinking,
             _operation,
-            Reason: $"request={_requestId}; {text.Trim()} ")
+            Reason: reasoning is null
+                ? $"request={_requestId}; thinking={text.Length} chars"
+                : $"request={_requestId}; thinking={text.Length} chars; {reasoning}")
         {
-            RequestId = _requestId
+            RequestId = _requestId,
+            ThinkingCharacters = _thinkingCharacters,
+            EstimatedThinkingTokens = EstimateTokens(_thinkingCharacters),
+            ThinkingDurationMilliseconds = _stopwatch.ElapsedMilliseconds - _thinkingStartMilliseconds.Value
         });
     }
 
@@ -70,6 +84,11 @@ internal sealed class RequestTelemetry
             EstimatedPromptTokens = EstimateTokens(_promptCharacters),
             OutputCharacters = _outputCharacters,
             EstimatedOutputTokens = EstimateTokens(_outputCharacters),
+            ThinkingCharacters = _thinkingCharacters,
+            EstimatedThinkingTokens = EstimateTokens(_thinkingCharacters),
+            ThinkingDurationMilliseconds = _thinkingStartMilliseconds is null
+                ? null
+                : _stopwatch.ElapsedMilliseconds - _thinkingStartMilliseconds.Value,
             InputTokens = _usage?.InputTokenCount,
             OutputTokens = _usage?.OutputTokenCount,
             TotalTokens = _usage?.TotalTokenCount,
@@ -83,13 +102,18 @@ internal sealed class RequestTelemetry
         _eventSink.Publish(new OperationalEvent(
             OperationalEventKind.RequestFailed,
             _operation,
-            Reason: $"request={_requestId}; {exception.Message}")
+            Reason: $"request={_requestId}; exception={exception.GetType().Name}")
         {
             RequestId = _requestId,
             PromptCharacters = _promptCharacters,
             EstimatedPromptTokens = EstimateTokens(_promptCharacters),
             OutputCharacters = _outputCharacters,
             EstimatedOutputTokens = EstimateTokens(_outputCharacters),
+            ThinkingCharacters = _thinkingCharacters,
+            EstimatedThinkingTokens = EstimateTokens(_thinkingCharacters),
+            ThinkingDurationMilliseconds = _thinkingStartMilliseconds is null
+                ? null
+                : _stopwatch.ElapsedMilliseconds - _thinkingStartMilliseconds.Value,
             InputTokens = _usage?.InputTokenCount,
             OutputTokens = _usage?.OutputTokenCount,
             TotalTokens = _usage?.TotalTokenCount,
@@ -104,13 +128,18 @@ internal sealed class RequestTelemetry
         _eventSink.Publish(new OperationalEvent(
             OperationalEventKind.RequestFallback,
             _operation,
-            Reason: $"request={_requestId}; {exception.Message}")
+            Reason: $"request={_requestId}; exception={exception.GetType().Name}")
         {
             RequestId = _requestId,
             PromptCharacters = _promptCharacters,
             EstimatedPromptTokens = EstimateTokens(_promptCharacters),
             OutputCharacters = _outputCharacters,
             EstimatedOutputTokens = EstimateTokens(_outputCharacters),
+            ThinkingCharacters = _thinkingCharacters,
+            EstimatedThinkingTokens = EstimateTokens(_thinkingCharacters),
+            ThinkingDurationMilliseconds = _thinkingStartMilliseconds is null
+                ? null
+                : _stopwatch.ElapsedMilliseconds - _thinkingStartMilliseconds.Value,
             DurationMilliseconds = _stopwatch.ElapsedMilliseconds,
             Exception = exception
         });
