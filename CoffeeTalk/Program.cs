@@ -50,6 +50,22 @@ sealed class Program
                         : ValidationResult.Success()));
 
             IUserInterface ui = new ConsoleUserInterface();
+
+            // Let Ctrl+C stop the conversation between turns instead of killing the process.
+            // The handler signals StopRequested and cancels the pipeline token; the loop
+            // observes StopRequested (and the token) and stops promptly between turns.
+            using var cancellation = new CancellationTokenSource();
+            Console.CancelKeyPress += (_, e) =>
+            {
+                if (ui is ConsoleUserInterface consoleUi)
+                {
+                    consoleUi.RequestStop();
+                }
+
+                cancellation.Cancel();
+                e.Cancel = true; // let the loop observe the cancellation and clean up
+            };
+
             var builder = new ConversationPipelineBuilder(dataPaths, eventSink);
             var pipeline = await AnsiConsole.Status()
                 .Spinner(Spinner.Known.Star)
@@ -57,11 +73,11 @@ sealed class Program
                     builder.BuildAsync(
                         settings,
                         topic,
-                        cancellationToken: default,
+                        cancellationToken: cancellation.Token,
                         notify: message => AnsiConsole.MarkupLine($"[green]{Markup.Escape(message)}[/]")));
 
             AnsiConsole.MarkupLine($"[bold]Personas:[/] {string.Join(", ", pipeline.Personas.Select(p => Markup.Escape(p.Name)))}\n");
-            await pipeline.CreateConversation(ui).StartConversationAsync(topic);
+            await pipeline.CreateConversation(ui).StartConversationAsync(topic, cancellation.Token);
             if (args.Contains("--save", StringComparer.OrdinalIgnoreCase))
             {
                 var consoleUi = (ConsoleUserInterface)ui;

@@ -9,7 +9,34 @@ namespace CoffeeTalk.Services
 {
     public class ConsoleUserInterface : IUserInterface
     {
-        public bool StopRequested => false;
+        private readonly object _sync = new();
+        private bool _stopRequested;
+
+        /// <summary>
+        /// True when the user has signaled that the conversation should stop.
+        ///
+        /// Polled between turns by the conversation loop. The console host (Program.cs)
+        /// sets <see cref="RequestStop()"/> from a Ctrl+C handler, and this getter also
+        /// opportunistically drains any pending 'q'/Esc keypress from stdin so a keystroke
+        /// typed between turns is honored. When stdin is redirected (non-interactive) the
+        /// keypress path is skipped entirely and only <see cref="RequestStop()"/> can stop.
+        /// </summary>
+        public bool StopRequested
+        {
+            get
+            {
+                if (!Console.IsInputRedirected)
+                {
+                    TryDrainStopKey();
+                }
+
+                lock (_sync)
+                {
+                    return _stopRequested;
+                }
+            }
+        }
+
         public ConversationTerminationReason TerminationReason { get; set; }
         public string? ConversationTopic { get; private set; }
         public IReadOnlyList<string> ConversationParticipants { get; private set; } = Array.Empty<string>();
@@ -79,6 +106,29 @@ namespace CoffeeTalk.Services
             return Task.CompletedTask;
         }
 
+        /// <summary>
+        /// Signal that the conversation should stop. Thread-safe; typically called from a
+        /// Ctrl+C (<see cref="Console.CancelKeyPress"/>) handler in the console host.
+        /// </summary>
+        public void RequestStop()
+        {
+            lock (_sync)
+            {
+                _stopRequested = true;
+            }
+        }
+
+        private void TryDrainStopKey()
+        {
+            while (Console.KeyAvailable)
+            {
+                if (ConsoleStopDecision.ShouldStop(Console.ReadKey(true)))
+                {
+                    RequestStop();
+                }
+            }
+        }
+
         public Task<(string Action, string Message)> GetUserInterventionAsync()
         {
             AnsiConsole.WriteLine();
@@ -142,6 +192,11 @@ namespace CoffeeTalk.Services
             AnsiConsole.MarkupLine($"\n[bold]🎯 Topic:[/] [cyan]{Markup.Escape(topic)}[/]\n");
             AnsiConsole.MarkupLine($"[bold]Participants:[/] {string.Join(", ", participants.Select(p => Markup.Escape(p)))}\n");
             AnsiConsole.MarkupLine($"[bold]Mode:[/] {mode}\n");
+
+            if (!Console.IsInputRedirected)
+            {
+                AnsiConsole.MarkupLine("[dim]Press 'q' or Ctrl+C between turns to stop the conversation.[/]");
+            }
 
             if (interactive)
             {

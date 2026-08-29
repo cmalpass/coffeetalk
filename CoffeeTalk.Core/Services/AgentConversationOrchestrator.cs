@@ -364,6 +364,7 @@ public class AgentConversationOrchestrator
             {
                 if (_ui.StopRequested)
                 {
+                    _ui.TerminationReason = ConversationTerminationReason.UserStopped;
                     return;
                 }
 
