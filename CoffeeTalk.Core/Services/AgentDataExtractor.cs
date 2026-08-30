@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Agents.AI;
 using CoffeeTalk.Core.Interfaces;
 using CoffeeTalk.Models;
@@ -55,36 +56,18 @@ Output Requirement:
 
     public async Task ExtractAndSaveAsync(List<string> conversationHistory, CancellationToken cancellationToken = default)
     {
-        // UI notification should be handled by the caller or injected UI, but for now we just process.
-        // Since we are moving this to Core, we remove AnsiConsole calls.
-        // In a real refactor, we would inject IUserInterface here as well, or return the result.
-        // For simplicity, we will just do the work and console output will be lost unless we inject UI.
-
-        // TODO: Inject IUserInterface if feedback is needed.
-        // For now, we assume this is a background task or the caller handles notifications.
-
         var historyText = string.Join("\n", conversationHistory.TakeLast(20)); // Last 20 messages
-        var docContent = _doc.GetContent();
-
-        var prompt = $@"
-Document Content:
-{docContent}
-
-Recent Conversation:
-{historyText}
-
-Based on the schema description '{_config.SchemaDescription}', extract the data into a JSON object.";
 
         try
         {
-            if (_rateLimiter != null)
-                await _rateLimiter.ThrottleAsync(_rateLimiter.EstimateTokens(prompt), cancellationToken);
-            var response = await _retryService.ExecuteAsync(
-                async cancellationToken => await _agent.RunAsync(prompt, cancellationToken: cancellationToken),
-                "Data extraction",
-                cancellationToken: cancellationToken);
+            var json = await ExtractValidatedJsonAsync(historyText, cancellationToken);
+            if (json is null)
+            {
+                // Malformed output exhausted the bounded retry budget; failure was surfaced via
+                // DataExtractionFailed and no corrupt data file was written.
+                return;
+            }
 
-            var json = CleanJson(response.ToString());
             _rateLimiter?.AccountAdditionalTokens(_rateLimiter.EstimateTokens(json));
 
             var outputPath = _paths.ResolveDataPath(_config.OutputFile, "data.json");
@@ -103,6 +86,88 @@ Based on the schema description '{_config.SchemaDescription}', extract the data 
             {
                 Exception = ex
             });
+        }
+    }
+
+    private async Task<string?> ExtractValidatedJsonAsync(string historyText, CancellationToken cancellationToken)
+    {
+        var docContent = _doc.GetContent();
+
+        var prompt = $@"
+Document Content:
+{docContent}
+
+Recent Conversation:
+{historyText}
+
+Based on the schema description '{_config.SchemaDescription}', extract the data into a JSON object.";
+
+        var maxAttempts = 2; // Initial + one bounded re-prompt on malformed output.
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (_rateLimiter != null)
+                await _rateLimiter.ThrottleAsync(_rateLimiter.EstimateTokens(prompt), cancellationToken);
+
+            var response = await _retryService.ExecuteAsync(
+                async cancellationToken => await _agent.RunAsync(prompt, cancellationToken: cancellationToken),
+                "Data extraction",
+                cancellationToken: cancellationToken);
+
+            var json = CleanJson(response.ToString());
+
+            if (IsValidJson(json))
+                return json;
+
+            if (attempt < maxAttempts - 1)
+            {
+                _eventSink.Publish(new OperationalEvent(
+                    OperationalEventKind.DataExtractionRetry,
+                    "Data extraction",
+                    attempt + 1,
+                    maxAttempts)
+                {
+                    Reason = "Malformed output is not valid JSON; re-prompting the model."
+                });
+
+                prompt = $@"
+Document Content:
+{docContent}
+
+Recent Conversation:
+{historyText}
+
+Based on the schema description '{_config.SchemaDescription}', extract the data into a JSON object.
+
+Your previous response was NOT valid JSON and was rejected. Return ONLY a single valid JSON object, with no markdown code fences and no additional text:";
+            }
+        }
+
+        // All bounded attempts produced malformed JSON. Do NOT write a corrupt file.
+        _eventSink.Publish(new OperationalEvent(
+            OperationalEventKind.DataExtractionFailed,
+            "Data extraction",
+            maxAttempts,
+            maxAttempts)
+        {
+            Reason = "Model repeatedly returned output that is not valid JSON; no data file was written."
+        });
+
+        return null;
+    }
+
+    private static bool IsValidJson(string value)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(value);
+            return document.RootElement.ValueKind == JsonValueKind.Object
+                || document.RootElement.ValueKind == JsonValueKind.Array;
+        }
+        catch (JsonException)
+        {
+            return false;
         }
     }
 

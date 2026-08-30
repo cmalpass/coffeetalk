@@ -39,7 +39,7 @@ internal sealed class ToolTelemetry
         _eventSink.Publish(new OperationalEvent(
             OperationalEventKind.ToolFailed,
             _operation,
-            Reason: $"tool={_requestId}; {exception.Message}")
+            Reason: $"tool={_requestId}; exception={exception.GetType().Name}")
         {
             RequestId = _requestId,
             ArgumentCharacters = _argumentCharacters,

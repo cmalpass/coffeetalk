@@ -232,8 +232,11 @@ the buffered path.
 - `AZURE_OPENAI_DEPLOYMENT_NAME`: Alternative to setting `DeploymentName`
 - `AZURE_OPENAI_CHAT_DEPLOYMENT_NAME`: Alternative deployment name variable
 
+**Authentication (API key or Entra ID):**
+- `ApiKey` - Your Azure OpenAI API key (either here or via `AZURE_OPENAI_API_KEY`)
+- If no API key is configured, CoffeeTalk authenticates with **Entra ID** via `DefaultAzureCredential` (managed identity, workload identity, or `az login`). This enables keyless Azure environments such as App Service, AKS, and function apps.
+
 **Required Fields:**
-- `ApiKey` - Your Azure OpenAI API key
 - `Endpoint` - Your Azure OpenAI resource endpoint
 - `DeploymentName` - Your chat completion deployment name
 
@@ -388,10 +391,16 @@ Configure request and token limits to manage API usage:
     "RequestsPerMinute": 30,
     "TokensPerMinute": 40000,
     "MaxRequestsPerConversation": 100,
-    "MaxTokensPerConversation": 150000
+    "MaxTokensPerConversation": 150000,
+    "MaxPerMinuteDelaySeconds": 30,
+    "JitterMaxMilliseconds": 500
   }
 }
 ```
+
+- **RequestsPerMinute** / **TokensPerMinute**: per-minute quotas. The boundary is inclusive, so the full configured quota is usable — the call that would exceed the quota waits.
+- **MaxPerMinuteDelaySeconds**: caps a single wait (default `30`) so the limiter never stalls a pipeline for the full remaining minute.
+- **JitterMaxMilliseconds** (optional, default `null` = off): adds bounded, wait-lengthening jitter to desynchronize concurrent callers. The cap remains an upper bound.
 
 ### Retry Configuration
 
@@ -738,11 +747,18 @@ examples/
 - Set the `OPENAI_API_KEY` environment variable, OR
 - Add `ApiKey` to `LlmProvider` section in `appsettings.json`
 
-**Error:** "Azure OpenAI requires ApiKey, Endpoint, and DeploymentName"
+**Error:** "Azure OpenAI requires an Endpoint"
 
 **Solution:**
-- Ensure all three required fields are set in configuration
-- Or set environment variables: `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT_NAME`
+- Ensure `Endpoint` (and `DeploymentName`) are set in configuration
+- Or set environment variables: `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT_NAME`
+- Authentication uses your `ApiKey` (or `AZURE_OPENAI_API_KEY`) when present, otherwise Entra ID via `DefaultAzureCredential`
+
+**Error:** "Azure OpenAI authentication failed: no Entra ID credential could be obtained from DefaultAzureCredential"
+
+**Solution:**
+- Provide an API key (`ApiKey` or `AZURE_OPENAI_API_KEY`), OR
+- Configure an Entra ID credential on the host: managed identity, workload identity, or run `az login`
 
 ### Connection Errors
 

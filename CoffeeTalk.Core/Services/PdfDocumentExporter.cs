@@ -13,11 +13,11 @@ public sealed class PdfDocumentExporter : IPdfDocumentExporter
         ArgumentNullException.ThrowIfNull(markdown);
         ArgumentException.ThrowIfNullOrWhiteSpace(outputPath);
         cancellationToken.ThrowIfCancellationRequested();
-        GlobalFontSettings.FontResolver ??= new SystemFontResolver();
+        GlobalFontSettings.FontResolver ??= CreateResolver();
 
         using var document = new PdfDocument();
-        var font = new XFont("Arial", 11);
-        var headingFont = new XFont("Arial", 16, XFontStyleEx.Bold);
+        var font = GetOrCreateFont(SystemFontResolver.DefaultFamilyName, XFontStyleEx.Regular, 11);
+        var headingFont = GetOrCreateFont(SystemFontResolver.DefaultFamilyName, XFontStyleEx.Bold, 16);
         var lines = markdown.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
         var lineIndex = 0;
         var pendingLines = new Queue<PendingLine>();
@@ -68,30 +68,32 @@ public sealed class PdfDocumentExporter : IPdfDocumentExporter
         return length > 0 && length < line.Length && line[length] == ' ' ? length : 0;
     }
 
-    private sealed class SystemFontResolver : IFontResolver
+    internal static SystemFontResolver CreateResolver() => new(SystemFontDiscovery.FindFontFileOrDefault());
+
+    private static readonly object TypefaceSync = new();
+    private static Dictionary<string, XFont>? ResolveTypefaceCache;
+
+    private static XFont GetOrCreateFont(string familyName, XFontStyleEx style, double size)
     {
-        private readonly string _fontPath = FindFontPath();
-
-        public static string DefaultFontName => "Arial";
-
-        public FontResolverInfo ResolveTypeface(string familyName, bool isBold, bool isItalic) =>
-            new("CoffeeTalkSystemFont");
-
-        public byte[] GetFont(string faceName) => File.ReadAllBytes(_fontPath);
-
-        private static string FindFontPath()
+        var cache = TypefaceCache();
+        lock (TypefaceSync)
         {
-            var candidates = new[]
+            var key = familyName + "\u0000" + (int)style + "\u0000" + size;
+            if (!cache.TryGetValue(key, out var font))
             {
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), "arial.ttf"),
-                "/System/Library/Fonts/Supplemental/Arial.ttf",
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf"
-            };
+                font = new XFont(familyName, size, style);
+                cache[key] = font;
+            }
 
-            return candidates.FirstOrDefault(File.Exists)
-                ?? throw new InvalidOperationException("No system TrueType font is available for PDF export.");
+            return font;
         }
+    }
+
+    private static Dictionary<string, XFont> TypefaceCache()
+    {
+        // Cache the mutable XFont dictionary statically so a singleton exporter (registered as a
+        // singleton in DI) reuses it across exports while remaining synchronized for concurrent use.
+        return ResolveTypefaceCache ??= new Dictionary<string, XFont>(StringComparer.Ordinal);
     }
 
     private static void DrawLine(

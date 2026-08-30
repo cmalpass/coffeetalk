@@ -16,6 +16,8 @@ public class AgentConversationOrchestrator
     private readonly bool _showThinking;
     private readonly AgentOrchestrator? _orchestrator;
     private readonly bool _useOrchestrator;
+    private readonly int _maxConsensusAttempts;
+    private readonly int _maxConsensusConcurrency;
     private readonly AgentEditor? _editor;
     private readonly int _editorInterventionFrequency;
     private readonly bool _interactiveMode;
@@ -48,6 +50,8 @@ public class AgentConversationOrchestrator
         _showThinking = settings.ShowThinking;
         _useOrchestrator = orchestrator != null;
         _orchestrator = orchestrator;
+        _maxConsensusAttempts = sanitize(settings.Orchestrator?.MaxConsensusAttempts, OrchestratorConfig.DefaultMaxConsensusAttempts);
+        _maxConsensusConcurrency = sanitize(settings.Orchestrator?.MaxConsensusConcurrency, OrchestratorConfig.DefaultMaxConsensusConcurrency);
         _editor = editor;
         _editorInterventionFrequency = settings.Editor?.InterventionFrequency ?? 3;
         _interactiveMode = settings.InteractiveMode;
@@ -57,6 +61,11 @@ public class AgentConversationOrchestrator
         _memoryExtractor = memoryExtractor;
         _memoryStore = memoryStore;
     }
+
+    // Config values are untrusted: clamp to a sane >= 1 bound so a misconfigured
+    // (zero/negative) setting cannot disable the consensus budget or concurrency.
+    private static int sanitize(int? configured, int fallback) =>
+        configured is > 0 ? configured.Value : fallback;
 
     public async Task StartConversationAsync(string topic, CancellationToken cancellationToken = default)
     {
@@ -127,7 +136,7 @@ public class AgentConversationOrchestrator
         int totalTurns = 0;
         int maxTotalTurns = _maxTurns * _personas.Count; // Total individual turns allowed
         int consensusAttempts = 0;
-        int maxConsensusAttempts = Math.Max(1, maxTotalTurns);
+        int maxConsensusAttempts = _maxConsensusAttempts;
         int failedAttempts = 0;
         var terminationReason = ConversationTerminationReason.TurnBudgetExhausted;
 
@@ -305,9 +314,12 @@ public class AgentConversationOrchestrator
         CancellationToken cancellationToken)
     {
         await _ui.SetStatusAsync("Personas are checking consensus...");
+        var personas = _personas.ToList();
+        using var semaphore = new SemaphoreSlim(_maxConsensusConcurrency);
         var assessments = await Task.WhenAll(
-            _personas.Select(async persona =>
+            personas.Select(async persona =>
             {
+                await semaphore.WaitAsync(cancellationToken);
                 try
                 {
                     var response = await persona.AssessConsensusAsync(
@@ -330,6 +342,10 @@ public class AgentConversationOrchestrator
                 catch (Exception ex)
                 {
                     return (persona.Name, Agrees: false, Reason: $"Consensus check failed: {ex.Message}");
+                }
+                finally
+                {
+                    semaphore.Release();
                 }
             }));
 
@@ -364,6 +380,7 @@ public class AgentConversationOrchestrator
             {
                 if (_ui.StopRequested)
                 {
+                    _ui.TerminationReason = ConversationTerminationReason.UserStopped;
                     return;
                 }
 

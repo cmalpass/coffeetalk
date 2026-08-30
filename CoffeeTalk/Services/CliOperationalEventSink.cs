@@ -19,6 +19,10 @@ public sealed class CliOperationalEventSink : IOperationalEventSink
                 $"{operationalEvent.Operation}: operation failed",
             OperationalEventKind.RequestFallback =>
                 $"{operationalEvent.Operation}: falling back to buffered response",
+            OperationalEventKind.DataExtractionRetry =>
+                $"{operationalEvent.Operation}: output was not valid JSON, re-prompting (attempt {operationalEvent.Attempt}/{operationalEvent.MaxRetries})",
+            OperationalEventKind.DataExtractionFailed =>
+                $"{operationalEvent.Operation}: failed — model output was not valid JSON, no data file was written",
             _ => operationalEvent.Operation
         };
 

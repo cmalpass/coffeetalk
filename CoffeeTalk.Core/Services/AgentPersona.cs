@@ -20,6 +20,7 @@ public class AgentPersona
     private readonly IRetryService _retryService;
     private readonly LlmProviderConfig _providerConfig;
     private readonly IOperationalEventSink _eventSink;
+    private readonly bool _includeThinkingInTelemetry;
 
     public string Name => _config.Name;
     public string SystemPrompt => _config.SystemPrompt;
@@ -35,7 +36,8 @@ public class AgentPersona
         IRetryService retryService,
         IReadOnlyCollection<string>? effectiveToolNames = null,
         LlmProviderConfig? providerConfig = null,
-        IOperationalEventSink? eventSink = null)
+        IOperationalEventSink? eventSink = null,
+        bool includeThinkingInTelemetry = false)
     {
         _agent = agent;
         _config = config;
@@ -46,6 +48,7 @@ public class AgentPersona
         _retryService = retryService;
         _providerConfig = providerConfig ?? new LlmProviderConfig();
         _eventSink = eventSink ?? NullOperationalEventSink.Instance;
+        _includeThinkingInTelemetry = includeThinkingInTelemetry;
         EffectiveToolNames = effectiveToolNames?.ToList() ?? [];
     }
 
@@ -75,7 +78,7 @@ public class AgentPersona
     public async Task<string> RespondAsync(string currentMessage, List<string> conversationHistory, CancellationToken cancellationToken = default)
     {
         var contextMessage = BuildContext(currentMessage, conversationHistory);
-        var telemetry = new RequestTelemetry(_eventSink, $"{Name} response", contextMessage);
+        var telemetry = new RequestTelemetry(_eventSink, $"{Name} response", contextMessage, _includeThinkingInTelemetry);
 
         // Throttle based on an estimated token count
         var estimatedTokens = _rateLimiter?.EstimateTokens(contextMessage) ?? 0;
@@ -85,7 +88,6 @@ public class AgentPersona
         }
 
         // Execute with retry logic for rate limiting (HTTP 429)
-        string responseText;
         try
         {
             var response = await _retryService.ExecuteAsync(
@@ -94,34 +96,29 @@ public class AgentPersona
                 $"{Name} response",
                 cancellationToken: cancellationToken,
                 beforeRetry: _rateLimiter is null ? null : token => _rateLimiter.ThrottleAsync(0, token));
-            responseText = response.ToString();
+            var responseText = response.ToString();
             telemetry.AppendOutput(responseText);
             telemetry.Complete(response.Usage);
+
+            // Account response tokens approximately
+            _rateLimiter?.AccountAdditionalTokens(_rateLimiter.EstimateTokens(responseText));
+
+            return responseText;
         }
         catch (OperationCanceledException)
         {
             throw;
         }
-        catch (TimeoutException)
-        {
-            telemetry.Fail(new TimeoutException("Operation timed out."));
-            responseText = $"Error: Operation timed out.";
-        }
-        catch (HttpRequestException)
-        {
-            telemetry.Fail(new HttpRequestException("Network error occurred."));
-            responseText = $"Error: Network error occurred.";
-        }
         catch (Exception ex) when (ex is not OutOfMemoryException && ex is not StackOverflowException)
         {
+            // Infrastructure failures (timeouts, transport errors, exhausted rate-limit retries)
+            // are rethrown (after being recorded in telemetry) so the orchestrator's failure
+            // handling can surface them and a fabricated "Error: ..." response is never appended
+            // to conversation history. This is consistent with AssessConsensusAsync and
+            // FallbackToBufferedAsync; cancellation is still rethrown above.
             telemetry.Fail(ex);
-            responseText = $"Error: An unexpected error occurred.";
+            throw;
         }
-
-        // Account response tokens approximately
-        _rateLimiter?.AccountAdditionalTokens(_rateLimiter.EstimateTokens(responseText));
-
-        return responseText;
     }
 
     public async Task<string> AssessConsensusAsync(
@@ -141,7 +138,7 @@ public class AgentPersona
             Use CONSENSUS: NO if your expertise identifies a material unresolved issue.
             """,
             conversationHistory);
-        var telemetry = new RequestTelemetry(_eventSink, $"{Name} consensus check", contextMessage);
+        var telemetry = new RequestTelemetry(_eventSink, $"{Name} consensus check", contextMessage, _includeThinkingInTelemetry);
 
         try
         {
@@ -173,7 +170,7 @@ public class AgentPersona
         if (_rateLimiter != null)
             await _rateLimiter.ThrottleAsync(estimatedTokens, cancellationToken);
 
-        var telemetry = new RequestTelemetry(_eventSink, $"{Name} streaming response", contextMessage);
+        var telemetry = new RequestTelemetry(_eventSink, $"{Name} streaming response", contextMessage, _includeThinkingInTelemetry);
 
         if (!_providerConfig.StreamingEnabled || !SupportsStreaming())
         {

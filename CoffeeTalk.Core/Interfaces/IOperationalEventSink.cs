@@ -13,7 +13,9 @@ public enum OperationalEventKind
     RequestFallback,
     ToolStarted,
     ToolCompleted,
-    ToolFailed
+    ToolFailed,
+    DataExtractionRetry,
+    DataExtractionFailed
 }
 
 public sealed record OperationalEvent(
@@ -36,6 +38,9 @@ public sealed record OperationalEvent(
     public long? TotalTokens { get; init; }
     public long? DurationMilliseconds { get; init; }
     public long? FirstTokenMilliseconds { get; init; }
+    public int? ThinkingCharacters { get; init; }
+    public int? EstimatedThinkingTokens { get; init; }
+    public long? ThinkingDurationMilliseconds { get; init; }
     public int? ArgumentCharacters { get; init; }
     public int? ResultCharacters { get; init; }
 }

@@ -65,7 +65,7 @@ public sealed partial class BlazorOperationalEventSink : IOperationalEventSink
             OperationalEventKind.RequestStarted =>
                 $"Started {operationalEvent.Operation} [{operationalEvent.RequestId}] — context ~{operationalEvent.EstimatedPromptTokens} tokens ({operationalEvent.PromptCharacters} chars).",
             OperationalEventKind.RequestThinking =>
-                $"Thinking {operationalEvent.Operation} [{operationalEvent.RequestId}]: {operationalEvent.Reason}",
+                $"Thinking {operationalEvent.Operation} [{operationalEvent.RequestId}] — {operationalEvent.ThinkingCharacters} chars, ~{FormatTokenCount(null, operationalEvent.EstimatedThinkingTokens)} ({FormatDuration(operationalEvent.ThinkingDurationMilliseconds)}).",
             OperationalEventKind.RequestCompleted =>
                 $"Completed {operationalEvent.Operation} [{operationalEvent.RequestId}] in {FormatDuration(operationalEvent.DurationMilliseconds)} — first output {FormatDuration(operationalEvent.FirstTokenMilliseconds)}, context {FormatTokenCount(operationalEvent.InputTokens, operationalEvent.EstimatedPromptTokens)} tokens, output {FormatTokenCount(operationalEvent.OutputTokens, operationalEvent.EstimatedOutputTokens)} tokens ({operationalEvent.OutputCharacters} chars), total {FormatTokenCount(operationalEvent.TotalTokens, null)}.",
             OperationalEventKind.RequestFailed =>
@@ -78,6 +78,10 @@ public sealed partial class BlazorOperationalEventSink : IOperationalEventSink
                 $"Tool completed {operationalEvent.Operation} [{operationalEvent.RequestId}] in {FormatDuration(operationalEvent.DurationMilliseconds)} — result {operationalEvent.ResultCharacters} chars.",
             OperationalEventKind.ToolFailed =>
                 $"Tool failed {operationalEvent.Operation} [{operationalEvent.RequestId}] after {FormatDuration(operationalEvent.DurationMilliseconds)} — {operationalEvent.Reason}",
+            OperationalEventKind.DataExtractionRetry =>
+                $"{operationalEvent.Operation} produced invalid JSON; re-prompting (attempt {operationalEvent.Attempt}/{operationalEvent.MaxRetries}).",
+            OperationalEventKind.DataExtractionFailed =>
+                $"{operationalEvent.Operation} failed — the model output was not valid JSON and no data file was written.",
             _ => throw new ArgumentOutOfRangeException(nameof(operationalEvent), operationalEvent.Kind, "Unknown operational event kind.")
         };
 

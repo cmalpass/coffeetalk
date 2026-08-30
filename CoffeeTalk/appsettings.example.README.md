@@ -58,10 +58,12 @@ Automatic document quality maintenance:
 
 ### RateLimit
 Control API usage and costs:
-- **RequestsPerMinute**: Throttle request frequency
-- **TokensPerMinute**: Throttle token usage
+- **RequestsPerMinute**: Throttle request frequency. Boundary is inclusive, so the full quota is usable.
+- **TokensPerMinute**: Throttle token usage. Boundary is inclusive, so the full quota is usable.
 - **MaxRequestsPerConversation**: Total request cap
 - **MaxTokensPerConversation**: Total token cap
+- **MaxPerMinuteDelaySeconds**: Cap on a single wait (default `30`)
+- **JitterMaxMilliseconds**: Optional bounded jitter (default `null` = off)
 
 ### Retry
 Handle rate limit errors automatically:
