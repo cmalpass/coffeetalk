@@ -31,7 +31,7 @@ public sealed class RetryService : IRetryService
             {
                 return await operation(cancellationToken);
             }
-            catch (HttpRequestException ex) when (IsRateLimitHttpException(ex))
+            catch (HttpRequestException ex) when (IsTransientHttpException(ex))
             {
                 if (!RegisterRetry(operationName, ref retryCount, delaySeconds))
                 {
@@ -41,7 +41,7 @@ public sealed class RetryService : IRetryService
                 if (beforeRetry is not null)
                     await beforeRetry(cancellationToken);
                 await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
-                delaySeconds = (int)(delaySeconds * _config.BackoffMultiplier);
+                delaySeconds = NextDelaySeconds(delaySeconds);
             }
             catch (Exception ex) when (IsRateLimitException(ex))
             {
@@ -53,9 +53,29 @@ public sealed class RetryService : IRetryService
                 if (beforeRetry is not null)
                     await beforeRetry(cancellationToken);
                 await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
-                delaySeconds = (int)(delaySeconds * _config.BackoffMultiplier);
+                delaySeconds = NextDelaySeconds(delaySeconds);
             }
         }
+    }
+
+    /// <summary>
+    /// Computes the next backoff delay in seconds after a retry, applying the configured
+    /// multiplier and capping the result at MaxDelaySeconds. Overflow is avoided by
+    /// computing the product in <see cref="double"/> and clamping to an <see cref="int"/>.
+    /// </summary>
+    private int NextDelaySeconds(int delaySeconds)
+    {
+        var next = delaySeconds * _config.BackoffMultiplier;
+
+        if (double.IsInfinity(next) || next > int.MaxValue)
+            return _config.MaxDelaySeconds > 0 ? _config.MaxDelaySeconds : int.MaxValue;
+
+        var rounded = (int)Math.Round(next, MidpointRounding.AwayFromZero);
+
+        if (_config.MaxDelaySeconds > 0 && rounded > _config.MaxDelaySeconds)
+            return _config.MaxDelaySeconds;
+
+        return rounded;
     }
 
     private bool RegisterRetry(string operationName, ref int retryCount, int delaySeconds)
@@ -81,8 +101,26 @@ public sealed class RetryService : IRetryService
         return true;
     }
 
-    private static bool IsRateLimitHttpException(HttpRequestException ex) =>
-        ex.StatusCode == HttpStatusCode.TooManyRequests;
+    /// <summary>
+    /// Returns true for statuses that are safe to retry: 429 (rate limit), 408 (request
+    /// timeout), and 5xx server errors.
+    /// </summary>
+    private static bool IsRetryableStatusCode(HttpStatusCode statusCode)
+    {
+        int code = (int)statusCode;
+        return code == 429 ||
+               code == 408 ||
+               (code >= 500 && code <= 599);
+    }
+
+    private static bool IsTransientHttpException(HttpRequestException ex)
+    {
+        if (ex.StatusCode is not null)
+            return IsRetryableStatusCode(ex.StatusCode.Value);
+
+        // No status code: a transient network-level failure (connection refused/reset, DNS, etc.).
+        return true;
+    }
 
     private static bool IsRateLimitException(Exception ex)
     {

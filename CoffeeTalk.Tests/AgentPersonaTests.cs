@@ -68,7 +68,8 @@ public sealed class AgentPersonaTests
             new CollaborativeMarkdownDocument(),
             null,
             maxTurns: 2,
-            agentCount: 1);
+            agentCount: 1,
+            retryService: new RetryService(new RetryConfig { InitialDelaySeconds = 0 }));
 
         await Assert.ThrowsAsync<HttpRequestException>(
             () => persona.AssessConsensusAsync("CONCLUDE", new List<string>()));

@@ -13,7 +13,7 @@ CoffeeTalk is a .NET 9 application for orchestrating multi-persona LLM conversat
 - **Collaborative Document Creation**: Personas work together to create a shared markdown document using tool calling
 - **Editor Agent**: Automatic document refinement to maintain quality, conciseness, and professional structure
 - **Rate Limiting**: Configure request and token limits to manage API usage
-- **Retry Handling**: Automatic retry with exponential backoff for API rate limits (HTTP 429)
+- **Retry Handling**: Automatic retry with exponential backoff for transient failures (rate limits, 5xx server errors, network errors)
 - **Flexible Conversation Modes**: Choose between orchestrated (AI-directed) or round-robin (sequential) conversation flow
 - **Built on Microsoft Agent Framework**: Leverages Microsoft's Agent Framework for robust agentic AI integration
 - **Stateless Agent Context**: Personas and the orchestrator receive explicitly reconstructed, bounded prompts; provider-managed thread state is not retained
@@ -404,24 +404,26 @@ Configure request and token limits to manage API usage:
 
 ### Retry Configuration
 
-Configure automatic retry behavior for HTTP 429 (rate limit) errors:
+Configure automatic retry behavior for transient failures — HTTP 429 (rate limit), 408 (request timeout), 5xx server errors, and transient network errors (an `HttpRequestException` without a status code):
 
 ```json
 {
   "Retry": {
     "InitialDelaySeconds": 30,
     "MaxRetries": 5,
-    "BackoffMultiplier": 2.0
+    "BackoffMultiplier": 2.0,
+    "MaxDelaySeconds": 600
   }
 }
 ```
 
-When a rate limit (HTTP 429) is encountered:
+When a transient failure is encountered:
 - **InitialDelaySeconds**: First retry waits this many seconds (default: 30)
 - **MaxRetries**: Maximum number of retry attempts (default: 5)
 - **BackoffMultiplier**: Each retry multiplies the delay by this factor (default: 2.0)
+- **MaxDelaySeconds**: Maximum backoff delay per retry, in seconds (default: 600). If set to 0 or negative, the backoff is not explicitly capped but remains overflow-safe.
 
-Example retry sequence with defaults:
+Example retry sequence with defaults (until the delay would reach the 600s cap):
 1. Initial failure → wait 30s
 2. Retry 1 fails → wait 60s
 3. Retry 2 fails → wait 120s
@@ -610,7 +612,8 @@ Here's a fully configured example using all available features:
   "Retry": {
     "InitialDelaySeconds": 30,
     "MaxRetries": 5,
-    "BackoffMultiplier": 2.0
+    "BackoffMultiplier": 2.0,
+    "MaxDelaySeconds": 600
   },
   "Tools": {
     "EnableFallbackJsonTools": true,
@@ -790,7 +793,7 @@ examples/
 
 ### Rate Limit Errors
 
-**Error:** HTTP 429 errors or "Rate limit exceeded"
+**Error:** HTTP 429 errors, "Rate limit exceeded", 5xx server errors, or transient network failures
 
 **Solution:**
 - The retry handler should automatically handle these
