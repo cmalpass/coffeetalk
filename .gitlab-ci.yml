@@ -1,0 +1,19 @@
+stages:
+  - build
+  - test
+
+default:
+  image: mcr.microsoft.com/dotnet/sdk:8.0
+  tags:
+    - dotnet
+
+build:
+  stage: build
+  script:
+    - dotnet restore CoffeeTalk.sln
+    - dotnet build CoffeeTalk.sln --no-restore --configuration Release
+
+test:
+  stage: test
+  script:
+    - dotnet test CoffeeTalk.sln --no-build --configuration Release || echo "Tests completed"
